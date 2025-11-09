@@ -239,7 +239,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         field_name=field_name,
                         value=cleaned_value,
                         confidence=confidence,
-                        method='rule-based-label',
+                        method='rule_based',
                         metadata={
                             'extraction_type': 'label-based',
                             'label': label,
@@ -317,7 +317,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         field_name=field_name,
                         value=cleaned_value,
                         confidence=confidence,
-                        method='rule-based',
+                        method='rule_based',
                         metadata={
                             'regex_pattern': regex_pattern,
                             'search_area': {'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1},
@@ -582,7 +582,7 @@ class PositionExtractionStrategy(ExtractionStrategy):
                     field_name=field_name,
                     value=value,
                     confidence=confidence,
-                    method='position-based',
+                    method='position_based',
                     metadata={
                         'marker_position': {'x1': marker_x1, 'y0': marker_y0, 'y1': marker_y1},
                         'value_position': first_word_pos,
@@ -719,8 +719,12 @@ class CRFExtractionStrategy(ExtractionStrategy):
             locations = get_field_locations(field_config)
             context = locations[0].get('context', {}) if locations else {}
             
-            # Prepare features for the model (with context)
-            features = self._extract_features(all_words, field_name, field_config, context)
+            # ✅ FIELD-AWARE: Prepare features with target field indicator
+            # This tells the model which field we're looking for
+            features = self._extract_features(
+                all_words, field_name, field_config, context,
+                target_field=field_name  # ✅ NEW: Pass target field
+            )
             
             # Predict using CRF model
             predictions = self.model.predict([features])[0]
@@ -757,7 +761,7 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     field_name=field_name,
                     value=value,
                     confidence=avg_confidence,
-                    method='crf-model',
+                    method='crf',
                     metadata={
                         'model_path': self.model_path,
                         'token_count': len(extracted_tokens),
@@ -765,8 +769,23 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     }
                 )
             
-            # No tokens found - this is normal if field wasn't in training data
-            self.logger.debug(f"⚠️ CRF: No tokens found for '{field_name}' (field may not be in training data)")
+            # ✅ DETAILED LOGGING: Why CRF returned None
+            print(f"⚠️ [CRF] No tokens found for '{field_name}'")
+            print(f"   Looking for: {target_label}, {inside_label}")
+            print(f"   Total predictions: {len(predictions)}")
+            print(f"   Unique labels predicted: {set(predictions)}")
+            
+            # Count how many times target field was predicted (even if not selected)
+            target_count = sum(1 for p in predictions if field_name.upper() in p)
+            if target_count > 0:
+                print(f"   ⚠️ Model predicted {target_count} tokens with '{field_name.upper()}' but none matched B-/I- pattern!")
+                # Show sample predictions with indices
+                related_preds = [(i, all_words[i]['text'], p) for i, p in enumerate(predictions) if field_name.upper() in p and i < len(all_words)]
+                print(f"   Sample predictions: {related_preds[:5]}")
+            else:
+                print(f"   ℹ️ Model did not predict any tokens for this field")
+            
+            self.logger.debug(f"⚠️ CRF: No tokens found for '{field_name}' (predicted {target_count} related tokens)")
             return None
             
         except Exception as e:
@@ -778,11 +797,19 @@ class CRFExtractionStrategy(ExtractionStrategy):
         words: List[Dict], 
         field_name: str,
         field_config: Dict,
-        context: Dict
+        context: Dict,
+        target_field: str = None  # ✅ NEW: Target field for field-aware features
     ) -> List[Dict[str, Any]]:
         """
         Extract features from words for CRF model with context information
         MUST match exactly with AdaptiveLearner._extract_word_features!
+        
+        Args:
+            words: List of word dictionaries
+            field_name: Name of the field being extracted
+            field_config: Field configuration
+            context: Context information (label, position, etc.)
+            target_field: Target field name for field-aware features
         """
         features = []
         
@@ -928,6 +955,16 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 1 for w in words[:i] 
                 if abs(w.get('top', 0) - word_y) < 5
             )
+            
+            # ✅ CRITICAL: Add field-aware feature for target field
+            # This tells the model which field we're currently extracting
+            # During training: all fields in document have this feature set to True
+            # During inference: only the target field has this feature set to True
+            if target_field:
+                word_features[f'target_field_{target_field}'] = True
+                # Debug: Log first word to verify feature is added
+                if i == 0:
+                    print(f"🔍 [CRF] Added field-aware feature: target_field_{target_field}=True")
             
             features.append(word_features)
         

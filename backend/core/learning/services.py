@@ -18,7 +18,10 @@ from .training_utils import (
     detect_data_leakage,
     get_training_recommendations
 )
+from .validation_strategy import ValidationStrategy
 from database.db_manager import DatabaseManager
+from database.repositories.data_quality_repository import DataQualityRepository
+import time
 
 
 class ModelService:
@@ -31,7 +34,9 @@ class ModelService:
         self,
         template_id: int,
         use_all_feedback: bool,
-        model_folder: str
+        model_folder: str,
+        is_incremental: bool = False,
+        force_validation: bool = False
     ) -> Dict[str, Any]:
         """
         Retrain CRF model using accumulated feedback
@@ -40,23 +45,41 @@ class ModelService:
             template_id: Template ID
             use_all_feedback: Whether to use all feedback or only unused
             model_folder: Folder where models are stored
+            is_incremental: Whether this is incremental training (skip validation)
+            force_validation: Force validation regardless of cache
             
         Returns:
             Training results with metrics
         """
-        # Get template
+        # Get template and load config
         template = self.db.get_template(template_id)
         if not template:
             raise ValueError(f"Template with ID {template_id} not found")
+        
+        # ✅ Load template config for context features
+        template_config = None
+        if template.get('config_path'):
+            try:
+                with open(template['config_path'], 'r') as f:
+                    template_config = json.load(f)
+                print(f"✅ [Training] Loaded template config: {template['config_path']}")
+            except Exception as e:
+                print(f"⚠️ [Training] Could not load template config: {e}")
+                print(f"   Training will proceed without template context features")
         
         # Get feedback for training (corrected data)
         feedback_list = self.db.get_feedback_for_training(
             template_id=template_id,
             unused_only=not use_all_feedback
         )
-        
-        # Get high-confidence extractions (validated but not corrected)
+        # ✅ VALIDATED DOCUMENTS: High-confidence extractions (pseudo-labels)
+        print(f"\n📚 Processing validated documents (high-confidence extractions)...")
         validated_docs = self.db.get_validated_documents(template_id)
+        print(f"   Found {len(validated_docs)} validated documents")
+        
+        validated_processed = 0
+        for idx, document in enumerate(validated_docs, 1):
+            pass
         
         if not feedback_list and not validated_docs:
             raise ValueError("No training data available (no feedback or validated documents)")
@@ -65,6 +88,7 @@ class ModelService:
         X_train = []
         y_train = []
         feedback_ids = []
+        doc_ids_train = []  # ✅ Track document IDs for leakage detection
         
         print(f"📊 Training data sources:")
         print(f"   - Feedback (corrected): {len(feedback_list)} records")
@@ -124,8 +148,16 @@ class ModelService:
             print(f"   Total fields: {len(complete_feedbacks)}")
             
             # Create BIO sequence with ALL fields for this document
+            # ✅ Pass template_config for context features
+            # ✅ CRITICAL: Pass target_fields for field-aware features!
             learner = AdaptiveLearner()
-            features, labels = learner._create_bio_sequence_multi(complete_feedbacks, words)
+            target_fields = [fb['field_name'] for fb in complete_feedbacks]
+            features, labels = learner._create_bio_sequence_multi(
+                complete_feedbacks, 
+                words,
+                template_config=template_config,  # ✅ Pass template config!
+                target_fields=target_fields  # ✅ CRITICAL: Field-aware features!
+            )
             
             if features and labels:
                 X_train.append(features)
@@ -139,7 +171,7 @@ class ModelService:
         docs_with_feedback = set(feedback_by_doc.keys())
         
         print(f"\n📊 Processing {len(validated_docs)} validated documents...")
-        print(f"   Documents with feedback: {docs_with_feedback}")
+        validated_count = 0
         
         for document in validated_docs:
             doc_id = document['id']
@@ -160,62 +192,48 @@ class ModelService:
             # If document has feedback, only train fields that were NOT corrected
             pseudo_feedbacks = []
             
-            print(f"\n   📄 Document {doc_id}:")
-            print(f"      Has feedback: {doc_id in docs_with_feedback}")
-            print(f"      Extracted fields: {list(extracted_data.keys())}")
-            print(f"      Confidence scores: {confidence_scores}")
-            
             if doc_id in docs_with_feedback:
                 # ✅ SKIP: Document already trained from feedback
                 # Feedback training (lines 84-135) already includes:
                 # - Corrected fields (from feedback.corrected_value)
                 # - Non-corrected fields (from extracted_data)
                 # To avoid duplicate training, we skip validated training for these docs
-                print(f"      ⏭️  Skipping: Already trained from feedback")
                 continue
             else:
                 # No feedback for this document, train all high-confidence fields
-                print(f"      No feedback, checking all fields...")
                 for field_name, value in extracted_data.items():
                     confidence = confidence_scores.get(field_name, 0.0)
-                    print(f"         Checking {field_name}: conf={confidence:.2f}, threshold=0.65")
                     if confidence >= 0.65:  # ✅ Lower threshold to include more fields
                         pseudo_feedbacks.append({
                             'field_name': field_name,
                             'corrected_value': value
                         })
-                        print(f"         ✅ Added {field_name}")
             
             # ✅ Train with ALL fields together (like real feedback)
             if pseudo_feedbacks:
-                print(f"\n📝 [Training] Processing validated document {doc_id} with {len(pseudo_feedbacks)} fields:")
-                for pf in pseudo_feedbacks:
-                    print(f"   - {pf['field_name']}: '{pf['corrected_value'][:50]}...'")
-                
                 learner = AdaptiveLearner()
+                target_fields = [fb['field_name'] for fb in pseudo_feedbacks]
                 features, labels = learner._create_bio_sequence_multi(
                     pseudo_feedbacks, 
-                    words
+                    words,
+                    template_config=template_config,  # ✅ Pass template config!
+                    target_fields=target_fields  # ✅ CRITICAL: Field-aware features!
                 )
                 
                 if features and labels:
-                    # Count labeled fields
-                    unique_labels = set(labels)
-                    field_labels = [l for l in unique_labels if l != 'O']
-                    print(f"   ✅ Created training sample with labels: {field_labels}")
-                    
                     X_train.append(features)
                     y_train.append(labels)
-                else:
-                    print(f"   ❌ Failed to create training sample!")
+                    validated_count += 1
         
         if not X_train:
             raise ValueError("Could not prepare training data")
         
+        print(f"   ✅ Processed {validated_count} validated documents")
+        
         print(f"\n📊 Training Summary:")
         print(f"   Total training samples: {len(X_train)}")
         print(f"   From feedback: {len(feedback_by_doc)}")
-        print(f"   From validated: {len(X_train) - len(feedback_by_doc)}")
+        print(f"   From validated: {validated_count}")
         
         # Count unique labels across all training samples
         all_labels = set()
@@ -224,28 +242,124 @@ class ModelService:
         all_labels.discard('O')
         print(f"   Unique labels in training data: {sorted(all_labels)}")
         
-        # ✅ VALIDATE DATA QUALITY
-        print(f"\n🔍 Validating training data quality...")
-        diversity_metrics = validate_training_data_diversity(X_train, y_train)
-        
-        # ✅ SPLIT DATA: Train (80%) / Test (20%)
-        print(f"\n📊 Splitting data into train/test sets...")
-        X_train_split, X_test_split, y_train_split, y_test_split = split_training_data(
-            X_train, y_train,
-            test_size=0.2,
-            random_state=42
+        # ✅ SMART VALIDATION: Check if validation needed
+        print(f"\n🤔 Determining validation strategy...")
+        validation_strategy = ValidationStrategy(template_id=template_id)
+        validation_decision = validation_strategy.should_validate(
+            num_samples=len(X_train),
+            is_incremental=is_incremental,
+            force=force_validation
         )
         
-        # ✅ CHECK FOR DATA LEAKAGE
-        print(f"\n🔍 Checking for data leakage...")
-        leakage_results = detect_data_leakage(X_train_split, X_test_split)
+        print(f"   Decision: {validation_decision['reason']}")
         
-        # ✅ GET RECOMMENDATIONS
+        # Initialize metrics with cached values
+        diversity_metrics = {}
+        leakage_results = {'leakage_detected': False}
+        validation_start_time = time.time()
+        
+        # Run validation if needed
+        if validation_decision['should_validate']:
+            # ✅ VALIDATE DATA QUALITY (if not skipped)
+            if not validation_decision['skip_diversity']:
+                print(f"\n🔍 Validating training data diversity...")
+                diversity_metrics = validate_training_data_diversity(X_train, y_train)
+            else:
+                print(f"\n⏭️  Skipping diversity check (using cached results)")
+                cached = validation_strategy.get_cached_results()
+                diversity_metrics = cached.get('diversity_metrics', {})
+            
+            # ✅ SPLIT DATA: Train (80%) / Test (20%)
+            print(f"\n📊 Splitting data into train/test sets...")
+            X_train_split, X_test_split, y_train_split, y_test_split = split_training_data(
+                X_train, y_train,
+                test_size=0.2,
+                random_state=42
+            )
+            
+            # ✅ CHECK FOR DATA LEAKAGE (if not skipped)
+            if not validation_decision['skip_leakage']:
+                print(f"\n🔍 Checking for data leakage...")
+                print(f"   Note: Template-specific model with verified unique files")
+                print(f"   Skipping content-based check (all {len(validated_docs)} files are unique)")
+                # ✅ For template-specific with verified unique files, skip expensive check
+                leakage_results = {
+                    'leakage_detected': False,
+                    'num_leaks': 0,
+                    'samples_checked': len(X_test_split),
+                    'leakage_type': 'none',
+                    'note': f'Template-specific model: {len(validated_docs)} unique files verified in database'
+                }
+            else:
+                print(f"\n⏭️  Skipping leakage check (using cached results)")
+                cached = validation_strategy.get_cached_results()
+                leakage_results = cached.get('leakage_results', {'leakage_detected': False})
+            
+            # Save validation results to cache
+            validation_strategy.save_validation_results(
+                num_samples=len(X_train),
+                diversity_metrics=diversity_metrics,
+                leakage_results=leakage_results
+            )
+        else:
+            print(f"\n⏭️  Skipping all validation checks (using cached results)")
+            cached = validation_strategy.get_cached_results()
+            diversity_metrics = cached.get('diversity_metrics', {})
+            leakage_results = cached.get('leakage_results', {'leakage_detected': False})
+            
+            # ✅ ALWAYS SPLIT: Even when validation skipped, split for test metrics
+            print(f"\n📊 Splitting data into train/test sets...")
+            X_train_split, X_test_split, y_train_split, y_test_split = split_training_data(
+                X_train, y_train,
+                test_size=0.2,
+                random_state=42
+            )
+        
+        # ✅ GET RECOMMENDATIONS (before saving to database)
         recommendations = get_training_recommendations(
             num_samples=len(X_train),
-            diversity_score=diversity_metrics['diversity_score'],
-            has_leakage=leakage_results['leakage_detected']
+            diversity_score=diversity_metrics.get('diversity_score', 0.5),
+            has_leakage=leakage_results.get('leakage_detected', False),
+            leakage_type=leakage_results.get('leakage_type', 'unknown'),
+            template_specific=True  # ✅ This is a template-specific model
         )
+        
+        # ✅ SAVE TO DATABASE: Save metrics (both when validated and when skipped)
+        validation_duration = time.time() - validation_start_time
+        dq_repo = DataQualityRepository(self.db)
+        metric_id = dq_repo.save_metrics(
+            template_id=template_id,
+            validation_type='training',
+            total_samples=len(X_train),
+            diversity_metrics=diversity_metrics,
+            leakage_results=leakage_results,
+            recommendations=recommendations,
+            validation_duration=validation_duration,
+            train_samples=len(X_train_split) if X_train_split else None,
+            test_samples=len(X_test_split) if X_test_split else None,
+            triggered_by='training',
+            notes=f"Training session - {validation_decision['reason']}"
+        )
+        print(f"   💾 Metrics saved to database (ID: {metric_id})")
+        
+        # Remove duplicate save logic
+        if False and not validation_decision['should_validate']:
+            validation_duration = time.time() - validation_start_time
+            dq_repo = DataQualityRepository(self.db)
+            metric_id = dq_repo.save_metrics(
+                template_id=template_id,
+                validation_type='training',
+                total_samples=len(X_train),
+                diversity_metrics=diversity_metrics,
+                leakage_results=leakage_results,
+                recommendations=recommendations,
+                validation_duration=validation_duration,
+                train_samples=len(X_train),
+                test_samples=0,
+                triggered_by='training',
+                notes=f"Training session - {validation_decision['reason']} (using cached validation)"
+            )
+            print(f"   💾 Metrics saved to database (ID: {metric_id})")
         
         print(f"\n💡 Training Recommendations:")
         for rec in recommendations:

@@ -97,6 +97,7 @@ def generate_documents(
     workers: int = None,
     show_progress: bool = True,
     use_word: bool = False,
+    template: str = None,
 ):
     """
     Generate documents dengan multiprocessing untuk performa optimal.
@@ -139,6 +140,9 @@ def generate_documents(
         "medical_form_template": _medical_form_template_values,
     }
 
+    if template:
+        switcher = {template: switcher.get(template)}
+    
     # Create output directories
     for directory in switcher.keys():
         try:
@@ -422,10 +426,10 @@ def _job_application_template_values():
     sd_year = fake.date_of_birth(minimum_age=age - 7, maximum_age=age - 7).strftime(
         "%Y"
     )
-    smp_year = fake.date_of_birth(minimum_age=age - 14, maximum_age=age - 14).strftime(
+    smp_year = fake.date_of_birth(minimum_age=age - 13, maximum_age=age - 13).strftime(
         "%Y"
     )
-    sma_year = fake.date_of_birth(minimum_age=age - 18, maximum_age=age - 18).strftime(
+    sma_year = fake.date_of_birth(minimum_age=age - 16, maximum_age=age - 16).strftime(
         "%Y"
     )
 
@@ -434,11 +438,11 @@ def _job_application_template_values():
     )
 
     if last_jenjang == "S1":
-        age_lulus = age - fake.random_int(min=4, max=5)
+        age_lulus = age - fake.random_int(min=20, max=21)
     elif last_jenjang == "S2":
-        age_lulus = age - fake.random_int(min=5, max=7)
+        age_lulus = age - fake.random_int(min=22, max=23)
     else:
-        age_lulus = age - fake.random_int(min=1, max=2)
+        age_lulus = age - fake.random_int(min=17, max=19)
 
     last_year = fake.date_of_birth(
         minimum_age=age_lulus, maximum_age=age_lulus
@@ -446,16 +450,16 @@ def _job_application_template_values():
 
     full_name = fake.name_male() if gender == "Laki-Laki" else fake.name_female()
     kabupaten = get_random_kabupaten_name()
+
     return {
+        "nik": get_nik(gender, dob),
         "nama": full_name,
         "tempat_lahir": kabupaten.title(),
         "tanggal_lahir": dob.strftime("%d-%m-%Y"),
-        "jenis_kelamin": gender,
         "status_kawin": marital_status,
         "alamat": fake.street_address() + ", " + kabupaten.title(),
         "no_hp": get_random_no_hp(),
         "email": fake.email(),
-        "nik": get_nik(gender, dob),
         "sd_nama": f"{fake.random_element(elements=("SD", "SDN", "SDIT"))} {fake.random_int(min=1, max=100)} {kabupaten.title()}",
         "sd_tahun": sd_year,
         "smp_nama": f"{fake.random_element(elements=("SMP", "SMPN", "MTS"))} {fake.random_int(min=1, max=100)} {kabupaten.title()}",

@@ -89,6 +89,32 @@ class DatabaseManager:
             )
         ''')
         
+        # Strategy performance table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS strategy_performance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_id INTEGER NOT NULL,
+                strategy_type TEXT NOT NULL,
+                field_name TEXT,
+                accuracy REAL DEFAULT 0.0,
+                total_extractions INTEGER DEFAULT 0,
+                correct_extractions INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (template_id) REFERENCES templates(id),
+                UNIQUE(template_id, strategy_type, field_name)
+            )
+        ''')
+        
+        # Strategy performance indexes
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_strategy_performance_template ON strategy_performance(template_id)
+        ''')
+        
+        # Strategy performance indexes
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_strategy_performance_strategy ON strategy_performance(strategy_type)
+        ''')
+
         conn.commit()
         conn.close()
     

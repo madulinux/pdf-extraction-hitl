@@ -29,8 +29,23 @@ class DataExtractor:
         
         print(f"🔍 [DataExtractor] Initialized with model_path: {model_path}")
         
-        # Initialize hybrid strategy
-        self.hybrid_strategy = HybridExtractionStrategy()
+        # Initialize database connection
+        from database.db_manager import DatabaseManager
+        template_id = template_config.get('template_id', 0)
+        db = DatabaseManager() if template_id > 0 else None
+        
+        # Initialize hybrid strategy with database connection
+        self.hybrid_strategy = HybridExtractionStrategy(db=db)
+        
+        # Initialize post-processor (adaptive, learns from feedback)
+        from core.extraction.post_processor import AdaptivePostProcessor
+        
+        try:
+            self.post_processor = AdaptivePostProcessor(template_id, db)
+        except Exception as e:
+            print(f"⚠️ Post-processor initialization failed: {e}")
+            print(f"   Continuing without post-processing...")
+            self.post_processor = None
     
     def extract(self, pdf_path: str) -> Dict[str, Any]:
         """
@@ -57,6 +72,15 @@ class DataExtractor:
             model_path=self.model_path
         )
         
+        # Apply post-processing (adaptive cleaning based on learned patterns)
+        if self.post_processor:
+            # ✅ CRITICAL: Reload patterns before processing to get latest learned patterns
+            self.post_processor.reload_patterns()
+            print(f"🧹 [DataExtractor] Applying adaptive post-processing...")
+            results = self.post_processor.process_results(results)
+        else:
+            print(f"⚠️ [DataExtractor] Post-processing skipped (not initialized)")
+        
         # Ensure backward compatibility with old format
         # Old format used 'extraction_method' (singular)
         # New format uses 'extraction_methods' (plural)
@@ -79,11 +103,23 @@ class DataExtractor:
         """
         template_id = self.config.get('template_id', 0)
         
+        # 1. Hybrid strategy learning (strategy weights, performance tracking)
         self.hybrid_strategy.learn_from_feedback(
             template_id=template_id,
             extraction_results=extraction_results,
             corrections=corrections
         )
+        
+        # 2. Post-processor learning (cleaning patterns)
+        if self.post_processor:
+            try:
+                self.post_processor.learn_from_feedback(
+                    extraction_results=extraction_results,
+                    corrections=corrections
+                )
+                print(f"✅ Post-processor learned from {len(corrections)} corrections")
+            except Exception as e:
+                print(f"⚠️ Post-processor learning failed: {e}")
     
     def get_performance_metrics(self) -> Dict[str, Any]:
         """

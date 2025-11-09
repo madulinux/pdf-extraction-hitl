@@ -40,27 +40,27 @@ logger = logging.getLogger(__name__)
 TEMPLATE_CONFIGS = {
     'certificate_template': {
         'name': 'Sertifikat Pelatihan',
-        'default_count': 100,
+        'default_count': 10,
         'priority': 1
     },
     'invoice_template': {
         'name': 'Invoice',
-        'default_count': 100,
+        'default_count': 10,
         'priority': 2
     },
     'contract_template': {
         'name': 'Kontrak Kerja',
-        'default_count': 100,
+        'default_count': 10,
         'priority': 3
     },
     'job_application_template': {
         'name': 'Lamaran Kerja',
-        'default_count': 100,
+        'default_count': 10,
         'priority': 4
     },
     'medical_form_template': {
         'name': 'Form Medis',
-        'default_count': 100,
+        'default_count': 10,
         'priority': 5
     }
 }
@@ -92,7 +92,8 @@ class BatchSeeder:
         cmd = [
             'python', 'main.py', 'generate-documents',
             '--count', str(count),
-            '--workers', '4'
+            '--workers', '4',
+            '--template', template_type
         ]
         
         if use_word:
@@ -228,8 +229,11 @@ class BatchSeeder:
             logger.info("-" * 70)
             
             logger.info(f"\nTotal fields evaluated: {total_fields}")
-            logger.info(f"Correct: {correct_fields} ({correct_fields/total_fields*100:.1f}%)")
-            logger.info(f"Incorrect: {total_fields - correct_fields} ({(total_fields-correct_fields)/total_fields*100:.1f}%)")
+            if total_fields > 0:
+                logger.info(f"Correct: {correct_fields} ({correct_fields/total_fields*100:.1f}%)")
+                logger.info(f"Incorrect: {total_fields - correct_fields} ({(total_fields-correct_fields)/total_fields*100:.1f}%)")
+            else:
+                logger.info(f"⚠️ No fields extracted")
         
         if failed:
             logger.info(f"\n❌ Failed templates:")

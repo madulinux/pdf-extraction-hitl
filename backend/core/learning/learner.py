@@ -29,9 +29,9 @@ class AdaptiveLearner:
             # Initialize new CRF model with improved hyperparameters
             self.model = sklearn_crfsuite.CRF(
                 algorithm='lbfgs',
-                c1=0.05,              # ✅ Stronger L1 regularization (feature selection)
-                c2=0.15,              # ✅ Stronger L2 regularization (prevent overfitting)
-                max_iterations=200,   # ✅ More training iterations for convergence
+                c1=0.1,               # ✅ L1 regularization (feature selection)
+                c2=0.2,               # ✅ L2 regularization (prevent overfitting)
+                max_iterations=300,   # ✅ More iterations for better convergence
                 all_possible_transitions=True,
                 verbose=False
             )
@@ -59,8 +59,13 @@ class AdaptiveLearner:
         
         return X_train, y_train
     
-    def _create_bio_sequence_multi(self, feedbacks: List[Dict[str, Any]], 
-                                   words: List[Dict]) -> Tuple[List[Dict], List[str]]:
+    def _create_bio_sequence_multi(
+        self, 
+        feedbacks: List[Dict[str, Any]], 
+        words: List[Dict],
+        template_config: Dict = None,  # ✅ NEW: Accept template config
+        target_fields: List[str] = None  # ✅ NEW: Target fields for field-aware features
+    ) -> Tuple[List[Dict], List[str]]:
         """
         Create BIO-tagged sequence from multiple feedbacks (for one document)
         Uses sequence matching for accurate BIO tagging
@@ -68,6 +73,8 @@ class AdaptiveLearner:
         Args:
             feedbacks: List of feedback dictionaries with corrected values
             words: List of word dictionaries from PDF
+            template_config: Template configuration with field locations/contexts
+            target_fields: List of field names to add field-aware features (for training)
             
         Returns:
             Tuple of (features, labels)
@@ -75,9 +82,38 @@ class AdaptiveLearner:
         features = []
         labels = ['O'] * len(words)  # Initialize all as 'O'
         
-        # Extract features for all words first
+        # ✅ NEW: Build field context map from template config
+        field_contexts = {}
+        if template_config:
+            fields = template_config.get('fields', {})
+            for field_name, field_config in fields.items():
+                locations = field_config.get('locations', [])
+                if locations:
+                    # Use first location's context (most common case)
+                    field_contexts[field_name] = locations[0].get('context', {})
+        
+        # ✅ NEW: Collect all target fields from feedbacks
+        if target_fields is None:
+            target_fields = [fb['field_name'] for fb in feedbacks]
+        
+        # Extract features for all words with context
         for i, word in enumerate(words):
-            word_features = self._extract_word_features(word, words, i)
+            # ✅ NEW: Get context for this word based on its position
+            context = self._get_context_for_word(word, field_contexts)
+            
+            word_features = self._extract_word_features(
+                word, words, i,
+                context=context  # ✅ NEW: Pass context!
+            )
+            
+            # ✅ CRITICAL: Add field-aware features for ALL target fields
+            # This helps model learn which words belong to which fields
+            for field_name in target_fields:
+                # Add binary feature indicating if this field is "active"
+                # During training: all fields in document are "active"
+                # During inference: only target field is "active"
+                word_features[f'target_field_{field_name}'] = True
+            
             features.append(word_features)
         
         # Find and label sequences for each feedback
@@ -133,26 +169,29 @@ class AdaptiveLearner:
                         print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (case-insensitive match at position {i})")
                         break
             
-            # ✅ Strategy 3: Substring match (for partial matches)
+            # ✅ Strategy 3: Fuzzy match (for spacing/punctuation differences)
             if not found:
-                # Try to find as a single concatenated string (handles spacing issues)
-                corrected_concat = ''.join(corrected_tokens).lower()
+                # Try to find with flexible spacing/punctuation
+                import re
+                # Remove punctuation and extra spaces from corrected value
+                corrected_clean = re.sub(r'[^\w\s]', '', corrected_value).lower()
+                corrected_tokens_clean = corrected_clean.split()
                 
-                for i in range(len(word_texts)):
-                    # Try different window sizes
-                    for window_size in range(len(corrected_tokens), min(len(corrected_tokens) + 3, len(word_texts) - i + 1)):
-                        window_concat = ''.join(word_texts[i:i+window_size]).lower()
-                        
-                        if corrected_concat in window_concat or window_concat in corrected_concat:
-                            # Found partial match
-                            labels[i] = f'B-{field_name.upper()}'
-                            for j in range(1, window_size):
-                                if i + j < len(labels):
-                                    labels[i + j] = f'I-{field_name.upper()}'
-                            found = True
-                            print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (substring match at position {i}, window={window_size})")
-                            break
-                    if found:
+                # Only try exact window size (no expansion)
+                window_size = len(corrected_tokens)
+                
+                for i in range(len(word_texts) - window_size + 1):
+                    window_words = word_texts[i:i+window_size]
+                    window_clean = re.sub(r'[^\w\s]', '', ' '.join(window_words)).lower()
+                    window_tokens_clean = window_clean.split()
+                    
+                    # Check if tokens match (ignoring punctuation)
+                    if corrected_tokens_clean == window_tokens_clean:
+                        labels[i] = f'B-{field_name.upper()}'
+                        for j in range(1, window_size):
+                            labels[i + j] = f'I-{field_name.upper()}'
+                        found = True
+                        print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i})")
                         break
             
             if not found:
@@ -289,6 +328,12 @@ class AdaptiveLearner:
             'is_before_punctuation': False,
             'is_after_newline': False,
             'position_in_line': 0,
+            
+            # ✅ NEW: Field length indicators (pattern-based)
+            'is_short_field': len(text) <= 5,  # Likely age, temp, etc.
+            'is_medium_field': 5 < len(text) <= 20,  # Likely name, date
+            'is_long_field': len(text) > 20,  # Likely address, text
+            'word_count_in_sequence': 1,  # Will be updated based on position
         }
         
         # ✅ NEW: Context features (label, distance, spatial)
@@ -415,6 +460,51 @@ class AdaptiveLearner:
         )
         
         return features
+    
+    def _get_context_for_word(self, word: Dict, field_contexts: Dict[str, Dict]) -> Dict:
+        """
+        Get the most relevant context for a word based on its position
+        
+        Args:
+            word: Word dictionary with position info
+            field_contexts: Map of field_name -> context dict
+            
+        Returns:
+            Context dict (label, label_position, etc.) or empty dict
+        """
+        if not field_contexts:
+            return {}
+        
+        word_x = word.get('x0', 0)
+        word_y = word.get('top', 0)
+        
+        # Find closest context based on spatial proximity
+        best_context = {}
+        min_distance = float('inf')
+        
+        for field_name, context in field_contexts.items():
+            label_pos = context.get('label_position', {})
+            if not label_pos:
+                continue
+            
+            # Calculate distance from word to label
+            label_x = label_pos.get('x1', 0)  # Right edge of label
+            label_y = label_pos.get('y0', 0)  # Top of label
+            
+            # Horizontal distance (word should be after label)
+            dx = word_x - label_x
+            dy = abs(word_y - label_y)
+            
+            # Only consider words that are after the label (dx > 0)
+            # and on the same line or nearby (dy < 50)
+            if dx > 0 and dy < 50:
+                distance = (dx**2 + dy**2)**0.5
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    best_context = context
+        
+        return best_context
     
     def train(self, X_train: List[List[Dict]], y_train: List[List[str]]) -> Dict[str, float]:
         """

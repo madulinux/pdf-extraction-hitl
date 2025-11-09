@@ -38,4 +38,4 @@ example-code/
 # OS
 .DS_Store
 Thumbs.db
-*.md
+*.models

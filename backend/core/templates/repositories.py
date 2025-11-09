@@ -36,6 +36,34 @@ class TemplateRepository:
         conn.close()
         
         return template_id
+
+    def find_by_name(self, template_name: str) -> Optional[Template]:
+        """Find template by name"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, filename, config_path, field_count, created_at, updated_at, status
+            FROM templates
+            WHERE name = ?
+        ''', (template_name,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return Template(
+            id=row['id'],
+            name=row['name'],
+            filename=row['filename'],
+            config_path=row['config_path'],
+            field_count=row['field_count'],
+            status=row['status'],
+            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+        )
     
     def find_by_id(self, template_id: int) -> Optional[Template]:
         """Find template by ID"""

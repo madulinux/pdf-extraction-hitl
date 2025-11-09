@@ -115,6 +115,52 @@ class TemplateService:
         
         return result
     
+    
+    def check_template(self, template_name: str) -> Optional[Dict]:
+        """
+        Check template by name
+        
+        Args:
+            template_name: Template name
+            
+        Returns:
+            Template data with config or None if not found
+        """
+        template = self.repository.find_by_name(template_name)
+        
+        if not template:
+            return None
+        
+        result = template.to_dict()
+        
+        
+        return {
+            'template_id': result['id'],
+            'template_name': result['name'],
+            'filename': result['filename'],
+            'field_count': result['field_count'],
+            'config': result['config_path']
+        }
+    
+    def get_by_name(self, template_name: str) -> Optional[Dict]:
+        """
+        Get template by name
+        
+        Args:
+            template_name: Template name
+            
+        Returns:
+            Template data with config or None if not found
+        """
+        template = self.repository.find_by_name(template_name)
+        
+        if not template:
+            return None
+        
+        result = template.to_dict()
+        
+        return result
+
     def delete(self, template_id: int) -> bool:
         """
         Delete template

@@ -10,6 +10,7 @@ Follows best practices:
 """
 from flask import Flask
 from flask_cors import CORS
+from flasgger import Swagger
 import os
 
 # Import configuration
@@ -22,6 +23,8 @@ from api.v1.extraction import extraction_bp as extraction_v1_bp
 from api.v1.learning import learning_bp
 from api.v1.patterns import patterns_bp as patterns_v1_bp
 from api.v1.preview import preview_bp as preview_v1_bp
+from api.v1.data_quality import data_quality_bp
+from api.v1.strategy_performance import strategy_performance_bp
 
 # Import utilities
 from utils.response import APIResponse
@@ -38,6 +41,58 @@ def create_app(config_name=None):
     
     # Initialize CORS
     CORS(app, origins=config_class.CORS_ORIGINS)
+    
+    # Initialize Swagger/OpenAPI documentation
+    swagger_config = {
+        "headers": [],
+        "specs": [
+            {
+                "endpoint": 'apispec',
+                "route": '/apispec.json',
+                "rule_filter": lambda rule: True,
+                "model_filter": lambda tag: True,
+            }
+        ],
+        "static_url_path": "/flasgger_static",
+        "swagger_ui": True,
+        "specs_route": "/api/docs"
+    }
+    
+    swagger_template = {
+        "swagger": "2.0",
+        "info": {
+            "title": "Adaptive PDF Data Extraction API",
+            "description": "REST API for adaptive PDF data extraction system with Human-in-the-Loop learning",
+            "version": "1.0.0",
+            "contact": {
+                "name": "API Support",
+                "email": "support@example.com"
+            }
+        },
+        "host": "localhost:8000",
+        "basePath": "/",
+        "schemes": ["http", "https"],
+        "securityDefinitions": {
+            "Bearer": {
+                "type": "apiKey",
+                "name": "Authorization",
+                "in": "header",
+                "description": "JWT Authorization header using the Bearer scheme. Example: 'Authorization: Bearer {token}'"
+            }
+        },
+        "tags": [
+            {"name": "Auth", "description": "Authentication endpoints"},
+            {"name": "Templates", "description": "Template management"},
+            {"name": "Extraction", "description": "Document extraction"},
+            {"name": "Learning", "description": "Model training and learning"},
+            {"name": "Patterns", "description": "Pattern management"},
+            {"name": "Preview", "description": "Document preview"},
+            {"name": "Data Quality", "description": "Data quality metrics"},
+            {"name": "Strategy Performance", "description": "Extraction strategy performance tracking"}
+        ]
+    }
+    
+    Swagger(app, config=swagger_config, template=swagger_template)
     
     # Register blueprints
     register_blueprints(app)
@@ -56,6 +111,8 @@ def register_blueprints(app):
     app.register_blueprint(learning_bp)
     app.register_blueprint(patterns_v1_bp)
     app.register_blueprint(preview_v1_bp)
+    app.register_blueprint(data_quality_bp)
+    app.register_blueprint(strategy_performance_bp)
 
 def register_error_handlers(app):
     """Register global error handlers"""

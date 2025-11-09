@@ -96,6 +96,24 @@ def list_templates():
         meta={'count': len(templates)}
     )
 
+@templates_bp.route('/check/<template_name>', methods=['GET'])
+@handle_errors
+@require_auth
+def check_template(template_name):
+    """
+    Check if template exists
+    
+    Returns:
+        200: List of templates
+        401: Unauthorized
+    """
+    service = get_template_service()
+    templates = service.check_template(template_name)
+    
+    return APIResponse.success(
+        data=templates,
+        message="Templates retrieved successfully",
+    )
 
 @templates_bp.route('/<int:template_id>', methods=['GET'])
 @handle_errors

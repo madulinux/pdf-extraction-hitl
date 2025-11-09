@@ -393,7 +393,21 @@ class HybridExtractionStrategy:
             return None
         
         if len(valid_results) == 1:
-            return valid_results[0][1]
+            strategy_type, field_value = valid_results[0]
+            self.logger.info(f"  ✅ Only one valid strategy: {strategy_type.value}")
+            
+            # ✅ FIX: Add all_strategies_attempted even for single strategy
+            field_value.metadata['all_strategies_attempted'] = {
+                st.value: {
+                    'success': fv is not None,
+                    'confidence': fv.confidence if fv else 0.0,
+                    'value': fv.value if fv else None
+                }
+                for st, fv in strategy_results.items()
+            }
+            field_value.metadata['selected_by'] = 'single_valid_strategy'
+            
+            return field_value
         
         # Score each result
         scored_results = []
