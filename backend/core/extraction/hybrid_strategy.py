@@ -29,7 +29,51 @@ class StrategyType(Enum):
     RULE_BASED = "rule_based"
     POSITION_BASED = "position_based"
     CRF = "crf"
-    HYBRID = "hybrid"
+    
+    @staticmethod
+    def normalize(method: str) -> str:
+        """
+        Normalize strategy type to standard enum value
+        
+        Handles legacy/variant naming:
+        - 'crf-model' → 'crf'
+        - 'rule-based' → 'rule_based'
+        - 'rule-based-label' → 'rule_based'
+        - 'position-based' → 'position_based'
+        
+        Args:
+            method: Strategy method name (can be variant)
+            
+        Returns:
+            Normalized strategy type matching enum value
+        """
+        if not method:
+            return "rule_based"  # Default fallback
+        
+        method_lower = method.lower().strip()
+        
+        # CRF variants
+        if 'crf' in method_lower:
+            return StrategyType.CRF.value
+        
+        # Rule-based variants
+        if 'rule' in method_lower:
+            return StrategyType.RULE_BASED.value
+        
+        # Position-based variants
+        if 'position' in method_lower:
+            return StrategyType.POSITION_BASED.value
+        
+        # If already normalized, return as-is
+        try:
+            for st in StrategyType:
+                if method_lower == st.value:
+                    return st.value
+        except:
+            pass
+        
+        # Fallback to rule_based
+        return StrategyType.RULE_BASED.value
 
 
 @dataclass
@@ -67,8 +111,23 @@ class HybridExtractionStrategy:
     4. Continuous improvement from feedback
     """
     
-    def __init__(self, performance_file: Optional[str] = None):
+    # ✅ CONFIG: Adaptive threshold configuration
+    CONFIDENCE_THRESHOLDS = {
+        'high_performance': {'min_accuracy': 0.7, 'min_attempts': 10, 'threshold': 0.3},
+        'medium_performance': {'min_accuracy': 0.5, 'min_attempts': 5, 'threshold': 0.4},
+        'low_performance': {'min_accuracy': 0.0, 'min_attempts': 0, 'threshold': 0.5}
+    }
+    
+    # ✅ CONFIG: Adaptive weighting configuration
+    SCORING_WEIGHTS = {
+        'proven': {'min_attempts': 10, 'confidence': 0.15, 'strategy': 0.05, 'performance': 0.80},
+        'established': {'min_attempts': 5, 'confidence': 0.20, 'strategy': 0.10, 'performance': 0.70},
+        'new': {'min_attempts': 0, 'confidence': 0.35, 'strategy': 0.25, 'performance': 0.40}
+    }
+    
+    def __init__(self, performance_file: Optional[str] = None, db = None):
         self.logger = logging.getLogger(__name__)
+        self.db = db  # ✅ Store database connection for performance queries
         
         # Initialize strategies
         self.rule_based_strategy = RuleBasedExtractionStrategy()
@@ -115,8 +174,11 @@ class HybridExtractionStrategy:
             if os.path.exists(model_path):
                 print(f"✅ [HybridStrategy] Model file exists: {model_path}")
                 self.crf_strategy = CRFExtractionStrategy(model_path)
-                self.strategy_weights[StrategyType.CRF] = 0.7  # High weight for trained model
-                print(f"✅ [HybridStrategy] CRF strategy initialized with weight 0.7")
+                
+                # ✅ ADAPTIVE: Set initial weight based on historical performance
+                crf_weight = self._get_adaptive_crf_weight(template_id)
+                self.strategy_weights[StrategyType.CRF] = crf_weight
+                print(f"✅ [HybridStrategy] CRF strategy initialized with adaptive weight {crf_weight:.2f}")
             else:
                 print(f"❌ [HybridStrategy] Model file NOT found: {model_path}")
         else:
@@ -138,7 +200,8 @@ class HybridExtractionStrategy:
                 'pdf_path': pdf_path,
                 'template_id': template_id,
                 'template_name': template_name,
-                'strategies_used': []
+                'strategies_used': [],
+                'all_strategies_attempted': []  # ✅ Track ALL strategies (for performance tracking)
             }
         }
         
@@ -158,7 +221,7 @@ class HybridExtractionStrategy:
                 
                 # Add to strategies_used
                 strategy_info = {
-                    'field': field_name,
+                    'field_name': field_name,  # ✅ Fixed: use 'field_name' not 'field'
                     'method': extraction_result['method'],
                     'confidence': extraction_result['confidence']
                 }
@@ -172,6 +235,10 @@ class HybridExtractionStrategy:
                         strategy_info['page'] = metadata['page']
                     if 'label' in metadata:
                         strategy_info['label'] = metadata['label']
+                    
+                    # ✅ CRITICAL: Copy all_strategies_attempted for performance tracking
+                    if 'all_strategies_attempted' in metadata:
+                        strategy_info['all_strategies_attempted'] = metadata['all_strategies_attempted']
                 
                 results['metadata']['strategies_used'].append(strategy_info)
                 
@@ -266,7 +333,8 @@ class HybridExtractionStrategy:
         # This ensures CRF and other strategies are also used for multi-location fields
         for location_idx, location in enumerate(locations):
             # Create temporary field config with single location
-            temp_field_config = {**field_config, 'location': location}
+            temp_field_config = field_config.copy()
+            temp_field_config['locations'] = [location]
             
             # Extract using all strategies
             strategy_results = self._extract_field_with_strategies(
@@ -355,21 +423,24 @@ class HybridExtractionStrategy:
                 self.logger.error(f"Position-based extraction failed: {e}")
                 results[StrategyType.POSITION_BASED] = None
         
-        # Try CRF if model available
+        # ✅ CRITICAL: Always try CRF if model available (for performance tracking)
         if self.crf_strategy:
             self.logger.debug(f"  🤖 Trying CRF strategy for '{field_name}'...")
             try:
                 crf_result = self.crf_strategy.extract(pdf_path, field_config, all_words)
+                # ✅ ALWAYS store result (even if None) for performance tracking
                 results[StrategyType.CRF] = crf_result
                 if crf_result:
-                    self.logger.info(f"  ✅ CRF: {crf_result.value[:50]}... (conf: {crf_result.confidence})")
+                    self.logger.info(f"  ✅ CRF: {crf_result.value[:50]}... (conf: {crf_result.confidence:.4f})")
                 else:
-                    self.logger.warning(f"  ⚠️ CRF returned None for '{field_name}'")
+                    # ✅ Log when CRF returns None (important for debugging)
+                    self.logger.warning(f"  ⚠️ CRF returned None for '{field_name}' - model may not have learned this field yet")
             except Exception as e:
-                self.logger.error(f"CRF extraction failed for '{field_name}': {e}")
+                self.logger.error(f"  ❌ CRF extraction failed for '{field_name}': {e}")
+                # ✅ Store None to track failure in performance
                 results[StrategyType.CRF] = None
         else:
-            self.logger.debug(f"  ⚠️ CRF strategy not available for '{field_name}'")
+            self.logger.debug(f"  ⚠️ CRF strategy not available (model not loaded)")
         
         return results
     
@@ -387,9 +458,39 @@ class HybridExtractionStrategy:
         - Strategy weight: 30%
         - Historical performance: 30%
         """
-        valid_results = [(st, fv) for st, fv in strategy_results.items() if fv is not None]
+        # ✅ ADAPTIVE CONFIDENCE THRESHOLD
+        # Filter results based on adaptive minimum confidence
+        # Lower threshold for strategies with proven track record
+        field_performance = self._get_field_performance_from_db(context.template_id, field_name)
+        
+        valid_results = []
+        for st, fv in strategy_results.items():
+            if fv is None:
+                continue
+            
+            # Get historical performance for this strategy
+            perf_data = field_performance.get(st.value, {'accuracy': 0.5, 'attempts': 0})
+            hist_accuracy = perf_data.get('accuracy', 0.5) if isinstance(perf_data, dict) else perf_data
+            hist_attempts = perf_data.get('attempts', 0) if isinstance(perf_data, dict) else 0
+            
+            # ✅ ADAPTIVE THRESHOLD based on historical performance (CONFIG-DRIVEN)
+            min_confidence = self._get_confidence_threshold(hist_accuracy, hist_attempts)
+            
+            # Accept result if confidence meets adaptive threshold
+            if fv.confidence >= min_confidence:
+                valid_results.append((st, fv))
+                self.logger.debug(
+                    f"  ✅ {st.value}: conf={fv.confidence:.2f} >= threshold={min_confidence:.2f} "
+                    f"(hist_acc={hist_accuracy:.2f}, attempts={hist_attempts})"
+                )
+            else:
+                self.logger.debug(
+                    f"  ❌ {st.value}: conf={fv.confidence:.2f} < threshold={min_confidence:.2f} "
+                    f"(rejected due to low confidence)"
+                )
         
         if not valid_results:
+            self.logger.warning(f"  ⚠️ No strategies met confidence threshold for '{field_name}'")
             return None
         
         if len(valid_results) == 1:
@@ -411,48 +512,80 @@ class HybridExtractionStrategy:
         
         # Score each result
         scored_results = []
+        
+        # ✅ NEW: Log scoring details for debugging
+        self.logger.info(f"\n🎯 Scoring {len(valid_results)} strategies for field '{field_name}':")
+        
+        # ✅ Load performance from DATABASE (not JSON file)
+        field_performance = self._get_field_performance_from_db(context.template_id, field_name)
+        
         for strategy_type, field_value in valid_results:
             # Get strategy weight
             strategy_weight = self.strategy_weights.get(strategy_type, 0.5)
             
-            # Get historical performance
-            hist_perf = context.historical_performance.get(strategy_type.value, {})
-            performance_score = hist_perf.get('accuracy', 0.5) if hist_perf else 0.5
+            # ✅ Get historical performance from DATABASE for this specific field
+            perf_data = field_performance.get(strategy_type.value, {'accuracy': 0.5, 'attempts': 0})
             
-            # Combined score
+            # Extract accuracy and attempts
+            if isinstance(perf_data, dict):
+                performance_score = perf_data.get('accuracy', 0.5)
+                attempts = perf_data.get('attempts', 0)
+            else:
+                # Backward compatibility: if perf_data is just a number
+                performance_score = perf_data
+                attempts = 0
+            
+            # ✅ ADAPTIVE WEIGHTING based on data availability (CONFIG-DRIVEN)
+            weights = self._get_scoring_weights(attempts)
+            
+            # Combined score (ADAPTIVE FORMULA)
             combined_score = (
-                field_value.confidence * 0.4 +
-                strategy_weight * 0.3 +
-                performance_score * 0.3
+                field_value.confidence * weights['confidence'] +
+                strategy_weight * weights['strategy'] +
+                performance_score * weights['performance']
+            )
+            
+            # ✅ NEW: Log each strategy's scoring with adaptive weights
+            self.logger.info(
+                f"  {strategy_type.value:15s}: "
+                f"conf={field_value.confidence:.4f}×{weights['confidence']:.2f}={field_value.confidence*weights['confidence']:.4f} + "
+                f"weight={strategy_weight:.2f}×{weights['strategy']:.2f}={strategy_weight*weights['strategy']:.4f} + "
+                f"perf={performance_score:.4f}×{weights['performance']:.2f}={performance_score*weights['performance']:.4f} "
+                f"(attempts={attempts}) = {combined_score:.4f} | value='{field_value.value[:30]}...'"
             )
             
             scored_results.append((combined_score, field_value, strategy_type))
         
-        # Select best result
+        # Select best result (highest score wins, no override)
         scored_results.sort(key=lambda x: x[0], reverse=True)
         best_score, best_result, best_strategy = scored_results[0]
         
-        # ✅ FIX: Check if another strategy has significantly higher confidence
-        # If confidence difference > 0.1, prefer the higher confidence result
-        for score, result, strategy in scored_results[1:]:
-            if result.confidence > best_result.confidence + 0.1:
-                # Use the one with higher confidence
-                self.logger.info(
-                    f"🔄 Overriding {best_strategy.value} (conf: {best_result.confidence:.2f}, score: {best_score:.2f}) "
-                    f"with {strategy.value} (conf: {result.confidence:.2f}, score: {score:.2f}) "
-                    f"due to significantly higher confidence"
-                )
-                best_score = score
-                best_result = result
-                best_strategy = strategy
-                break
+        # ✅ Log winner with comparison
+        self.logger.info(f"  🏆 Winner: {best_strategy.value} (score: {best_score:.4f})")
+        if len(scored_results) > 1:
+            runner_up_score, runner_up_result, runner_up_strategy = scored_results[1]
+            self.logger.info(
+                f"  🥈 Runner-up: {runner_up_strategy.value} (score: {runner_up_score:.4f}, "
+                f"margin: {best_score - runner_up_score:.4f})"
+            )
         
         # Update result metadata
         best_result.confidence = min(best_score, 1.0)
-        best_result.method = f'hybrid-{best_strategy.value}'
+        best_result.method = best_strategy.value  # ✅ Direct strategy name (no 'hybrid-' prefix)
         best_result.metadata['hybrid_score'] = best_score
         best_result.metadata['strategy_count'] = len(valid_results)
         best_result.metadata['all_strategies'] = [st.value for st, _ in valid_results]
+        best_result.metadata['selected_by'] = 'hybrid_strategy'  # ✅ Track that hybrid made the selection
+        
+        # ✅ NEW: Track ALL strategies attempted (including None results) for performance tracking
+        best_result.metadata['all_strategies_attempted'] = {
+            st.value: {
+                'success': fv is not None,
+                'confidence': fv.confidence if fv else 0.0,
+                'value': fv.value if fv else None
+            }
+            for st, fv in strategy_results.items()
+        }
         
         return best_result
     
@@ -477,21 +610,54 @@ class HybridExtractionStrategy:
         correct_fields = total_fields - len(corrections)
         accuracy = correct_fields / total_fields if total_fields > 0 else 0.0
         
-        # Update performance for each strategy used
+        # ✅ CRITICAL: Update performance for ALL strategies attempted (not just selected)
         strategies_used = extraction_results.get('metadata', {}).get('strategies_used', [])
         
         for strategy_info in strategies_used:
-            field_name = strategy_info.get('field')
+            field_name = strategy_info.get('field_name')  # ✅ FIXED: use 'field_name' not 'field'
             method = strategy_info.get('method', '')
             confidence = strategy_info.get('confidence', 0.0)
+            
+            # ✅ CRITICAL: Skip if field_name is None (should not happen with correct metadata)
+            if not field_name:
+                self.logger.warning(f"⚠️ Skipping strategy_info with missing field_name: {strategy_info}")
+                continue
             
             # Check if this field was corrected
             was_correct = field_name not in corrections
             
-            # Update strategy performance
+            # ✅ Update performance for SELECTED strategy
             self._update_strategy_performance(
-                template_id, method, was_correct, confidence
+                template_id, field_name, method, was_correct, confidence
             )
+            
+            # ✅ CRITICAL: Track performance for ALL attempted strategies
+            # This ensures CRF gets tracked even when not selected
+            all_attempted = strategy_info.get('all_strategies_attempted', {})
+            for strategy_name, strategy_data in all_attempted.items():
+                if strategy_name != method:  # Don't double-count the selected strategy
+                    # ✅ FIX: Check if this strategy's value matches the corrected value
+                    # If field was corrected, check against corrected value
+                    # If field was NOT corrected, it means selected strategy was correct
+                    strategy_value = strategy_data.get('value', '')
+                    
+                    if field_name in corrections:
+                        # Field was corrected - check if this strategy had the right value
+                        corrected_value = corrections[field_name]
+                        strategy_was_correct = (strategy_value == corrected_value)
+                    else:
+                        # Field was NOT corrected - selected strategy was correct
+                        # Check if this strategy also had the same (correct) value
+                        selected_value = extraction_results.get('extracted_data', {}).get(field_name, '')
+                        strategy_was_correct = (strategy_value == selected_value)
+                    
+                    self._update_strategy_performance(
+                        template_id, 
+                        field_name,
+                        strategy_name, 
+                        was_correct=strategy_was_correct,  # ✅ Based on actual value comparison
+                        confidence=strategy_data.get('confidence', 0.0)
+                    )
         
         # Adjust strategy weights based on performance
         self._adjust_strategy_weights(template_id)
@@ -504,18 +670,41 @@ class HybridExtractionStrategy:
     def _update_strategy_performance(
         self,
         template_id: int,
+        field_name: str,
         method: str,
         was_correct: bool,
         confidence: float
     ) -> None:
-        """Update performance metrics for a strategy"""
+        """
+        Update performance metrics for a strategy
+        
+        ✅ UPDATED: Now tracks per-field performance in database with normalized strategy types
+        """
+        # ✅ NORMALIZE strategy type to standard enum value
+        normalized_method = StrategyType.normalize(method)
+        
+        # ✅ Update database performance tracking (per-field)
+        if self.db:
+            try:
+                from database.repositories.strategy_performance_repository import StrategyPerformanceRepository
+                perf_repo = StrategyPerformanceRepository(self.db)
+                perf_repo.update_performance(
+                    template_id=template_id,
+                    field_name=field_name,
+                    strategy_type=normalized_method,  # ✅ Use normalized value
+                    was_correct=was_correct
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to update database performance: {e}")
+        
+        # ✅ Also update JSON file (legacy) - use normalized method
         template_key = str(template_id)
         
         if template_key not in self.performance_history:
             self.performance_history[template_key] = {}
         
-        if method not in self.performance_history[template_key]:
-            self.performance_history[template_key][method] = {
+        if normalized_method not in self.performance_history[template_key]:
+            self.performance_history[template_key][normalized_method] = {
                 'accuracy': 0.0,
                 'precision': 0.0,
                 'recall': 0.0,
@@ -526,7 +715,7 @@ class HybridExtractionStrategy:
                 'last_updated': datetime.now().isoformat()
             }
         
-        perf = self.performance_history[template_key][method]
+        perf = self.performance_history[template_key][normalized_method]
         
         # Update counts
         perf['extraction_count'] += 1
@@ -617,6 +806,136 @@ class HybridExtractionStrategy:
             self.logger.error(f"Error extracting words from PDF: {e}")
         
         return all_words
+    
+    def _get_adaptive_crf_weight(self, template_id: int) -> float:
+        """
+        Calculate adaptive CRF weight based on historical performance
+        
+        Args:
+            template_id: Template ID
+            
+        Returns:
+            Weight between 0.3 and 0.9
+        """
+        if not self.db:
+            return 0.5  # Default neutral weight
+        
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.execute("""
+                SELECT AVG(accuracy) as avg_accuracy, COUNT(*) as total_fields
+                FROM strategy_performance
+                WHERE template_id = ? AND strategy_type = 'crf'
+                AND total_extractions >= 5
+            """, (template_id,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row and row['avg_accuracy'] is not None and row['total_fields'] > 0:
+                avg_accuracy = row['avg_accuracy']
+                total_fields = row['total_fields']
+                
+                # ✅ ADAPTIVE FORMULA:
+                # - If CRF performs well (>70%): weight 0.7-0.9
+                # - If CRF performs OK (50-70%): weight 0.5-0.7
+                # - If CRF performs poorly (<50%): weight 0.3-0.5
+                # - More fields = more confidence in the weight
+                
+                confidence_factor = min(1.0, total_fields / 10.0)  # Max confidence at 10+ fields
+                base_weight = 0.3 + (avg_accuracy * 0.6)  # Scale 0.3-0.9
+                adaptive_weight = base_weight * confidence_factor + 0.5 * (1 - confidence_factor)
+                
+                return max(0.3, min(0.9, adaptive_weight))
+            else:
+                # No historical data: start with moderate weight
+                return 0.5
+                
+        except Exception as e:
+            self.logger.error(f"Error calculating adaptive CRF weight: {e}")
+            return 0.5
+    
+    def _get_confidence_threshold(self, accuracy: float, attempts: int) -> float:
+        """
+        Get adaptive confidence threshold based on historical performance
+        
+        Args:
+            accuracy: Historical accuracy (0.0-1.0)
+            attempts: Number of attempts
+            
+        Returns:
+            Minimum confidence threshold (0.3-0.5)
+        """
+        for level, config in self.CONFIDENCE_THRESHOLDS.items():
+            if accuracy >= config['min_accuracy'] and attempts >= config['min_attempts']:
+                return config['threshold']
+        
+        # Default: low performance threshold
+        return self.CONFIDENCE_THRESHOLDS['low_performance']['threshold']
+    
+    def _get_scoring_weights(self, attempts: int) -> Dict[str, float]:
+        """
+        Get adaptive scoring weights based on number of attempts
+        
+        Args:
+            attempts: Number of historical attempts
+            
+        Returns:
+            Dict with 'confidence', 'strategy', 'performance' weights
+        """
+        if attempts >= self.SCORING_WEIGHTS['proven']['min_attempts']:
+            return {
+                'confidence': self.SCORING_WEIGHTS['proven']['confidence'],
+                'strategy': self.SCORING_WEIGHTS['proven']['strategy'],
+                'performance': self.SCORING_WEIGHTS['proven']['performance']
+            }
+        elif attempts >= self.SCORING_WEIGHTS['established']['min_attempts']:
+            return {
+                'confidence': self.SCORING_WEIGHTS['established']['confidence'],
+                'strategy': self.SCORING_WEIGHTS['established']['strategy'],
+                'performance': self.SCORING_WEIGHTS['established']['performance']
+            }
+        else:
+            return {
+                'confidence': self.SCORING_WEIGHTS['new']['confidence'],
+                'strategy': self.SCORING_WEIGHTS['new']['strategy'],
+                'performance': self.SCORING_WEIGHTS['new']['performance']
+            }
+    
+    def _get_field_performance_from_db(self, template_id: int, field_name: str) -> Dict[str, Dict]:
+        """
+        Get strategy performance for a specific field from database
+        
+        Returns:
+            Dict mapping strategy_type -> {'accuracy': float, 'attempts': int}
+        """
+        if not self.db:
+            return {}
+        
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.execute("""
+                SELECT strategy_type, accuracy, total_extractions
+                FROM strategy_performance
+                WHERE template_id = ? AND field_name = ?
+                ORDER BY accuracy DESC
+            """, (template_id, field_name))
+            
+            performance = {}
+            for row in cursor.fetchall():
+                strategy_type = row['strategy_type']
+                accuracy = row['accuracy']
+                attempts = row['total_extractions']
+                performance[strategy_type] = {
+                    'accuracy': accuracy,
+                    'attempts': attempts
+                }
+            
+            conn.close()
+            return performance
+        except Exception as e:
+            self.logger.error(f"Error loading field performance from DB: {e}")
+            return {}
     
     def _load_performance_history(self) -> None:
         """Load performance history from file"""
