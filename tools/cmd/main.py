@@ -8,6 +8,7 @@ from datetime import timedelta
 from multiprocessing import Pool, cpu_count
 from functools import partial
 import logging
+import locale
 
 app = typer.Typer()
 
@@ -142,7 +143,7 @@ def generate_documents(
 
     if template:
         switcher = {template: switcher.get(template)}
-    
+
     # Create output directories
     for directory in switcher.keys():
         try:
@@ -327,73 +328,100 @@ def _contract_template_values():
     }
 
 
-def _rupiah_format(number: int) -> str:
-    # convert number to rupiah format ex: number = 100000 -> 100.000
-    return f"{number:,}".replace(",", ".")
+def _rupiah_format(number: int, with_prefix: bool = False, desimal: int = 0) -> str:
+    # number before decimal point should be grouped by 3
+    # number after decimal point should be rounded to 2
+    # if desimal is 0, then number after decimal point should be rounded to 0
+    # add prefix "Rp. " if with_prefix is True
+    return f"Rp. {number:,.{desimal}f}" if with_prefix else f"{number:,.{desimal}f}"
 
 
 def _invoice_template_values():
     from faker import Faker
 
     fake = Faker("id_ID")
-    id = uuid.uuid4()
+
+    bahan_pokok = [
+        "Beras",
+        "Gula",
+        "Minyak Goreng",
+        "Mentega",
+        "Telur Ayam",
+        "Telur Bebek",
+        "Daging Sapi",
+        "Daging Ayam",
+        "Susu",
+        "Jagung",
+        "Gas Elpiji",
+        "Garam",
+    ]
 
     item_1_quantity = fake.random_int(min=1, max=10)
-    item_1_rate = fake.random_int(min=10000, max=500000)
+    item_1_rate = fake.random_int(min=1000, max=100000)
     item_1_amount = item_1_quantity * item_1_rate
-    item_1_tax = item_1_amount * 0.12
+    item_1_tax = round(item_1_amount * 0.12)
 
     item_2_quantity = fake.random_int(min=1, max=10)
-    item_2_rate = fake.random_int(min=10000, max=500000)
+    item_2_rate = fake.random_int(min=1000, max=100000)
     item_2_amount = item_2_quantity * item_2_rate
-    item_2_tax = item_2_amount * 0.12
+    item_2_tax = round(item_2_amount * 0.12)
 
     item_3_quantity = fake.random_int(min=1, max=10)
-    item_3_rate = fake.random_int(min=10000, max=500000)
+    item_3_rate = fake.random_int(min=1000, max=100000)
     item_3_amount = item_3_quantity * item_3_rate
-    item_3_tax = item_3_amount * 0.12
+    item_3_tax = round(item_3_amount * 0.12)
 
     item_4_quantity = fake.random_int(min=1, max=10)
-    item_4_rate = fake.random_int(min=10000, max=500000)
+    item_4_rate = fake.random_int(min=1000, max=100000)
     item_4_amount = item_4_quantity * item_4_rate
-    item_4_tax = item_4_amount * 0.12
+    item_4_tax = round(item_4_amount * 0.12)
 
-    total_amount = item_1_amount + item_2_amount + item_3_amount + item_4_amount
-    total_tax = item_1_tax + item_2_tax + item_3_tax + item_4_tax
-    total = total_amount + total_tax
+    # round 2 digit
+    total_amount = round(item_1_amount + item_2_amount + item_3_amount + item_4_amount)
+    total_tax = round(item_1_tax + item_2_tax + item_3_tax + item_4_tax)
+    total = round(total_amount + total_tax)
+
+    item_1_desc = fake.random_element(elements=bahan_pokok)
+    bahan_pokok.remove(item_1_desc)
+    item_2_desc = fake.random_element(elements=bahan_pokok)
+    bahan_pokok.remove(item_2_desc)
+    item_3_desc = fake.random_element(elements=bahan_pokok)
+    bahan_pokok.remove(item_3_desc)
+    item_4_desc = fake.random_element(elements=bahan_pokok)
+    bahan_pokok.remove(item_4_desc)
 
     return {
         "company_name": fake.company(),
-        "company_address": fake.address(),
+        "company_address": fake.street_address(),
         "company_phone": get_random_no_hp(),
         "company_email": fake.email(),
         "invoice_number": _certificate_number("invoice"),
         "invoice_date": fake.date(pattern="%d-%m-%Y", end_datetime="-1d"),
         "due_date": fake.date(pattern="%d-%m-%Y", end_datetime="-1d"),
-        "payment_terms": fake.sentence(),
+        "payment_terms": fake.sentence(nb_words=3),
         "client_name": fake.name(),
-        "client_address": fake.address(),
+        "client_address": fake.street_address(),
         "client_phone": get_random_no_hp(),
         "project_name": fake.word(),
         "po_number": fake.random_int(min=100000, max=999999),
         "salesperson": fake.name(),
-        "i_1_desc": fake.sentence(nb_words=6),
-        "i_1_quantity": item_1_quantity,
+        "i_1_desc": item_1_desc,
+        "i_1_qty": str(item_1_quantity),
         "i_1_rate": _rupiah_format(item_1_rate),
         "i_1_sum": _rupiah_format(item_1_amount),
         "i_1_tax": _rupiah_format(item_1_tax),
-        "i_2_desc": fake.sentence(nb_words=6),
-        "i_2_quantity": item_2_quantity,
+        "i_2_desc": item_2_desc,
+        "i_2_qty": str(item_2_quantity),
         "i_2_rate": _rupiah_format(item_2_rate),
         "i_2_sum": _rupiah_format(item_2_amount),
         "i_2_tax": _rupiah_format(item_2_tax),
-        "i_3_desc": fake.sentence(nb_words=6),
-        "i_3_quantity": item_3_quantity,
+        "i_3_desc": item_3_desc,
+        "i_3_qty": str(item_3_quantity),
         "i_3_rate": _rupiah_format(item_3_rate),
         "i_3_sum": _rupiah_format(item_3_amount),
         "i_3_tax": _rupiah_format(item_3_tax),
-        "i_4_desc": fake.sentence(nb_words=6),
-        "i_4_quantity": item_4_quantity,
+        "i_4_desc": item_4_desc,
+        "i_4_qty": str(item_4_quantity),
         "i_4_rate": _rupiah_format(item_4_rate),
         "i_4_sum": _rupiah_format(item_4_amount),
         "i_4_tax": _rupiah_format(item_4_tax),

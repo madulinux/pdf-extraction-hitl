@@ -1,42 +1,5 @@
 {
-  "tanggal_lahir": {
-    "common_prefixes": [
-      "kuala,"
-    ],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 12
-  },
-  "sd_nama": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      "2001",
-      "1994",
-      "1999",
-      "2006",
-      "2005",
-      "2000"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 88
-  },
-  "kerja_alasan": {
+  "event_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -48,9 +11,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 108
+    "sample_count": 8
   },
-  "kerja_posisi": {
+  "recipient_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -62,25 +25,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 107
+    "sample_count": 1
   },
-  "kerja_periode": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      "bulan"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 2
-  },
-  "nama": {
+  "issue_place": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -92,25 +39,23 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 19
+    "sample_count": 20
   },
-  "sma_nama": {
+  "chairman_name": {
     "common_prefixes": [],
-    "common_suffixes": [
-      "2017"
-    ],
+    "common_suffixes": [],
     "structural_noise": {
-      "has_parentheses_both": 0,
+      "has_parentheses_both": 1,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
+      "has_parentheses_end": 1,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 57
+    "sample_count": 9
   },
-  "application_date": {
+  "event_location": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -122,18 +67,11 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 3
+    "sample_count": 20
   },
-  "smp_nama": {
+  "issue_date": {
     "common_prefixes": [],
-    "common_suffixes": [
-      "2007",
-      "2001",
-      "2006",
-      "2013",
-      "2011",
-      "2012"
-    ],
+    "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
@@ -143,20 +81,34 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 79
+    "sample_count": 11
   },
-  "application_place": {
+  "event_date": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
-      "has_parentheses_start": 1,
+      "has_parentheses_start": 0,
       "has_parentheses_end": 0,
       "has_quotes": 0,
       "has_brackets": 0,
-      "has_trailing_comma": 1,
+      "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 106
+    "sample_count": 4
+  },
+  "supervisor_name": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 1,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 20
   }
 }

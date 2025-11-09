@@ -24,7 +24,7 @@ data/
 # Uploads and generated files
 uploads/
 templates/*.json
-models/*.joblib
+models/*
 feedback/*.json
 previews/
 example-code/
@@ -39,3 +39,5 @@ example-code/
 .DS_Store
 Thumbs.db
 *.models
+
+docs/*

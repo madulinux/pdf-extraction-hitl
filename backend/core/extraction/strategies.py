@@ -41,20 +41,6 @@ def get_field_locations(field_config: Dict) -> List[Dict]:
     if 'locations' in field_config:
         return field_config['locations']
     
-    # Old format: single location
-    if 'location' in field_config:
-        location = field_config['location']
-        # Wrap single location with context
-        context = field_config.get('context', {})
-        return [{
-            'page': location.get('page', 0),
-            'x0': location['x0'],
-            'y0': location['y0'],
-            'x1': location['x1'],
-            'y1': location['y1'],
-            'context': context
-        }]
-    
     return []
 
 
@@ -78,7 +64,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
     
     def extract(self, pdf_path: str, field_config: Dict, all_words: List[Dict]) -> Optional[FieldValue]:
         """
-        Extract field using rule-based approach
+        Extract field using rule-based approach with adaptive learned patterns
         
         Args:
             pdf_path: Path to PDF file
@@ -90,8 +76,8 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         """
         field_name = field_config.get('field_name', 'unknown')
         
-        # Support both 'regex_pattern' and 'pattern' field names
-        regex_pattern = field_config.get('regex_pattern') or field_config.get('pattern', r'.+')
+        # Get patterns: base pattern + learned patterns from feedback
+        patterns = self._get_all_patterns(field_config)
         
         # Get all locations (backward compatible)
         locations = get_field_locations(field_config)
@@ -99,22 +85,26 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         if not locations:
             return None
         
-        # Try extraction for each location
+        # Try extraction for each location with all patterns
         best_result = None
         best_confidence = 0.0
         
         for location in locations:
-            try:
-                result = self._extract_from_location(
-                    location, field_name, regex_pattern, all_words
-                )
-                
-                if result and result.confidence > best_confidence:
-                    best_result = result
-                    best_confidence = result.confidence
-            except Exception as e:
-                self.logger.error(f"Error extracting from location: {e}")
-                continue
+            for pattern_info in patterns:
+                try:
+                    result = self._extract_from_location(
+                        location, field_name, pattern_info['pattern'], all_words
+                    )
+                    
+                    if result and result.confidence > best_confidence:
+                        best_result = result
+                        best_confidence = result.confidence
+                        # Track which pattern was used
+                        best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
+                        best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
+                except Exception as e:
+                    self.logger.error(f"Error extracting from location: {e}")
+                    continue
         
         return best_result
     
@@ -151,6 +141,110 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                 continue
         
         return results
+    
+    def _get_all_patterns(self, field_config: Dict) -> List[Dict]:
+        """
+        Get all patterns: base pattern + learned patterns from database/config
+        
+        Returns:
+            List of pattern dicts with 'pattern', 'description', 'type'
+        """
+        patterns = []
+        
+        # Base pattern (from template config)
+        base_pattern = field_config.get('regex_pattern') or field_config.get('pattern', r'.+')
+        patterns.append({
+            'pattern': base_pattern,
+            'description': 'base_pattern',
+            'type': 'manual',
+            'pattern_id': None
+        })
+        
+        # Try to load learned patterns from database first
+        db_patterns = self._load_patterns_from_db(field_config)
+        if db_patterns:
+            self.logger.debug(f"Loaded {len(db_patterns)} patterns from database")
+            patterns.extend(db_patterns)
+        else:
+            # Fallback: Load from JSON config (backward compatibility)
+            rules = field_config.get('rules', {})
+            learned_patterns = rules.get('learned_patterns', [])
+            
+            if learned_patterns:
+                self.logger.debug(f"Found {len(learned_patterns)} learned patterns in config")
+                for lp in learned_patterns:
+                    patterns.append({
+                        'pattern': lp.get('pattern', r'.+'),
+                        'description': lp.get('description', 'learned'),
+                        'type': lp.get('type', 'learned'),
+                        'frequency': lp.get('frequency', 0),
+                        'pattern_id': None
+                    })
+        
+        return patterns
+    
+    def _load_patterns_from_db(self, field_config: Dict) -> List[Dict]:
+        """
+        Load learned patterns from database
+        
+        Returns:
+            List of pattern dicts or empty list
+        """
+        try:
+            # Get template_id and field_name from config
+            template_id = field_config.get('template_id')
+            field_name = field_config.get('field_name')
+            
+            if not template_id or not field_name:
+                return []
+            
+            # Import here to avoid circular dependency
+            from database.db_manager import DatabaseManager
+            from database.repositories.config_repository import ConfigRepository
+            
+            db = DatabaseManager()
+            config_repo = ConfigRepository(db)
+            
+            # Get active config
+            config = config_repo.get_active_config(template_id)
+            if not config:
+                return []
+            
+            # Get field config
+            field_cfg = config_repo.get_field_config_by_name(
+                config_id=config['id'],
+                field_name=field_name
+            )
+            
+            if not field_cfg:
+                return []
+            
+            # Get learned patterns
+            learned = config_repo.get_learned_patterns(
+                field_config_id=field_cfg['id'],
+                active_only=True
+            )
+            
+            # Convert to pattern dicts
+            patterns = []
+            for lp in learned:
+                patterns.append({
+                    'pattern': lp['pattern'],
+                    'description': lp.get('description', 'learned'),
+                    'type': lp.get('pattern_type', 'learned'),
+                    'frequency': lp.get('frequency', 0),
+                    'priority': lp.get('priority', 0),
+                    'pattern_id': lp['id']  # Store ID for usage tracking
+                })
+            
+            # Sort by priority and frequency
+            patterns.sort(key=lambda x: (x.get('priority', 0), x.get('frequency', 0)), reverse=True)
+            
+            return patterns
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load patterns from database: {e}")
+            return []
     
     def _extract_from_location(
         self, 

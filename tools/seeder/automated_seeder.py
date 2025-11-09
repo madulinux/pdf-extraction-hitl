@@ -438,6 +438,10 @@ class AutomatedSeeder:
         logger.info(f"Avg time per document: {elapsed_time/len(results):.2f} seconds")
         logger.info("=" * 70)
 
+        #  delete output path and files output_path
+        for file in output_path.glob("*"):
+            file.unlink()
+
         return {
             "success": True,
             "template_id": template_id,

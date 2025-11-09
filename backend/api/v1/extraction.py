@@ -98,7 +98,7 @@ def extract_document():
 @require_auth
 def validate_corrections():
     """
-    Save user corrections as feedback
+    Save user corrections as feedback and trigger adaptive learning
     
     Request Body:
     {
@@ -126,6 +126,32 @@ def validate_corrections():
             document_id=data['document_id'],
             corrections=data['corrections']
         )
+        
+        # ✨ NEW: Trigger adaptive pattern learning
+        try:
+            from core.learning.auto_pattern_learner import get_auto_learner
+            from database.db_manager import DatabaseManager
+            
+            db = DatabaseManager()
+            auto_learner = get_auto_learner(db)
+            
+            # Get document info
+            doc = db.get_document(data['document_id'])
+            if doc:
+                template_id = doc['template_id']
+                
+                # Check each corrected field
+                for field_name in data['corrections'].keys():
+                    if auto_learner.should_trigger_learning(template_id, field_name):
+                        # Trigger learning in background
+                        auto_learner.trigger_learning(
+                            template_id=template_id,
+                            field_name=field_name,
+                            async_mode=True
+                        )
+        except Exception as e:
+            # Don't fail the request if auto-learning fails
+            current_app.logger.warning(f"Auto-learning trigger failed: {e}")
         
         return APIResponse.success(
             result,

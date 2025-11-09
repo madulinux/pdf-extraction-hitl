@@ -347,14 +347,20 @@ class HybridExtractionStrategy:
             )
             
             if final_result:
-                all_extraction_results.append({
+                result_dict = {
                     'value': final_result.value,
                     'confidence': final_result.confidence,
                     'method': final_result.method,
                     'location_index': location_idx,
                     'page': location.get('page', 0),
                     'label': location.get('context', {}).get('label')
-                })
+                }
+                
+                # ✅ CRITICAL: Preserve all_strategies_attempted from final_result
+                if 'all_strategies_attempted' in final_result.metadata:
+                    result_dict['all_strategies_attempted'] = final_result.metadata['all_strategies_attempted']
+                
+                all_extraction_results.append(result_dict)
         
         # If no results from any location, return None
         if not all_extraction_results:
@@ -366,15 +372,22 @@ class HybridExtractionStrategy:
         # Select best result
         best_result = max(all_extraction_results, key=lambda r: r['confidence'])
         
+        # ✅ FIX: Preserve all_strategies_attempted from best result
+        metadata = {
+            'location_index': best_result.get('location_index', 0),
+            'page': best_result.get('page', 0),
+            'label': best_result.get('label')
+        }
+        
+        # ✅ CRITICAL: Copy all_strategies_attempted if present
+        if 'all_strategies_attempted' in best_result:
+            metadata['all_strategies_attempted'] = best_result['all_strategies_attempted']
+        
         result = {
             'value': best_result['value'],
             'confidence': best_result['confidence'],
             'method': best_result['method'],
-            'metadata': {
-                'location_index': best_result.get('location_index', 0),
-                'page': best_result.get('page', 0),
-                'label': best_result.get('label')
-            }
+            'metadata': metadata
         }
         
         # If conflict detected, add conflict info and possibly update value
@@ -491,7 +504,30 @@ class HybridExtractionStrategy:
         
         if not valid_results:
             self.logger.warning(f"  ⚠️ No strategies met confidence threshold for '{field_name}'")
-            return None
+            
+            # ✅ FIX: Even if no valid results, return metadata for tracking
+            # Create a dummy FieldValue with all_strategies_attempted
+            from .strategies import FieldValue
+            dummy_result = FieldValue(
+                field_id=field_name,
+                field_name=field_name,
+                value='',
+                confidence=0.0,
+                method='none',
+                metadata={
+                    'all_strategies_attempted': {
+                        st.value: {
+                            'success': fv is not None,
+                            'confidence': fv.confidence if fv else 0.0,
+                            'value': fv.value if fv else None
+                        }
+                        for st, fv in strategy_results.items()
+                    },
+                    'selected_by': 'none_valid',
+                    'reason': 'all_strategies_below_threshold'
+                }
+            )
+            return dummy_result
         
         if len(valid_results) == 1:
             strategy_type, field_value = valid_results[0]
