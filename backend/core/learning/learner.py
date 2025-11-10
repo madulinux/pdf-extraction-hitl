@@ -59,16 +59,147 @@ class AdaptiveLearner:
         
         return X_train, y_train
     
+    def _create_bio_sequence_single(
+        self,
+        field_name: str,
+        corrected_value: str,
+        words: List[Dict],
+        template_config: Dict = None
+    ) -> Tuple[List[Dict], List[str]]:
+        """
+        Create BIO-tagged sequence for SINGLE field
+        
+        CRITICAL FIX: This ensures training/inference consistency
+        - During training: ONLY target field feature is True
+        - During inference: ONLY target field feature is True
+        - Model can learn field-specific patterns (e.g., issue_place at bottom)
+        
+        Args:
+            field_name: Name of the field to extract
+            corrected_value: Correct value for this field
+            words: List of word dictionaries from PDF
+            template_config: Template configuration
+            
+        Returns:
+            Tuple of (features, labels)
+        """
+        features = []
+        labels = ['O'] * len(words)
+        
+        # Build field context
+        field_contexts = {}
+        if template_config:
+            fields = template_config.get('fields', {})
+            for fname, field_config in fields.items():
+                locations = field_config.get('locations', [])
+                if locations:
+                    field_contexts[fname] = locations[0].get('context', {})
+        
+        # Extract features for all words
+        for i, word in enumerate(words):
+            context = self._get_context_for_word(word, field_contexts)
+            
+            word_features = self._extract_word_features(
+                word, words, i,
+                context=context
+            )
+            
+            # CRITICAL: ONLY this field is True (matches inference!)
+            word_features[f'target_field_{field_name}'] = True
+            
+            features.append(word_features)
+        
+        # Label sequence for this field using existing logic
+        word_texts = [w['text'] for w in words]
+        corrected_value_normalized = ' '.join(corrected_value.split())
+        corrected_tokens = corrected_value_normalized.split()
+        
+        # Try exact match
+        found = False
+        for i in range(len(word_texts) - len(corrected_tokens) + 1):
+            match = True
+            for j, token in enumerate(corrected_tokens):
+                if word_texts[i + j] != token:
+                    match = False
+                    break
+            
+            if match:
+                labels[i] = f'B-{field_name.upper()}'
+                for j in range(1, len(corrected_tokens)):
+                    labels[i + j] = f'I-{field_name.upper()}'
+                found = True
+                print(f"[Learner] Labeled {field_name}: '{corrected_value}' (exact match at position {i})")
+                break
+        
+        # Try case-insensitive match
+        if not found:
+            word_texts_lower = [w.lower() for w in word_texts]
+            corrected_tokens_lower = [t.lower() for t in corrected_tokens]
+            
+            for i in range(len(word_texts_lower) - len(corrected_tokens_lower) + 1):
+                match = True
+                for j, token in enumerate(corrected_tokens_lower):
+                    if word_texts_lower[i + j] != token:
+                        match = False
+                        break
+                
+                if match:
+                    labels[i] = f'B-{field_name.upper()}'
+                    for j in range(1, len(corrected_tokens)):
+                        labels[i + j] = f'I-{field_name.upper()}'
+                    found = True
+                    print(f"[Learner] Labeled {field_name}: '{corrected_value}' (case-insensitive match at position {i})")
+                    break
+        
+        # Try fuzzy match
+        if not found:
+            import re
+            corrected_clean = re.sub(r'[^\w\s]', '', corrected_value).lower()
+            corrected_tokens_clean = corrected_clean.split()
+            
+            for i in range(len(word_texts)):
+                window_words = []
+                window_indices = []
+                j = i
+                while j < len(word_texts) and len(window_words) < len(corrected_tokens):
+                    word = word_texts[j]
+                    if re.search(r'\w', word):
+                        window_words.append(word)
+                        window_indices.append(j)
+                    j += 1
+                
+                if len(window_words) == len(corrected_tokens):
+                    window_clean = re.sub(r'[^\w\s]', '', ' '.join(window_words)).lower()
+                    window_tokens_clean = window_clean.split()
+                    
+                    if corrected_tokens_clean == window_tokens_clean:
+                        for idx in window_indices:
+                            if idx == window_indices[0]:
+                                labels[idx] = f'B-{field_name.upper()}'
+                            else:
+                                labels[idx] = f'I-{field_name.upper()}'
+                        found = True
+                        print(f"[Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i}, excluding punctuation)")
+                        break
+        
+        if not found:
+            print(f"[Learner] Could NOT find '{corrected_value}' for {field_name} in document!")
+        
+        return features, labels
+    
     def _create_bio_sequence_multi(
         self, 
         feedbacks: List[Dict[str, Any]], 
         words: List[Dict],
-        template_config: Dict = None,  # ✅ NEW: Accept template config
-        target_fields: List[str] = None  # ✅ NEW: Target fields for field-aware features
+        template_config: Dict = None,
+        target_fields: List[str] = None
     ) -> Tuple[List[Dict], List[str]]:
         """
         Create BIO-tagged sequence from multiple feedbacks (for one document)
         Uses sequence matching for accurate BIO tagging
+        
+        DEPRECATED: Use _create_bio_sequence_single() instead for better accuracy
+        This method has training/inference mismatch issue
         
         Args:
             feedbacks: List of feedback dictionaries with corrected values
@@ -177,22 +308,36 @@ class AdaptiveLearner:
                 corrected_clean = re.sub(r'[^\w\s]', '', corrected_value).lower()
                 corrected_tokens_clean = corrected_clean.split()
                 
-                # Only try exact window size (no expansion)
-                window_size = len(corrected_tokens)
-                
-                for i in range(len(word_texts) - window_size + 1):
-                    window_words = word_texts[i:i+window_size]
-                    window_clean = re.sub(r'[^\w\s]', '', ' '.join(window_words)).lower()
-                    window_tokens_clean = window_clean.split()
+                # ✅ CRITICAL FIX: Filter out punctuation-only tokens from window
+                # This prevents matching "(Ida Setiawan)" when looking for "Ida Setiawan"
+                for i in range(len(word_texts)):
+                    # Collect non-punctuation tokens starting from position i
+                    window_words = []
+                    window_indices = []
+                    j = i
+                    while j < len(word_texts) and len(window_words) < len(corrected_tokens):
+                        word = word_texts[j]
+                        # Skip punctuation-only tokens (like "(", ")", ",")
+                        if re.search(r'\w', word):  # Has at least one alphanumeric character
+                            window_words.append(word)
+                            window_indices.append(j)
+                        j += 1
                     
-                    # Check if tokens match (ignoring punctuation)
-                    if corrected_tokens_clean == window_tokens_clean:
-                        labels[i] = f'B-{field_name.upper()}'
-                        for j in range(1, window_size):
-                            labels[i + j] = f'I-{field_name.upper()}'
-                        found = True
-                        print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i})")
-                        break
+                    if len(window_words) == len(corrected_tokens):
+                        window_clean = re.sub(r'[^\w\s]', '', ' '.join(window_words)).lower()
+                        window_tokens_clean = window_clean.split()
+                        
+                        # Check if tokens match (ignoring punctuation)
+                        if corrected_tokens_clean == window_tokens_clean:
+                            # Label only the actual word tokens, not punctuation
+                            for idx in window_indices:
+                                if idx == window_indices[0]:
+                                    labels[idx] = f'B-{field_name.upper()}'
+                                else:
+                                    labels[idx] = f'I-{field_name.upper()}'
+                            found = True
+                            print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i}, excluding punctuation)")
+                            break
             
             if not found:
                 print(f"⚠️ [Learner] Could NOT find '{corrected_value}' for {field_name} in document!")
@@ -469,18 +614,31 @@ class AdaptiveLearner:
             
             # Distance features (spatial relationships)
             if label_pos:
+                label_x0 = label_pos.get('x0', 0)
                 label_x1 = label_pos.get('x1', 0)
-                label_y = label_pos.get('y0', 0)
+                label_y0 = label_pos.get('y0', 0)
+                label_y1 = label_pos.get('y1', 0)
                 
                 distance_x = word_x - label_x1
-                distance_y = abs(word_y - label_y)
+                distance_y = abs(word_y - label_y0)
+                
+                # ✅ ENHANCED: Stronger positional constraints for complex layouts
+                is_after_label = distance_x > 0
+                is_before_label = word_x < label_x0
+                is_above_label = word_y < label_y0
+                is_below_label = word_y > label_y1
+                is_same_line = distance_y < 10
                 
                 features.update({
                     'distance_from_label_x': distance_x / 100,  # Normalized
                     'distance_from_label_y': distance_y / 100,
-                    'after_label': distance_x > 0,
-                    'same_line_as_label': distance_y < 10,
-                    'near_label': distance_x < 50 and distance_y < 10,
+                    'after_label': is_after_label,
+                    'before_label': is_before_label,  # ✅ NEW: Penalize words before label
+                    'above_label': is_above_label,    # ✅ NEW: Penalize words above label
+                    'below_label': is_below_label,    # ✅ NEW: Detect words below label
+                    'same_line_as_label': is_same_line,
+                    'near_label': distance_x < 50 and is_same_line,
+                    'valid_position': is_after_label and is_same_line,  # ✅ NEW: Strong constraint
                 })
             else:
                 # Default values when no label position
@@ -488,8 +646,32 @@ class AdaptiveLearner:
                     'distance_from_label_x': 0,
                     'distance_from_label_y': 0,
                     'after_label': False,
+                    'before_label': False,
+                    'above_label': False,
+                    'below_label': False,
                     'same_line_as_label': False,
                     'near_label': False,
+                    'valid_position': False,
+                })
+            
+            # ✅ NEW: Next field boundary features (CRITICAL for stopping extraction)
+            next_field_y = context.get('next_field_y')
+            if next_field_y is not None:
+                distance_to_next = next_field_y - word_y
+                features.update({
+                    'has_next_field': True,
+                    'distance_to_next_field': distance_to_next / 100,  # Normalized
+                    'before_next_field': distance_to_next > 0,
+                    'near_next_field': 0 < distance_to_next < 20,
+                    'far_from_next_field': distance_to_next > 50,
+                })
+            else:
+                features.update({
+                    'has_next_field': False,
+                    'distance_to_next_field': 0,
+                    'before_next_field': False,
+                    'near_next_field': False,
+                    'far_from_next_field': False,
                 })
         else:
             # Default values when no context
@@ -501,8 +683,17 @@ class AdaptiveLearner:
                 'distance_from_label_x': 0,
                 'distance_from_label_y': 0,
                 'after_label': False,
+                'before_label': False,
+                'above_label': False,
+                'below_label': False,
                 'same_line_as_label': False,
                 'near_label': False,
+                'valid_position': False,
+                'has_next_field': False,
+                'distance_to_next_field': 0,
+                'before_next_field': False,
+                'near_next_field': False,
+                'far_from_next_field': False,
             })
         
         # Prefix and suffix features

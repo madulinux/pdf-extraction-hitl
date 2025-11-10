@@ -127,7 +127,7 @@ class TemplateConfigLoader:
                 'locations': []
             }
             
-            # Add locations
+            # Add locations with full context
             for loc in locations:
                 location = {
                     'page': loc.get('page', 0),
@@ -136,7 +136,20 @@ class TemplateConfigLoader:
                     'x1': loc['x1'],
                     'y1': loc['y1']
                 }
-                if loc.get('label'):
+                
+                # Get context from field_contexts table
+                context = self.config_repo.get_field_context(loc['id'])
+                if context:
+                    import json
+                    location['context'] = {
+                        'label': context.get('label', ''),
+                        'label_position': json.loads(context['label_position']) if context.get('label_position') else {},
+                        'words_before': json.loads(context['words_before']) if context.get('words_before') else [],
+                        'words_after': json.loads(context['words_after']) if context.get('words_after') else [],
+                        'next_field_y': context.get('next_field_y')  # ✅ CRITICAL: Load boundary hint!
+                    }
+                elif loc.get('label'):
+                    # Fallback to simple label (backward compatibility)
                     location['context'] = {'label': loc['label']}
                 
                 field_config['locations'].append(location)
@@ -250,7 +263,8 @@ class TemplateConfigLoader:
                     locations = [field_cfg['location']]
                 
                 for idx, loc in enumerate(locations):
-                    self.config_repo.create_field_location(
+                    # Create field location
+                    field_location_id = self.config_repo.create_field_location(
                         field_config_id=field_config_id,
                         page=loc.get('page', 0),
                         x0=loc['x0'],
@@ -260,6 +274,18 @@ class TemplateConfigLoader:
                         label=loc.get('context', {}).get('label'),
                         location_index=idx
                     )
+                    
+                    # ✅ NEW: Save context data to field_contexts table
+                    context = loc.get('context', {})
+                    if context and field_location_id:
+                        self.config_repo.create_field_context(
+                            field_location_id=field_location_id,
+                            label=context.get('label', ''),
+                            label_position=context.get('label_position', {}),
+                            words_before=context.get('words_before', []),
+                            words_after=context.get('words_after', []),
+                            next_field_y=context.get('next_field_y')  # ✅ NEW
+                        )
                 
                 # Add learned patterns if any
                 learned_patterns = field_cfg.get('rules', {}).get('learned_patterns', [])

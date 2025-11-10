@@ -53,7 +53,9 @@ class TemplateAnalyzer:
             fields_by_name[field_name].append(field_data)
         
         # Build field config with locations array
-        for field_name, field_occurrences in fields_by_name.items():
+        field_names_list = list(fields_by_name.keys())
+        
+        for idx, (field_name, field_occurrences) in enumerate(fields_by_name.items()):
             
             # Build locations array
             locations = []
@@ -64,9 +66,18 @@ class TemplateAnalyzer:
                 marker_width = field_data["width"]
                 marker_height = field_data["height"]
                 
+                # ✅ NEW: Find next field position (for boundary detection)
+                next_field_y = None
+                if idx < len(field_names_list) - 1:
+                    # Get next field's first occurrence
+                    next_field_name = field_names_list[idx + 1]
+                    next_field_data = fields_by_name[next_field_name][0]
+                    next_field_y = next_field_data["y"]
+                
                 # Extract context with positions
                 context = self._extract_context_words(
-                    page_idx, marker_x, marker_y, marker_width, marker_height
+                    page_idx, marker_x, marker_y, marker_width, marker_height,
+                    next_field_y=next_field_y  # ✅ Pass next field position
                 )
                 
                 locations.append({
@@ -207,7 +218,8 @@ class TemplateAnalyzer:
         marker_x: float, 
         marker_y: float, 
         marker_width: float, 
-        marker_height: float
+        marker_height: float,
+        next_field_y: float = None  # ✅ NEW: Next field Y position
     ) -> Dict[str, Any]:
         """
         Extract context words around a marker position
@@ -219,12 +231,13 @@ class TemplateAnalyzer:
             marker_y: Marker y position
             marker_width: Marker width
             marker_height: Marker height
+            next_field_y: Y position of next field (for boundary detection)
             
         Returns:
-            Dictionary with context information
+            Dictionary with context information including next_field_y
         """
         if page_idx >= len(self.words_by_page):
-            return {'label': None, 'words_before': [], 'words_after': []}
+            return {'label': None, 'words_before': [], 'words_after': [], 'next_field_y': next_field_y}
         
         words = self.words_by_page[page_idx]
         marker_x1 = marker_x + marker_width
@@ -301,7 +314,8 @@ class TemplateAnalyzer:
             'label': label_text,
             'label_position': label_position,
             'words_before': words_before_enhanced,
-            'words_after': words_after_enhanced
+            'words_after': words_after_enhanced,
+            'next_field_y': next_field_y  # ✅ NEW: For boundary detection
         }
     
     def save_config(self, config: Dict, output_path: str):

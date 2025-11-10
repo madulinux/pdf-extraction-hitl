@@ -54,6 +54,60 @@ class ExtractionStrategy(ABC):
     def extract(self, pdf_path: str, field_config: Dict, all_words: List[Dict]) -> Optional[FieldValue]:
         """Extract a field value from PDF"""
         pass
+    
+    def _post_process_value(
+        self, 
+        value: str, 
+        field_name: str, 
+        full_text: str
+    ) -> str:
+        """
+        Post-process extracted value using general text normalization
+        NO HARDCODED RULES - uses universal text cleaning heuristics
+        
+        This method applies ONLY general text normalization that would apply
+        to ANY field in ANY template. No field-specific or template-specific logic.
+        
+        Args:
+            value: Raw extracted value
+            field_name: Name of the field (not used - kept for future ML-based cleaning)
+            full_text: Full candidate text for context (not used - kept for future)
+            
+        Returns:
+            Cleaned value
+        """
+        if not value:
+            return value
+        
+        cleaned = value.strip()
+        
+        # 1. Remove leading/trailing punctuation (universal rule)
+        # This is a general text normalization, not field-specific
+        while cleaned and cleaned[0] in '":;-.,!?':
+            cleaned = cleaned[1:].strip()
+        
+        while cleaned and cleaned[-1] in '":;-.,!?':
+            cleaned = cleaned[:-1].strip()
+        
+        # 2. Remove surrounding quotes (universal rule)
+        if len(cleaned) >= 2:
+            if (cleaned[0] in '""\'\u201c\u201d' and cleaned[-1] in '""\'\u201c\u201d'):
+                cleaned = cleaned[1:-1].strip()
+        
+        # 3. Remove surrounding parentheses (universal rule)
+        # Common in PDF text where names/values are wrapped in parentheses
+        if len(cleaned) >= 2:
+            if cleaned[0] == '(' and cleaned[-1] == ')':
+                cleaned = cleaned[1:-1].strip()
+        
+        # 4. Normalize whitespace (universal rule)
+        cleaned = ' '.join(cleaned.split())
+        
+        # NOTE: For more advanced cleaning (removing specific prefixes/suffixes),
+        # the system should LEARN from user feedback, not use hardcoded rules.
+        # Future enhancement: Use ML to learn cleaning patterns from corrections.
+        
+        return cleaned
 
 
 class RuleBasedExtractionStrategy(ExtractionStrategy):
@@ -360,11 +414,20 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             label_y1 = label_pos.get('y1', 0)
             label_y_center = (label_y0 + label_y1) / 2
             
+            # ✅ NEW: Get next field boundary
+            next_field_y = context.get('next_field_y')
+            
             # Collect candidate words after label
+            # ✅ NEW: Stop at next field boundary
             candidate_words = []
             for word in all_words:
                 word_x0 = word.get('x0', 0)
+                word_y = word.get('top', 0)
                 word_y_center = (word.get('top', 0) + word.get('bottom', 0)) / 2
+                
+                # ✅ NEW: Stop if we reach next field
+                if next_field_y and word_y >= next_field_y:
+                    break
                 
                 # Word is after label and on same line
                 if word_x0 > label_x1 and abs(word_y_center - label_y_center) < 10:
@@ -490,54 +553,6 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         except Exception as e:
             self.logger.error(f"Rule-based extraction failed for {field_name}: {e}")
             return None
-    
-    def _post_process_value(
-        self, 
-        value: str, 
-        field_name: str, 
-        full_text: str
-    ) -> str:
-        """
-        Post-process extracted value using general text normalization
-        NO HARDCODED RULES - uses universal text cleaning heuristics
-        
-        This method applies ONLY general text normalization that would apply
-        to ANY field in ANY template. No field-specific or template-specific logic.
-        
-        Args:
-            value: Raw extracted value
-            field_name: Name of the field (not used - kept for future ML-based cleaning)
-            full_text: Full candidate text for context (not used - kept for future)
-            
-        Returns:
-            Cleaned value
-        """
-        if not value:
-            return value
-        
-        cleaned = value.strip()
-        
-        # 1. Remove leading/trailing punctuation (universal rule)
-        # This is a general text normalization, not field-specific
-        while cleaned and cleaned[0] in '":;-.,!?':
-            cleaned = cleaned[1:].strip()
-        
-        while cleaned and cleaned[-1] in '":;-.,!?':
-            cleaned = cleaned[:-1].strip()
-        
-        # 2. Remove surrounding quotes (universal rule)
-        if len(cleaned) >= 2:
-            if (cleaned[0] in '""\'\u201c\u201d' and cleaned[-1] in '""\'\u201c\u201d'):
-                cleaned = cleaned[1:-1].strip()
-        
-        # 3. Normalize whitespace (universal rule)
-        cleaned = ' '.join(cleaned.split())
-        
-        # NOTE: For more advanced cleaning (removing specific prefixes/suffixes),
-        # the system should LEARN from user feedback, not use hardcoded rules.
-        # Future enhancement: Use ML to learn cleaning patterns from corrections.
-        
-        return cleaned
     
     def _calculate_confidence(
         self, 
@@ -709,13 +724,24 @@ class PositionExtractionStrategy(ExtractionStrategy):
             # Sort by horizontal position (left to right)
             candidate_words.sort(key=lambda w: w['x0'])
             
+            # ✅ NEW: Get next field boundary
+            context = location.get('context', {})
+            next_field_y = context.get('next_field_y') if context else None
+            
             # Extract ALL words from marker position onwards (same line)
+            # ✅ NEW: Stop at next field boundary
             # This handles multi-word values like "Ophelia Yuniar, S.Kom"
             value_words = []
             first_word_pos = None
             
             if candidate_words:
                 for cw in candidate_words:
+                    word_y = cw['word'].get('top', 0)
+                    
+                    # ✅ NEW: Stop if we reach next field
+                    if next_field_y and word_y >= next_field_y:
+                        break
+                    
                     if cw['distance'] >= -10:  # At or after marker
                         value_words.append(cw['word'].get('text', ''))
                         if first_word_pos is None:
@@ -899,31 +925,60 @@ class CRFExtractionStrategy(ExtractionStrategy):
             extracted_tokens = []
             confidences = []
             
+            # ✅ ADAPTIVE: Get next field boundary
+            next_field_y = context.get('next_field_y')
+            
+            # ✅ Let model learn boundaries from training data
+            # But enforce hard stop at next_field_y (adaptive, not hardcoded!)
             for i, (pred, marginal) in enumerate(zip(predictions, marginals)):
                 if pred in [target_label, inside_label]:
                     if i < len(all_words):
-                        extracted_tokens.append(all_words[i].get('text', ''))
-                        # Get confidence from marginal probability
+                        word = all_words[i]
+                        word_y = word.get('top', 0)
+                        
+                        # ✅ ADAPTIVE: Stop if we reach next field boundary
+                        if next_field_y and word_y >= next_field_y:
+                            print(f"   🛑 [Adaptive] Stopped at next field boundary (Y={next_field_y})")
+                            break
+                        
                         conf = marginal.get(pred, 0.0)
+                        extracted_tokens.append(word.get('text', ''))
                         confidences.append(conf)
             
             if extracted_tokens:
-                value = ' '.join(extracted_tokens)
+                raw_value = ' '.join(extracted_tokens)
                 import numpy as np
                 avg_confidence = float(np.mean(confidences)) if confidences else 0.5
                 
-                print(f"✅ [CRF] Extracted '{field_name}': {value[:50]}... (conf: {avg_confidence:.2f})")
+                # ✅ ADAPTIVE: Remove text BEFORE label (if label exists in extracted text)
+                # This is NOT hardcoded - it uses label from context dynamically
+                label = context.get('label', '')
+                if label and label in raw_value:
+                    # Find label position and take only text AFTER it
+                    parts = raw_value.split(label, 1)
+                    if len(parts) > 1:
+                        raw_value = parts[1].strip()
+                        print(f"   🎯 [Adaptive] Removed text before label '{label}'")
+                
+                # ✅ CRITICAL FIX: Apply post-processing like rule-based does
+                # This removes parentheses, trailing commas, etc.
+                cleaned_value = self._post_process_value(raw_value, field_name, raw_value)
+                
+                print(f"✅ [CRF] Extracted '{field_name}': {cleaned_value[:50]}... (conf: {avg_confidence:.2f})")
+                if raw_value != cleaned_value:
+                    print(f"   🧹 Cleaned: '{raw_value}' → '{cleaned_value}'")
                 
                 return FieldValue(
                     field_id=field_name,
                     field_name=field_name,
-                    value=value,
+                    value=cleaned_value,  # ✅ Use cleaned value
                     confidence=avg_confidence,
                     method='crf',
                     metadata={
                         'model_path': self.model_path,
                         'token_count': len(extracted_tokens),
-                        'confidence_scores': confidences
+                        'confidence_scores': confidences,
+                        'raw_value': raw_value  # Keep raw for debugging
                     }
                 )
             
@@ -1035,24 +1090,58 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 'in_context_after': text.lower() in context_after_text,
             }
             
-            # ✅ NEW: Distance from label
+            # ✅ ENHANCED: Distance from label with stronger constraints (MUST match learner.py!)
             if label_pos:
+                label_x0 = label_pos.get('x0', 0)
                 label_x1 = label_pos.get('x1', 0)
-                label_y = label_pos.get('y0', 0)
+                label_y0 = label_pos.get('y0', 0)
+                label_y1 = label_pos.get('y1', 0)
+                
                 distance_x = word_x - label_x1
-                distance_y = abs(word_y - label_y)
+                distance_y = abs(word_y - label_y0)
+                
+                # ✅ ENHANCED: Stronger positional constraints for complex layouts
+                is_after_label = distance_x > 0
+                is_before_label = word_x < label_x0
+                is_above_label = word_y < label_y0
+                is_below_label = word_y > label_y1
+                is_same_line = distance_y < 10
                 
                 word_features['distance_from_label_x'] = distance_x / 100  # Normalized
                 word_features['distance_from_label_y'] = distance_y / 100
-                word_features['after_label'] = distance_x > 0
-                word_features['same_line_as_label'] = distance_y < 10
-                word_features['near_label'] = distance_x < 50 and distance_y < 10
+                word_features['after_label'] = is_after_label
+                word_features['before_label'] = is_before_label  # ✅ NEW
+                word_features['above_label'] = is_above_label    # ✅ NEW
+                word_features['below_label'] = is_below_label    # ✅ NEW
+                word_features['same_line_as_label'] = is_same_line
+                word_features['near_label'] = distance_x < 50 and is_same_line
+                word_features['valid_position'] = is_after_label and is_same_line  # ✅ NEW
             else:
                 word_features['distance_from_label_x'] = 0
                 word_features['distance_from_label_y'] = 0
                 word_features['after_label'] = False
+                word_features['before_label'] = False
+                word_features['above_label'] = False
+                word_features['below_label'] = False
                 word_features['same_line_as_label'] = False
                 word_features['near_label'] = False
+                word_features['valid_position'] = False
+            
+            # ✅ NEW: Next field boundary features (MUST match learner.py!)
+            next_field_y = context.get('next_field_y')
+            if next_field_y is not None:
+                distance_to_next = next_field_y - word_y
+                word_features['has_next_field'] = True
+                word_features['distance_to_next_field'] = distance_to_next / 100
+                word_features['before_next_field'] = distance_to_next > 0
+                word_features['near_next_field'] = 0 < distance_to_next < 20
+                word_features['far_from_next_field'] = distance_to_next > 50
+            else:
+                word_features['has_next_field'] = False
+                word_features['distance_to_next_field'] = 0
+                word_features['before_next_field'] = False
+                word_features['near_next_field'] = False
+                word_features['far_from_next_field'] = False
             
             # Prefix and suffix features
             if len(text) > 1:

@@ -292,6 +292,85 @@ class ConfigRepository:
         finally:
             conn.close()
     
+    def create_field_context(
+        self,
+        field_location_id: int,
+        label: str = '',
+        label_position: Dict = None,
+        words_before: List[Dict] = None,
+        words_after: List[Dict] = None,
+        next_field_y: float = None  # ✅ NEW
+    ) -> int:
+        """
+        Create context information for a field location
+        
+        Args:
+            field_location_id: Field location ID
+            label: Label text (e.g., "Sertifikat:", "tanggal")
+            label_position: Label bounding box {"x0": ..., "y0": ..., "x1": ..., "y1": ...}
+            words_before: List of words before field [{"text": "...", "x": ..., "y": ...}, ...]
+            words_after: List of words after field [{"text": "...", "x": ..., "y": ...}, ...]
+            next_field_y: Y position of next field (for boundary detection)
+            
+        Returns:
+            context_id: ID of created context
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO field_contexts 
+                (field_location_id, label, label_position, words_before, words_after, next_field_y)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                field_location_id,
+                label,
+                json.dumps(label_position) if label_position else None,
+                json.dumps(words_before) if words_before else None,
+                json.dumps(words_after) if words_after else None,
+                next_field_y  # ✅ NEW
+            ))
+            
+            context_id = cursor.lastrowid
+            conn.commit()
+            return context_id
+            
+        finally:
+            conn.close()
+    
+    def get_field_context(self, field_location_id: int) -> Optional[Dict]:
+        """
+        Get context information for a field location
+        
+        Args:
+            field_location_id: Field location ID
+            
+        Returns:
+            Context dict with label, label_position, words_before, words_after
+            or None if not found
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT 
+                    label,
+                    label_position,
+                    words_before,
+                    words_after
+                FROM field_contexts
+                WHERE field_location_id = ?
+                LIMIT 1
+            """, (field_location_id,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+            
+        finally:
+            conn.close()
+    
     # ========================================================================
     # Learned Pattern Operations (Adaptive!)
     # ========================================================================

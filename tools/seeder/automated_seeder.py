@@ -231,9 +231,10 @@ class AutomatedSeeder:
         Returns:
             Validation result
         """
-        if not corrections:
-            logger.info(f"✅ No corrections needed for document {document_id}")
-            return {"status": "no_corrections"}
+        # force corrections = True
+        # if not corrections:
+        #     logger.info(f"✅ No corrections needed for document {document_id}")
+        #     return {"status": "no_corrections"}
 
         logger.info(
             f"📝 Submitting {len(corrections)} corrections for document {document_id}"
@@ -305,13 +306,13 @@ class AutomatedSeeder:
             extracted_data = results["extracted_data"]
 
             # sleep for 1 second
-            time.sleep(1)
+            time.sleep(0.5)
 
             # 3. Compare and generate corrections
             corrections = self.compare_and_correct(extracted_data, ground_truth)
 
             # sleep for 1 second
-            time.sleep(1)
+            time.sleep(0.5)
 
             # 4. Submit corrections
             validation_result = self.submit_corrections(document_id, corrections)

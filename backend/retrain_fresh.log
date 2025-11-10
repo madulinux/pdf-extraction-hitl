@@ -1,0 +1,1180 @@
+🚀 Starting improved model training with regularization...
+   This will find the best L1/L2 regularization parameters
+   to prevent overfitting.
+
+====================================================================================================
+🤖 TRAINING MODEL WITH REGULARIZATION
+====================================================================================================
+
+📊 Loading training data...
+   Total documents with feedback: 100
+   Train set: 80 documents
+   Validation set: 20 documents
+
+🔄 Preparing training features...
+   Extracting words from PDFs...
+   Doc 20251111_033312_2025-11-11_033111_895454_55.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang Ciumbuleuit No. 77
+Batam, Papua 67360' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kota Tangerang' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Dt. Karsana Maryati' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '7437/CVC/10/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ifa Mayasari' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '24 October 2024' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Chemical engineer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Icha Hartati, S.Ked' (exact match at position 7)
+   Doc 20251111_033405_2025-11-11_033134_135163_88.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '03 February 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Jalan Tubagus Ismail No. 9
+Palu, Bali 52230' (exact match at position 24)
+[Learner] Labeled issue_place: 'Aceh Tenggara' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Kezia Mardhiyah, S.Sos' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '3144/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Halima Nainggolan, M.M.' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Workshop Patent examiner' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Dina Thamrin' (exact match at position 7)
+   Doc 20251111_033227_2025-11-11_033053_593754_26.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Psychologist, educational' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Gang Pelajar Pejuang No. 849
+Salatiga, JB 86881' (exact match at position 24)
+[Learner] Labeled issue_place: 'Sukabumi' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Empluk Wastuti' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '297/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Dt. Malik Rajata' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '06 July 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Gina Hutapea' (exact match at position 7)
+   Doc 20251111_033252_2025-11-11_033104_175840_42.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Workshop Sport and exercise psychologist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Wonoayu No. 19
+Palembang, SU 90692' (exact match at position 27)
+[Learner] Labeled issue_place: 'Mesuji' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '18 October 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Ghaliyati Mardhiyah' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '4642/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'R.A. Hasna Saputra, M.TI.' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '08 October 2025' (exact match at position 23)
+[Learner] Labeled recipient_name: 'Drs. Saka Sitompul' (exact match at position 7)
+   Doc 20251111_033334_2025-11-11_033120_461202_69.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '26 February 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Gang Pelajar Pejuang No. 26
+Meulaboh, BE 22091' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kayong Utara' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Latika Waluyo' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2335/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Dewi Sirait' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Workshop Engineer, chemical' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Sidiq Haryanto' (exact match at position 7)
+   Doc 20251111_033209_2025-11-11_033045_81347_12.pdf: 3 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Gang Tubagus Ismail No. 3
+Bukittinggi, Sulawesi Selatan 13325' (exact match at position 24)
+[Learner] Labeled issue_place: 'Tasikmalaya' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Yunita Siregar' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '7111/CVC/04/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'R. Rini Anggraini' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '14 April 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Salimah Irawan' (exact match at position 7)
+   Doc 20251111_033249_2025-11-11_033102_960956_40.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Seminar Conservator, museum/gallery' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '22 September 2024' (exact match at position 20)
+[Learner] Labeled event_location: 'Gg. Indragiri No. 10
+Pontianak, Jawa Barat 35623' (exact match at position 24)
+[Learner] Labeled issue_place: 'Puncak Jaya' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '30 September 2024' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Titin Laksita, M.Kom.' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8310/CVC/09/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Darmaji Pranowo' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled recipient_name: 'Umi Mardhiyah' (exact match at position 7)
+   Doc 20251111_033417_2025-11-11_033140_197030_96.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Seminar Environmental health practitioner' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '15 February 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Gg. Gedebage Selatan No. 818
+Padangpanjang, KT 37135' (exact match at position 25)
+[Learner] Labeled issue_place: 'Pinrang' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '25 February 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Genta Damanik' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2700/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Prayogo Natsir, M.TI.' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ibrani Novitasari' (exact match at position 7)
+   Doc 20251111_033200_2025-11-11_033042_299638_9.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Jalan Gedebage Selatan No. 189
+Bontang, Sulawesi Utara 65723' (exact match at position 24)
+[Learner] Labeled issue_place: 'Demak' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '26 April 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Emong Padmasari' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '4496/CVC/04/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Salwa Usamah' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '13 April 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Marwata Hastuti' (exact match at position 7)
+   Doc 20251111_033339_2025-11-11_033122_562734_72.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Seminar Magazine features editor' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '01 February 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Gg. Yos Sudarso No. 038
+Makassar, KB 17036' (exact match at position 25)
+[Learner] Labeled issue_place: 'Solok' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '07 February 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Amalia Kurniawan' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2015/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'drg. Kania Ardianto' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled recipient_name: 'Kasiyah Rajasa' (exact match at position 7)
+   Doc 20251111_033203_2025-11-11_033042_358308_11.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Gg. Rungkut Industri No. 7
+Sungai Penuh, Sulawesi Tenggara 23577' (exact match at position 23)
+[Learner] Labeled issue_place: 'Deiyai' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '29 March 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Drs. Puti Tarihoran' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2695/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Vega Putra' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '21 March 2025' (exact match at position 19)
+[Learner] Labeled recipient_name: 'Mursita Yuniar' (exact match at position 7)
+   Doc 20251111_033300_2025-11-11_033106_740752_47.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '26 December 2024' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. Merdeka No. 3
+Sabang, Kalimantan Timur 15495' (exact match at position 25)
+[Learner] Labeled issue_place: 'Hulu Sungai Utara' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'R. Belinda Kurniawan, S.Kom' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '6138/CVC/12/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Prakosa Budiman, S.Pt' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled event_name: 'Training Financial risk analyst' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Fitriani Waluyo' (exact match at position 7)
+   Doc 20251111_033400_2025-11-11_033131_231632_85.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Stasiun Wonokromo No. 6
+Palopo, GO 94177' (exact match at position 24)
+[Learner] Labeled issue_place: 'Aceh Barat Daya' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'T. Harsaya Gunawan, S.IP' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '4494/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Lurhur Samosir' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '07 July 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Training Nutritional therapist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Warta Prasetya' (exact match at position 7)
+   Doc 20251111_033230_2025-11-11_033055_657667_28.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Suniaraja No. 93
+Langsa, Sumatera Utara 03491' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Pasuruan' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Cawuk Gunarto' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '1133/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Shania Prastuti' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '28 April 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Workshop Chemist, analytical' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Garda Hassanah' (exact match at position 7)
+   Doc 20251111_033413_2025-11-11_033137_268447_93.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Seminar Medical sales representative' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled event_date: '09 November 2025' (exact match at position 23)
+[Learner] Labeled event_location: 'Jl. Ir. H. Djuanda No. 42
+Bekasi, JI 14506' (exact match at position 27)
+[Learner] Labeled issue_place: 'Muaro Jambi' (fuzzy match at position 36, excluding punctuation)
+[Learner] Labeled issue_date: '15 November 2025' (exact match at position 38)
+[Learner] Labeled supervisor_name: 'H. Rafid Uwais' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled certificate_number: '8985/CVC/11/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Bala Nashiruddin' (fuzzy match at position 47, excluding punctuation)
+[Learner] Labeled recipient_name: 'H. Danuja Palastri, S.Pt' (exact match at position 7)
+   Doc 20251111_033153_2025-11-11_033039_323280_5.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Jalan K.H. Wahid Hasyim No. 56
+Bengkulu, Jawa Barat 79779' (exact match at position 23)
+[Learner] Labeled issue_place: 'Buton' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '22 October 2024' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Ella Winarno' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '454/CVC/10/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Nyana Wijaya, S.Psi' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '11 October 2024' (exact match at position 19)
+[Learner] Labeled recipient_name: 'Atma Habibi' (exact match at position 7)
+   Doc 20251111_033330_2025-11-11_033119_673349_66.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'R.M. Estiawan Simanjuntak, M.M.' (exact match at position 7)
+[Learner] Labeled event_name: 'Workshop Primary school teacher' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Siliwangi No. 75
+Banda Aceh, RI 88938' (exact match at position 27)
+[Learner] Labeled issue_place: 'Aceh Selatan' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Daryani Budiman' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '8929/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Jelita Hastuti, M.M.' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '26 June 2025' (exact match at position 23)
+   Doc 20251111_033328_2025-11-11_033117_964998_65.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Workshop Pension scheme manager' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Gg. Ciumbuleuit No. 7
+Bogor, Kepulauan Riau 90331' (exact match at position 25)
+[Learner] Labeled issue_place: 'Intan Jaya' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '10 August 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Dr. Belinda Maulana' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '6047/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Tgk. Padmi Zulkarnain, S.IP' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '31 July 2025' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Kacung Purwanti' (exact match at position 7)
+   Doc 20251111_033241_2025-11-11_033058_971252_35.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang KH Amin Jasuta No. 0
+Mojokerto, KI 54619' (exact match at position 24)
+[Learner] Labeled issue_place: 'Bone' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '26 January 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'R. Zizi Prasasta' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '7808/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Puti Lidya Maulana' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '20 January 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Training Patent examiner' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Elma Winarsih' (exact match at position 7)
+   Doc 20251111_033211_2025-11-11_033047_603863_16.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Aslijan Waskita, M.TI.' (exact match at position 7)
+[Learner] Labeled event_name: 'Workshop Engineer, civil (contracting)' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Jl. Monginsidi No. 5
+Ambon, SU 25977' (exact match at position 26)
+[Learner] Labeled issue_place: 'Jember' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '27 July 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Dian Astuti' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '5630/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Victoria Pratama, M.Ak' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '17 July 2025' (exact match at position 22)
+   Doc 20251111_033303_2025-11-11_033108_279924_49.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Yos Sudarso No. 48
+Pariaman, SS 53231' (exact match at position 25)
+[Learner] Labeled issue_place: 'Lima Puluh Kota' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Edward Oktaviani' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '4658/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ghaliyati Winarno' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '14 August 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Workshop Police officer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Lega Suartini, S.IP' (exact match at position 7)
+   Doc 20251111_033239_2025-11-11_033058_967302_34.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Gegerkalong Hilir No. 07
+Kupang, Jawa Tengah 24405' (exact match at position 24)
+[Learner] Labeled issue_place: 'Tangerang' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '30 October 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Dr. Yono Salahudin, S.E.' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '1737/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Puti Unjani Handayani, S.Pt' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '23 October 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Workshop Patent examiner' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Lidya Saragih' (exact match at position 7)
+   Doc 20251111_033156_2025-11-11_033039_326473_7.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Kayla Palastri, M.TI.' (exact match at position 7)
+[Learner] Labeled event_name: 'Seminar Engineer, communications' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Medokan Ayu No. 24
+Lhokseumawe, Sulawesi Tengah 39187' (exact match at position 25)
+[Learner] Labeled issue_place: 'Melawi' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '08 November 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Malika Yolanda' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '969/CVC/11/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Edi Yuliarti, M.Ak' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '28 October 2025' (exact match at position 21)
+   Doc 20251111_033416_2025-11-11_033140_195353_95.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Jl. Cikutra Timur No. 694
+Kupang, SN 47888' (exact match at position 24)
+[Learner] Labeled issue_place: 'Ogan Komering Ulu Selatan' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '07 June 2025' (exact match at position 36)
+[Learner] Labeled supervisor_name: 'dr. Rini Latupono, S.Ked' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled chairman_name: 'Drs. Ayu Maryadi, S.Sos' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled certificate_number: '7145/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled event_date: '23 May 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Training Catering manager' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Radika Utami' (exact match at position 7)
+   Doc 20251111_033228_2025-11-11_033053_607852_27.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_date: '23 September 2025' (exact match at position 23)
+[Learner] Labeled event_location: 'Gang M.H Thamrin No. 94
+Kota Administrasi Jakarta Pusat, Sulawesi Selatan 73835' (exact match at position 27)
+[Learner] Labeled issue_place: 'Merauke' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled issue_date: '29 September 2025' (exact match at position 40)
+[Learner] Labeled supervisor_name: 'Drs. Qori Samosir' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled certificate_number: '4101/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Dian Salahudin' (fuzzy match at position 49, excluding punctuation)
+[Learner] Labeled event_name: 'Workshop Early years teacher' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ir. Aris Narpati, S.Kom' (exact match at position 7)
+   Doc 20251111_033215_2025-11-11_033047_965140_19.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Ir. Julia Saragih, S.E.' (exact match at position 7)
+[Learner] Labeled event_location: 'Gg. Tubagus Ismail No. 41
+Tarakan, YO 17727' (exact match at position 26)
+[Learner] Labeled issue_place: 'Tulang Bawang' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '04 November 2024' (exact match at position 36)
+[Learner] Labeled supervisor_name: 'Intan Uwais' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '1237/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Waluyo Pudjiastuti' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '21 October 2024' (exact match at position 22)
+   Doc 20251111_033353_2025-11-11_033128_271938_81.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '02 February 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Gang Gedebage Selatan No. 886
+Dumai, PA 67685' (exact match at position 25)
+[Learner] Labeled issue_place: 'Gorontalo Utara' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Yuliana Palastri' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '8885/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Azalea Oktaviani' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Company secretary' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'drg. Karman Hasanah' (exact match at position 7)
+   Doc 20251111_033225_2025-11-11_033053_398821_25.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang Suryakencana No. 5
+Jambi, KR 35542' (exact match at position 25)
+[Learner] Labeled issue_place: 'Dharmasraya' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'dr. Dina Firmansyah, S.Pt' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '1174/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Gina Kurniawan' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '26 June 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Herpetologist' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cut Rika Hutagalung, S.I.Kom' (exact match at position 7)
+   Doc 20251111_033323_2025-11-11_033117_552355_64.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_date: '02 February 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Jalan Pacuan Kuda No. 45
+Cirebon, Bengkulu 93696' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kubu Raya' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '08 February 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Aris Pradipta' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8681/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Karya Wastuti, M.TI.' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Training Energy engineer' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Raihan Pertiwi' (exact match at position 7)
+   Doc 20251111_033206_2025-11-11_033045_134460_14.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Jalan Erlangga No. 103
+Payakumbuh, Jawa Barat 20039' (exact match at position 24)
+[Learner] Labeled issue_place: 'Lembata' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '03 June 2025' (exact match at position 33)
+[Learner] Labeled supervisor_name: 'Adikara Lazuardi' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '1400/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Wakiman Lestari, M.TI.' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '21 May 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Bala Sitompul' (exact match at position 7)
+   Doc 20251111_033223_2025-11-11_033052_912620_24.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_date: '22 February 2025' (exact match at position 22)
+[Learner] Labeled event_location: 'Gg. Setiabudhi No. 2
+Pangkalpinang, Maluku 25142' (exact match at position 26)
+[Learner] Labeled issue_place: 'Sintang' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '03 March 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Endah Rahayu, S.I.Kom' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '1014/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Faizah Sitorus' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Engineer, site' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ir. Tina Firgantoro, S.Pt' (exact match at position 7)
+   Doc 20251111_033150_2025-11-11_033035_413832_3.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Engineer, civil (consulting)' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '18 November 2024' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. Siliwangi No. 148
+Banjarbaru, JT 96427' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kota Samarinda' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Warsita Purnawati' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '5550/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Gambira Pudjiastuti' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled issue_date: '29 November 2024' (exact match at position 34)
+[Learner] Labeled recipient_name: 'Tasnim Wijaya' (exact match at position 7)
+   Doc 20251111_033212_2025-11-11_033047_928424_17.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled event_date: '28 December 2024' (exact match at position 20)
+[Learner] Labeled event_location: 'Jalan Rajawali Timur No. 422
+Batu, KR 19513' (exact match at position 24)
+[Learner] Labeled issue_place: 'Musi Rawas' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '02 January 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Daniswara Hariyah' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '5371/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cakrabuana Prayoga' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled recipient_name: 'dr. Karen Dabukke' (exact match at position 7)
+   Doc 20251111_033245_2025-11-11_033101_556883_38.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan Bangka Raya No. 82
+Solok, Riau 85906' (exact match at position 23)
+[Learner] Labeled issue_place: 'Kota Pekanbaru' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled supervisor_name: 'drg. Hendra Manullang' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '882/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Tgk. Hartana Hidayat, S.Farm' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '20 October 2025' (exact match at position 19)
+[Learner] Labeled event_name: 'Training Make' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Chelsea Budiyanto' (exact match at position 7)
+   Doc 20251111_033158_2025-11-11_033042_270964_8.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_location: 'Jl. Rajawali Timur No. 119
+Semarang, Maluku 95491' (exact match at position 23)
+[Learner] Labeled issue_place: 'Bekasi' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled issue_date: '05 April 2025' (exact match at position 32)
+[Learner] Labeled supervisor_name: 'Usyi Fujiati' (fuzzy match at position 38, excluding punctuation)
+[Learner] Labeled certificate_number: '9134/CVC/04/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cakrawangsa Simanjuntak' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled event_date: '22 March 2025' (exact match at position 19)
+[Learner] Labeled recipient_name: 'Lukita Rahmawati' (exact match at position 7)
+   Doc 20251111_033349_2025-11-11_033128_227682_78.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan Peta No. 308
+Gorontalo, BA 53956' (exact match at position 23)
+[Learner] Labeled issue_place: 'Kota Gunungsitoli' (fuzzy match at position 30, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Padmi Andriani, S.Sos' (fuzzy match at position 38, excluding punctuation)
+[Learner] Labeled certificate_number: '9334/CVC/10/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ir. Erik Laksmiwati, S.E.' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '12 October 2024' (exact match at position 19)
+[Learner] Labeled event_name: 'Workshop Pathologist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Harsanto Wacana' (exact match at position 7)
+   Doc 20251111_033155_2025-11-11_033039_326424_6.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Workshop Operational researcher' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled event_date: '25 December 2024' (exact match at position 22)
+[Learner] Labeled event_location: 'Jl. Asia Afrika No. 0
+Bukittinggi, YO 21367' (exact match at position 26)
+[Learner] Labeled issue_place: 'Kota Kotamobagu' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'dr. Samiah Pudjiastuti, M.M.' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '2615/CVC/12/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ratih Tampubolon' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled issue_date: '31 December 2024' (exact match at position 36)
+[Learner] Labeled recipient_name: 'Dt. Rizki Situmorang, S.Kom' (exact match at position 7)
+   Doc 20251111_033326_2025-11-11_033117_86814_63.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. W.R. Supratman No. 2
+Tanjungbalai, PA 69299' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Tomohon' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Dalimin Winarno' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2378/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cemeti Hutapea' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '14 January 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Workshop Technical author' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Lili Anggriawan' (exact match at position 7)
+   Doc 20251111_033242_2025-11-11_033100_575589_36.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_date: '04 September 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. Moch. Toha No. 7
+Tasikmalaya, SU 36198' (exact match at position 25)
+[Learner] Labeled issue_place: 'Sukabumi' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '15 September 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Cengkir Hidayanto' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8363/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Imam Simbolon' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Training Engineer, aeronautical' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Drs. Yuliana Halim' (exact match at position 7)
+   Doc 20251111_033406_2025-11-11_033134_135195_89.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Seminar Chartered management accountant' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '26 December 2024' (exact match at position 21)
+[Learner] Labeled event_location: 'Gang K.H. Wahid Hasyim No. 80
+Yogyakarta, Nusa Tenggara Barat 13778' (exact match at position 25)
+[Learner] Labeled issue_place: 'Trenggalek' (fuzzy match at position 36, excluding punctuation)
+[Learner] Labeled issue_date: '08 January 2025' (exact match at position 37)
+[Learner] Labeled supervisor_name: 'Wani Hutagalung' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '6682/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Nyoman Narpati' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled recipient_name: 'Mulyanto Saputra' (exact match at position 7)
+   Doc 20251111_033314_2025-11-11_033112_652943_56.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang Jamika No. 687
+Payakumbuh, AC 17021' (exact match at position 25)
+[Learner] Labeled issue_place: 'Pasaman Barat' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Eva Rajata' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '3807/CVC/04/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Langgeng Prastuti' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '24 April 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Site engineer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ir. Eli Gunawan' (exact match at position 7)
+   Doc 20251111_033422_2025-11-11_033143_185769_99.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '27 September 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Jl. Surapati No. 8
+Banjar, JA 02112' (exact match at position 24)
+[Learner] Labeled issue_place: 'Buton Tengah' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Hilda Uyainah, M.Farm' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '1705/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ir. Mujur Sitorus, S.I.Kom' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Probation officer' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Maria Kusumo' (exact match at position 7)
+   Doc 20251111_033311_2025-11-11_033111_895021_54.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang Suryakencana No. 569
+Prabumulih, KB 09608' (exact match at position 23)
+[Learner] Labeled issue_place: 'Bondowoso' (fuzzy match at position 30, excluding punctuation)
+[Learner] Labeled issue_date: '20 October 2025' (exact match at position 31)
+[Learner] Labeled supervisor_name: 'drg. Hardi Rajasa' (fuzzy match at position 37, excluding punctuation)
+[Learner] Labeled certificate_number: '9462/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Laswi Iswahyudi' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled event_date: '13 October 2025' (exact match at position 19)
+[Learner] Labeled event_name: 'Workshop Solicitor' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Rahmi Sihombing' (exact match at position 7)
+   Doc 20251111_033253_2025-11-11_033104_183893_43.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Workshop Programmer, multimedia' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Gedebage Selatan No. 8
+Kota Administrasi Jakarta Pusat, Lampung 83438' (exact match at position 24)
+[Learner] Labeled issue_place: 'Batanghari' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled supervisor_name: 'R. Genta Nugroho, S.H.' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '1628/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'dr. Erik Haryanti, M.Pd' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled event_date: '12 May 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Salwa Suwarno' (exact match at position 7)
+   Doc 20251111_033304_2025-11-11_033109_320133_50.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Workshop Designer, blown glass/stained glass' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jl. Jayawijaya No. 547
+Sibolga, GO 40257' (exact match at position 26)
+[Learner] Labeled issue_place: 'Buton Selatan' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Ir. Lukman Haryanto' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '1529/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Olivia Setiawan, S.T.' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '06 January 2025' (exact match at position 22)
+[Learner] Labeled recipient_name: 'Rachel Halim' (exact match at position 7)
+   Doc 20251111_033331_2025-11-11_033119_673453_67.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. Rumah Sakit No. 335
+Tidore Kepulauan, Sulawesi Tengah 74341' (exact match at position 25)
+[Learner] Labeled issue_place: 'Minahasa Utara' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled issue_date: '02 September 2025' (exact match at position 37)
+[Learner] Labeled supervisor_name: 'Pranawa Purnawati' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '9880/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Bakidin Rajasa' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '21 August 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Theatre director' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Drs. Zelda Wasita' (exact match at position 7)
+   Doc 20251111_033258_2025-11-11_033106_735800_46.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang Pelajar Pejuang No. 8
+Tangerang Selatan, JB 64835' (exact match at position 24)
+[Learner] Labeled issue_place: 'Lampung Utara' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Samiah Lestari' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '6576/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Koko Gunawan' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '01 January 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Training Lawyer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ir. Yuni Jailani' (exact match at position 7)
+   Doc 20251111_033333_2025-11-11_033120_12811_68.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Dt. Mahmud Tampubolon, S.Gz' (exact match at position 7)
+[Learner] Labeled event_date: '16 February 2025' (exact match at position 22)
+[Learner] Labeled event_location: 'Jalan Bangka Raya No. 81
+Jambi, YO 52747' (exact match at position 26)
+[Learner] Labeled issue_place: 'Demak' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '27 February 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Dr. Jamil Lestari, M.TI.' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '3034/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Sabrina Hartati' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_name: 'Training Embryologist, clinical' (fuzzy match at position 15, excluding punctuation)
+   Doc 20251111_033322_2025-11-11_033115_87102_60.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Training Land/geomatics surveyor' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Jayawijaya No. 10
+Pariaman, KT 05823' (exact match at position 26)
+[Learner] Labeled issue_place: 'Maluku Tenggara' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Halima Natsir, S.IP' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '2852/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Lembah Maheswara, M.Farm' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '16 May 2025' (exact match at position 22)
+[Learner] Labeled recipient_name: 'Hj. Vicky Yulianti, S.Pt' (exact match at position 7)
+   Doc 20251111_033419_2025-11-11_033140_199720_97.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Computer games developer' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jl. K.H. Wahid Hasyim No. 2
+Sawahlunto, KU 53744' (exact match at position 25)
+[Learner] Labeled issue_place: 'Sumbawa Barat' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Keisha Wacana' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '3322/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Intan Suartini' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '27 April 2025' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Soleh Kuswoyo' (exact match at position 7)
+   Doc 20251111_033350_2025-11-11_033128_236260_79.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan W.R. Supratman No. 6
+Palu, Kalimantan Timur 58232' (exact match at position 25)
+[Learner] Labeled issue_place: 'Lebong' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '18 May 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Eva Lailasari' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '4615/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Uchita Prabowo, S.H.' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '05 May 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Editor, film/video' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'dr. Padmi Prasasta' (exact match at position 7)
+   Doc 20251111_033250_2025-11-11_033103_438157_41.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Training Chartered certified accountant' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '13 February 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. R.E Martadinata No. 52
+Padangpanjang, Kepulauan Riau 12927' (exact match at position 25)
+[Learner] Labeled issue_place: 'Hulu Sungai Utara' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Heryanto Wacana, S.Sos' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '1405/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Tina Saragih, S.Sos' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled recipient_name: 'Reza Prabowo' (exact match at position 7)
+   Doc 20251111_033317_2025-11-11_033114_478546_58.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Workshop Accountant, chartered public finance' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_date: '05 November 2024' (exact match at position 23)
+[Learner] Labeled event_location: 'Jalan Jend. A. Yani No. 47
+Bau-Bau, KU 91489' (exact match at position 27)
+[Learner] Labeled issue_place: 'Lingga' (fuzzy match at position 36, excluding punctuation)
+[Learner] Labeled issue_date: '18 November 2024' (exact match at position 37)
+[Learner] Labeled supervisor_name: 'Widya Pranowo' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '7516/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Rahmi Winarno' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ir. Hamima Safitri' (exact match at position 7)
+   Doc 20251111_033301_2025-11-11_033107_765340_48.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Engineer, civil (consulting)' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jl. Rumah Sakit No. 06
+Bontang, SN 51970' (exact match at position 25)
+[Learner] Labeled issue_place: 'Asmat' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '07 November 2024' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Dr. Okta Winarsih, S.H.' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '7085/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Fitria Hidayanto, M.Ak' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '27 October 2024' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Atma Rahimah' (exact match at position 7)
+   Doc 20251111_033420_2025-11-11_033143_183777_98.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_date: '03 September 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. Stasiun Wonokromo No. 15
+Mataram, Kalimantan Utara 78648' (exact match at position 25)
+[Learner] Labeled issue_place: 'Bangka' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '13 September 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Candrakanta Kurniawan' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '1439/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Anggabaya Natsir, S.Psi' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar IT consultant' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cut Vanesa Anggraini' (exact match at position 7)
+   Doc 20251111_033315_2025-11-11_033113_134491_57.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. Setiabudhi No. 7
+Bandung, SU 84361' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kota Palopo' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Gatot Mardhiyah' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '5556/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Hj. Azalea Prasasta, M.Ak' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '23 June 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Training Clinical biochemist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cut Winda Latupono' (exact match at position 7)
+   Doc 20251111_033344_2025-11-11_033125_301710_75.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Sales promotion account executive' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Gang Sentot Alibasa No. 13
+Kota Administrasi Jakarta Pusat, Gorontalo 75493' (exact match at position 27)
+[Learner] Labeled issue_place: 'Gowa' (fuzzy match at position 38, excluding punctuation)
+[Learner] Labeled issue_date: '31 October 2025' (exact match at position 39)
+[Learner] Labeled supervisor_name: 'Harsana Rahimah' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled certificate_number: '5272/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ian Hartati' (fuzzy match at position 47, excluding punctuation)
+[Learner] Labeled event_date: '20 October 2025' (exact match at position 23)
+[Learner] Labeled recipient_name: 'Dina Nasyiah, M.Farm' (exact match at position 7)
+   Doc 20251111_033236_2025-11-11_033058_180504_32.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. Gegerkalong Hilir No. 649
+Solok, Banten 33908' (exact match at position 24)
+[Learner] Labeled issue_place: 'Trenggalek' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Gilda Ardianto' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '5531/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Harsana Hutasoit' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '12 June 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Haematologist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Hendra Winarsih, S.Pd' (exact match at position 7)
+   Doc 20251111_033414_2025-11-11_033140_167369_94.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '28 November 2024' (exact match at position 19)
+[Learner] Labeled event_location: 'Jalan Sukabumi No. 9
+Pangkalpinang, Kalimantan Utara 85912' (exact match at position 23)
+[Learner] Labeled issue_place: 'Minahasa Tenggara' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Hendra Puspasari' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '5078/CVC/12/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Gaduh Sitompul, S.Kom' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_name: 'Training Illustrator' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cemplunk Maryati' (exact match at position 7)
+   Doc 20251111_033319_2025-11-11_033114_478570_59.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Soekarno Hatta No. 1
+Bitung, SU 04896' (exact match at position 23)
+[Learner] Labeled issue_place: 'Kota Sungai Penuh' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Gambira Zulaika' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '561/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'T. Tasnim Mandala, M.Farm' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '02 August 2025' (exact match at position 19)
+[Learner] Labeled event_name: 'Workshop Comptroller' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Kariman Maryadi' (exact match at position 7)
+   Doc 20251111_033325_2025-11-11_033117_80228_62.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gang M.H Thamrin No. 313
+Madiun, BA 63946' (exact match at position 25)
+[Learner] Labeled issue_place: 'Sumenep' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '17 March 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Hj. Melinda Kuswoyo' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '6484/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Jaga Salahudin, S.IP' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '08 March 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Workshop Embryologist, clinical' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'R. Azalea Wibowo' (exact match at position 7)
+   Doc 20251111_033358_2025-11-11_033131_230633_84.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Gedebage Selatan No. 35
+Yogyakarta, Jawa Tengah 90904' (exact match at position 24)
+[Learner] Labeled issue_place: 'Pasaman' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '27 March 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Lasmono Irawan' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '3473/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'KH. Ozy Safitri, S.H.' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '21 March 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Therapist, sports' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Mustika Pangestu' (exact match at position 7)
+   Doc 20251111_033244_2025-11-11_033100_967157_37.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Seminar Computer games developer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan Yos Sudarso No. 51
+Blitar, Bengkulu 60131' (exact match at position 26)
+[Learner] Labeled issue_place: 'Seruyan' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '18 June 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'drg. Yulia Prasasta' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '9234/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Sidiq Najmudin' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '04 June 2025' (exact match at position 22)
+[Learner] Labeled recipient_name: 'Bakianto Nashiruddin, S.E.I' (exact match at position 7)
+   Doc 20251111_033231_2025-11-11_033056_431473_30.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_name: 'Workshop Clothing/textile technologist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '11 February 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Gg. Yos Sudarso No. 0
+Cirebon, KB 14930' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Serang' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '19 February 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Hj. Icha Siregar, S.Pd' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '617/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Embuh Anggraini' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cengkal Wahyudin' (exact match at position 7)
+   Doc 20251111_033147_2025-11-11_033035_410977_1.pdf: 5 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Training Radiographer, diagnostic' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Gg. Sadang Serang No. 1
+Cirebon, Sumatera Utara 69806' (exact match at position 24)
+[Learner] Labeled issue_place: 'Mempawah' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '04 July 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'R. Septi Suwarno, S.Psi' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '5535/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Dr. Virman Suryono, S.E.I' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '23 June 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Gabriella Dongoran' (exact match at position 7)
+   Doc 20251111_033307_2025-11-11_033110_177021_52.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. Ciwastra No. 6
+Prabumulih, Sumatera Selatan 36751' (exact match at position 24)
+[Learner] Labeled issue_place: 'Belu' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '03 June 2025' (exact match at position 33)
+[Learner] Labeled supervisor_name: 'Elisa Jailani, S.Farm' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '9873/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Widya Megantara' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '19 May 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Therapist, horticultural' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Chelsea Ardianto' (exact match at position 7)
+   Doc 20251111_033219_2025-11-11_033050_614734_21.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan Pasir Koja No. 07
+Palembang, NB 35453' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Gorontalo' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '03 November 2024' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Raina Sirait' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '1763/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Nova Saptono' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '28 October 2024' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Personal assistant' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Wani Setiawan' (exact match at position 7)
+   Doc 20251111_033149_2025-11-11_033035_413149_2.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_date: '20 October 2024' (exact match at position 21)
+[Learner] Labeled event_location: 'Jalan Ciwastra No. 7
+Singkawang, JA 35847' (exact match at position 25)
+[Learner] Labeled issue_place: 'Mahakam Ulu' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Arsipatra Saragih' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '609/CVC/10/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'H. Harimurti Puspita, S.IP' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Public relations officer' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Eko Rajasa' (exact match at position 7)
+   Doc 20251111_033222_2025-11-11_033050_703387_23.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled event_name: 'Training Museum/gallery conservator' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan M.T Haryono No. 427
+Surabaya, Sulawesi Utara 49308' (exact match at position 24)
+[Learner] Labeled issue_place: 'Karangasem' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'H. Ajiman Oktaviani' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '3316/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Darsirah Wibowo' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '02 May 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Bakda Sihombing' (exact match at position 7)
+   Doc 20251111_033403_2025-11-11_033134_135117_87.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Karna Lazuardi, M.TI.' (exact match at position 7)
+[Learner] Labeled event_date: '19 February 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Jl. Stasiun Wonokromo No. 24
+Serang, Sumatera Barat 28046' (exact match at position 25)
+[Learner] Labeled issue_place: 'Parigi Moutong' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Rangga Mulyani' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '7303/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Sakura Megantara, S.Pd' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_name: 'Workshop Media planner' (fuzzy match at position 14, excluding punctuation)
+   Doc 20251111_033409_2025-11-11_033137_268291_91.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jl. Sukajadi No. 128
+Surakarta, SG 99042' (exact match at position 23)
+[Learner] Labeled issue_place: 'Bulukumba' (fuzzy match at position 30, excluding punctuation)
+[Learner] Labeled issue_date: '28 March 2025' (exact match at position 31)
+[Learner] Labeled supervisor_name: 'Yunita Adriansyah' (fuzzy match at position 37, excluding punctuation)
+[Learner] Labeled certificate_number: '6316/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ir. Makuta Utami, M.Pd' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled event_date: '19 March 2025' (exact match at position 19)
+[Learner] Labeled event_name: 'Training Arboriculturist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ira Laksita' (exact match at position 7)
+   Doc 20251111_033342_2025-11-11_033125_284905_74.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan Raya Ujungberung No. 05
+Tanjungpinang, JK 22570' (exact match at position 24)
+[Learner] Labeled issue_place: 'Purbalingga' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '31 August 2025' (exact match at position 33)
+[Learner] Labeled supervisor_name: 'Purwadi Mandasari' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '5550/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Ilsa Nurdiyanti' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '22 August 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Biomedical scientist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Jarwadi Tarihoran' (exact match at position 7)
+   Doc 20251111_033401_2025-11-11_033134_121120_86.pdf: 4 corrected, 4 non-corrected
+[Learner] Labeled recipient_name: 'R. Padmi Adriansyah, M.Kom.' (exact match at position 7)
+[Learner] Labeled event_location: 'Gg. Tebet Barat Dalam No. 7
+Cilegon, MA 58202' (exact match at position 26)
+[Learner] Labeled issue_place: 'Bengkulu Utara' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Harsanto Yuniar' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '5489/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Mujur Natsir' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '05 June 2025' (exact match at position 22)
+[Learner] Labeled event_name: 'Workshop Engineer, chemical' (fuzzy match at position 15, excluding punctuation)
+   Doc 20251111_033355_2025-11-11_033131_215318_82.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Gangsa Tamba, S.T.' (exact match at position 7)
+[Learner] Labeled event_name: 'Training Manufacturing systems engineer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Gg. Peta No. 34
+Meulaboh, DI Yogyakarta 73990' (exact match at position 26)
+[Learner] Labeled issue_place: 'Kota Tomohon' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Yoga Farida' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '5176/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Titin Kusumo' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '18 August 2025' (exact match at position 22)
+   Doc 20251111_033217_2025-11-11_033050_104571_20.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. M.T Haryono No. 32
+Dumai, AC 77424' (exact match at position 24)
+[Learner] Labeled issue_place: 'Tapanuli Tengah' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Drs. Raina Fujiati, S.I.Kom' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '7749/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Rahayu Saptono' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '10 August 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Training Engineer, water' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Nrima Permata' (exact match at position 7)
+   Doc 20251111_033320_2025-11-11_033115_539147_61.pdf: 3 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Gg. Rungkut Industri No. 57
+Ambon, Nusa Tenggara Barat 49775' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kota Bandar Lampung' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled supervisor_name: 'R.A. Yani Rahayu, S.Farm' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled certificate_number: '3618/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Aurora Saefullah' (fuzzy match at position 48, excluding punctuation)
+[Learner] Labeled event_date: '15 August 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Workshop Chemist, analytical' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Zalindra Mardhiyah, S.Farm' (exact match at position 7)
+   Doc 20251111_033338_2025-11-11_033122_385858_71.pdf: 6 corrected, 3 non-corrected
+[Learner] Labeled event_date: '08 September 2025' (exact match at position 22)
+[Learner] Labeled event_location: 'Jalan Gegerkalong Hilir No. 15
+Padang, Aceh 37013' (exact match at position 26)
+[Learner] Labeled issue_place: 'Tulang Bawang Barat' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '19 September 2025' (exact match at position 37)
+[Learner] Labeled supervisor_name: 'Ir. Titin Kusmawati' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled chairman_name: 'Balamantri Hassanah' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled certificate_number: '8843/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled event_name: 'Training Fine artist' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'T. Ade Kusumo, S.Sos' (exact match at position 7)
+   Doc 20251111_033208_2025-11-11_033045_136885_15.pdf: 7 corrected, 2 non-corrected
+[Learner] Labeled event_name: 'Workshop Chartered certified accountant' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_date: '03 December 2024' (exact match at position 21)
+[Learner] Labeled event_location: 'Gang Jamika No. 5
+Denpasar, Kalimantan Utara 87208' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kota Padang Panjang' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '14 December 2024' (exact match at position 36)
+[Learner] Labeled supervisor_name: 'Martaka Utami' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled chairman_name: 'drg. Diana Suartini' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled certificate_number: '4833/CVC/12/2024' (exact match at position 4)
+[Learner] Labeled recipient_name: 'Shakila Uyainah' (exact match at position 7)
+   Doc 20251111_033411_2025-11-11_033137_268425_92.pdf: 5 corrected, 3 non-corrected
+[Learner] Labeled recipient_name: 'Dr. Malik Latupono, M.M.' (exact match at position 7)
+[Learner] Labeled event_date: '21 February 2025' (exact match at position 22)
+[Learner] Labeled event_location: 'Gg. M.H Thamrin No. 2
+Purwokerto, Aceh 57714' (exact match at position 26)
+[Learner] Labeled issue_place: 'Kota Tebing Tinggi' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Puti Cindy Mustofa' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '3192/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cut Restu Kurniawan, S.I.Kom' (fuzzy match at position 46, excluding punctuation)
+[Learner] Labeled event_name: 'Training Landscape architect' (fuzzy match at position 15, excluding punctuation)
+   Doc 20251111_033306_2025-11-11_033109_320223_51.pdf: 4 corrected, 5 non-corrected
+[Learner] Labeled event_location: 'Jalan Pasir Koja No. 01
+Gorontalo, Sulawesi Tengah 87290' (exact match at position 27)
+[Learner] Labeled issue_place: 'Tegal' (fuzzy match at position 36, excluding punctuation)
+[Learner] Labeled issue_date: '05 November 2025' (exact match at position 37)
+[Learner] Labeled supervisor_name: 'Eva Yuniar' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '1055/CVC/11/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Yusuf Mulyani' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '31 October 2025' (exact match at position 23)
+[Learner] Labeled event_name: 'Seminar Chief Marketing Officer' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cut Violet Permata, S.E.I' (exact match at position 7)
+   Training samples: 677
+   Training labels: 677
+
+🔄 Preparing validation features...
+[Learner] Labeled event_name: 'Workshop Designer, exhibition/display' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jl. Antapani Lama No. 3
+Surakarta, Kepulauan Bangka Belitung 26525' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kepulauan Seribu' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Ivan Nasyidah, S.I.Kom' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '5624/CVC/04/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Rahmi Hutagalung' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '19 April 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Syahrini Jailani' (exact match at position 7)
+[Learner] Labeled event_date: '25 September 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Gg. Wonoayu No. 13
+Payakumbuh, RI 18728' (exact match at position 25)
+[Learner] Labeled issue_place: 'Kepulauan Meranti' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Kasusra Waluyo, S.Pt' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '2974/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Jumari Suwarno' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Workshop Probation officer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Darimin Pradana, S.Pd' (exact match at position 7)
+[Learner] Labeled event_location: 'Jalan Ciwastra No. 48
+Salatiga, KB 20698' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Pontianak' (fuzzy match at position 31, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Rangga Ardianto' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '2886/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Hilda Wahyudin' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '02 January 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Designer, jewellery' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Chandra Jailani' (exact match at position 7)
+[Learner] Labeled event_name: 'Seminar Administrator, charities/voluntary organisations' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Gg. Cikutra Timur No. 0
+Langsa, Papua Barat 68312' (exact match at position 25)
+[Learner] Labeled issue_place: 'Maluku Tenggara' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Puspa Mandala' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '9769/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Surya Waluyo' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '18 April 2025' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Yani Hutapea' (exact match at position 7)
+[Learner] Labeled event_location: 'Jalan Antapani Lama No. 8
+Prabumulih, NB 22675' (exact match at position 24)
+[Learner] Labeled issue_place: 'Halmahera Tengah' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Raina Hidayanto' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8024/CVC/10/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Samiah Hardiansyah, S.Ked' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '10 October 2024' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Ergonomist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Ganda Nugroho, M.Pd' (exact match at position 7)
+[Learner] Labeled event_location: 'Jl. Kebonjati No. 9
+Cilegon, AC 06032' (exact match at position 23)
+[Learner] Labeled issue_place: 'Gowa' (fuzzy match at position 30, excluding punctuation)
+[Learner] Labeled issue_date: '05 August 2025' (exact match at position 31)
+[Learner] Labeled supervisor_name: 'drg. Icha Yulianti, M.Ak' (fuzzy match at position 37, excluding punctuation)
+[Learner] Labeled certificate_number: '6861/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cut Kani Utama, S.I.Kom' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '29 July 2025' (exact match at position 19)
+[Learner] Labeled event_name: 'Workshop Optometrist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Siska Yuliarti' (exact match at position 7)
+[Learner] Labeled event_date: '15 September 2025' (exact match at position 21)
+[Learner] Labeled event_location: 'Jalan H.J Maemunah No. 2
+Bogor, SB 84454' (exact match at position 25)
+[Learner] Labeled issue_place: 'Minahasa' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '30 September 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Dr. Hasna Prakasa, S.Sos' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '822/CVC/09/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'dr. Karman Suryatmi, S.Psi' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Occupational therapist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cut Mala Marpaung' (exact match at position 7)
+[Learner] Labeled recipient_name: 'Zizi Palastri, M.M.' (exact match at position 7)
+[Learner] Labeled event_name: 'Workshop Architectural technologist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_location: 'Gg. W.R. Supratman No. 35
+Padang Sidempuan, Gorontalo 80632' (exact match at position 25)
+[Learner] Labeled issue_place: 'Seluma' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '10 February 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'R.M. Muhammad Najmudin, S.I.Kom' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '2980/CVC/02/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Wani Rahmawati' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '29 January 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Workshop Water quality scientist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Gang W.R. Supratman No. 595
+Tangerang, Kalimantan Utara 10264' (exact match at position 25)
+[Learner] Labeled issue_place: 'Cilacap' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '24 July 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Dalimin Hakim, M.Ak' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '8821/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Dadi Setiawan' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '16 July 2025' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Estiono Hastuti' (exact match at position 7)
+[Learner] Labeled event_location: 'Gg. Gegerkalong Hilir No. 478
+Tangerang, MU 56702' (exact match at position 24)
+[Learner] Labeled issue_place: 'Solok' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '07 May 2025' (exact match at position 33)
+[Learner] Labeled supervisor_name: 'Eva Saefullah' (fuzzy match at position 39, excluding punctuation)
+[Learner] Labeled certificate_number: '9519/CVC/05/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Kawaya Mardhiyah' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled event_date: '02 May 2025' (exact match at position 20)
+[Learner] Labeled event_name: 'Seminar Psychiatrist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Oni Prasetyo, S.Ked' (exact match at position 7)
+[Learner] Labeled event_location: 'Gang Rajawali Timur No. 6
+Cilegon, Sumatera Selatan 77363' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kolaka Utara' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'drg. Sakura Hastuti, M.Ak' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '1483/CVC/07/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Karimah Oktaviani' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '23 June 2025' (exact match at position 20)
+[Learner] Labeled recipient_name: 'Ir. Hesti Pertiwi' (exact match at position 7)
+[Learner] Labeled event_date: '20 February 2025' (exact match at position 19)
+[Learner] Labeled event_location: 'Gang Ahmad Yani No. 33
+Semarang, DI Yogyakarta 57703' (exact match at position 23)
+[Learner] Labeled issue_place: 'Aceh Selatan' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'H. Cagak Waluyo' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '4731/CVC/03/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Purwadi Siregar' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Training Phytotherapist' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Cahyono Farida' (exact match at position 7)
+[Learner] Labeled event_date: '30 September 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Gg. M.T Haryono No. 23
+Lhokseumawe, JK 42892' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Palopo' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled issue_date: '09 October 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'Lutfan Saragih' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8515/CVC/10/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Cindy Sihombing' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_name: 'Seminar Maintenance engineer' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled recipient_name: 'Laswi Sitompul' (exact match at position 7)
+[Learner] Labeled event_name: 'Seminar Geographical information systems officer' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled event_date: '16 November 2024' (exact match at position 23)
+[Learner] Labeled event_location: 'Jalan Erlangga No. 2
+Tarakan, PA 22110' (exact match at position 27)
+[Learner] Labeled issue_place: 'Toba' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled issue_date: '25 November 2024' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Cahyanto Tampubolon' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '257/CVC/11/2024' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Johan Wahyudin' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled recipient_name: 'Dr. Calista Oktaviani' (exact match at position 7)
+[Learner] Labeled event_date: '01 November 2025' (exact match at position 20)
+[Learner] Labeled event_location: 'Gang Raya Ujungberung No. 409
+Solok, Sumatera Utara 63502' (exact match at position 24)
+[Learner] Labeled issue_place: 'Kota Sukabumi' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '12 November 2025' (exact match at position 35)
+[Learner] Labeled supervisor_name: 'Martaka Nababan' (fuzzy match at position 41, excluding punctuation)
+[Learner] Labeled certificate_number: '3331/CVC/11/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Argono Sinaga' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_name: 'Training Comptroller' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Wulan Maulana, S.Gz' (exact match at position 7)
+[Learner] Labeled event_name: 'Seminar Scientist, research (life sciences)' (fuzzy match at position 13, excluding punctuation)
+[Learner] Labeled event_location: 'Jalan PHH. Mustofa No. 838
+Bekasi, Lampung 43565' (exact match at position 26)
+[Learner] Labeled issue_place: 'Kota Langsa' (fuzzy match at position 34, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Uda Maheswara' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled certificate_number: '1853/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Jail Thamrin' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '02 June 2025' (exact match at position 22)
+[Learner] Labeled issue_date: '10 June 2025' (exact match at position 36)
+[Learner] Labeled recipient_name: 'Fathonah Hakim' (exact match at position 7)
+[Learner] Labeled event_location: 'Gang Peta No. 240
+Kediri, RI 15510' (exact match at position 25)
+[Learner] Labeled issue_place: 'Sumba Barat' (fuzzy match at position 32, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Wakiman Safitri, S.Pt' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '3566/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Galuh Rajasa' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled event_date: '12 August 2025' (exact match at position 21)
+[Learner] Labeled event_name: 'Workshop Wellsite geologist' (fuzzy match at position 14, excluding punctuation)
+[Learner] Labeled recipient_name: 'Rudi Damanik, S.Sos' (exact match at position 7)
+[Learner] Labeled event_location: 'Gang Jayawijaya No. 46
+Medan, Nusa Tenggara Barat 92606' (exact match at position 26)
+[Learner] Labeled issue_place: 'Halmahera Tengah' (fuzzy match at position 35, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Jinawi Mandala' (fuzzy match at position 43, excluding punctuation)
+[Learner] Labeled certificate_number: '9085/CVC/01/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Martana Rajata' (fuzzy match at position 45, excluding punctuation)
+[Learner] Labeled event_date: '12 January 2025' (exact match at position 22)
+[Learner] Labeled event_name: 'Workshop Health physicist' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'H. Galih Farida, M.Ak' (exact match at position 7)
+[Learner] Labeled event_location: 'Jalan Gegerkalong Hilir No. 2
+Bitung, Riau 55295' (exact match at position 25)
+[Learner] Labeled issue_place: 'Wajo' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled issue_date: '13 August 2025' (exact match at position 34)
+[Learner] Labeled supervisor_name: 'R.A. Paris Susanti, S.Gz' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '1988/CVC/08/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'Heru Uyainah' (fuzzy match at position 44, excluding punctuation)
+[Learner] Labeled event_date: '31 July 2025' (exact match at position 21)
+[Learner] Labeled recipient_name: 'Jais Hassanah, S.Psi' (exact match at position 7)
+[Learner] Labeled event_location: 'Gg. Veteran No. 24
+Pangkalpinang, JA 51113' (exact match at position 26)
+[Learner] Labeled issue_place: 'Trenggalek' (fuzzy match at position 33, excluding punctuation)
+[Learner] Labeled supervisor_name: 'Amalia Hidayanto' (fuzzy match at position 40, excluding punctuation)
+[Learner] Labeled certificate_number: '8500/CVC/06/2025' (exact match at position 4)
+[Learner] Labeled chairman_name: 'R.A. Zulaikha Lailasari' (fuzzy match at position 42, excluding punctuation)
+[Learner] Labeled event_date: '12 June 2025' (exact match at position 22)
+[Learner] Labeled event_name: 'Training Sports therapist' (fuzzy match at position 15, excluding punctuation)
+[Learner] Labeled recipient_name: 'R. Elisa Mandala, M.Pd' (exact match at position 7)
+   Validation samples: 168
+
+🔍 GRID SEARCH FOR BEST REGULARIZATION
+====================================================================================================
+
+🧪 Testing c1=0.01, c2=0.01...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9990
+   Overfitting gap: 0.0010
+   ✅ NEW BEST MODEL!
+
+🧪 Testing c1=0.01, c2=0.1...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9993
+   Overfitting gap: 0.0007
+   ✅ NEW BEST MODEL!
+
+🧪 Testing c1=0.01, c2=0.5...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9984
+   Overfitting gap: 0.0016
+
+🧪 Testing c1=0.01, c2=1.0...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9982
+   Overfitting gap: 0.0018
+
+🧪 Testing c1=0.1, c2=0.01...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0004
+   ✅ NEW BEST MODEL!
+
+🧪 Testing c1=0.1, c2=0.1...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9993
+   Overfitting gap: 0.0007
+
+🧪 Testing c1=0.1, c2=0.5...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9993
+   Overfitting gap: 0.0007
+
+🧪 Testing c1=0.1, c2=1.0...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9987
+   Overfitting gap: 0.0013
+
+🧪 Testing c1=0.5, c2=0.01...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0004
+
+🧪 Testing c1=0.5, c2=0.1...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9997
+   Overfitting gap: 0.0003
+   ✅ NEW BEST MODEL!
+
+🧪 Testing c1=0.5, c2=0.5...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0004
+
+🧪 Testing c1=0.5, c2=1.0...
+   Train accuracy: 0.9998
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0002
+
+🧪 Testing c1=1.0, c2=0.01...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0004
+
+🧪 Testing c1=1.0, c2=0.1...
+   Train accuracy: 1.0000
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0004
+
+🧪 Testing c1=1.0, c2=0.5...
+   Train accuracy: 0.9999
+   Val accuracy: 0.9996
+   Overfitting gap: 0.0003
+
+🧪 Testing c1=1.0, c2=1.0...
+   Train accuracy: 0.9998
+   Val accuracy: 0.9991
+   Overfitting gap: 0.0007
+
+====================================================================================================
+📊 GRID SEARCH RESULTS
+====================================================================================================
+c1       c2       Train Acc    Val Acc      Gap          Status    
+----------------------------------------------------------------------------------------------------
+0.5      0.1      1.0000       0.9997       0.0003       ✅ BEST    
+0.1      0.01     1.0000       0.9996       0.0004                 
+0.5      0.01     1.0000       0.9996       0.0004                 
+0.5      0.5      1.0000       0.9996       0.0004                 
+0.5      1.0      0.9998       0.9996       0.0002                 
+1.0      0.01     1.0000       0.9996       0.0004                 
+1.0      0.1      1.0000       0.9996       0.0004                 
+1.0      0.5      0.9999       0.9996       0.0003                 
+0.01     0.1      1.0000       0.9993       0.0007                 
+0.1      0.1      1.0000       0.9993       0.0007                 
+0.1      0.5      1.0000       0.9993       0.0007                 
+1.0      1.0      0.9998       0.9991       0.0007                 
+0.01     0.01     1.0000       0.9990       0.0010                 
+0.1      1.0      1.0000       0.9987       0.0013                 
+0.01     0.5      1.0000       0.9984       0.0016                 
+0.01     1.0      1.0000       0.9982       0.0018                 
+
+🏆 BEST PARAMETERS:
+   c1 (L1): 0.5
+   c2 (L2): 0.1
+   Validation Accuracy: 0.9997
+
+💾 Saving best model to: models/template_1_model.joblib
+
+📝 Saving training history...
+✅ Training history saved
+
+====================================================================================================
+🎉 TRAINING COMPLETE!
+====================================================================================================
+✅ Best model saved to: models/template_1_model.joblib
+✅ Regularization: c1=0.5, c2=0.1
+✅ Validation Accuracy: 0.9997
+✅ Training samples: 677
+✅ Validation samples: 168
+
+💡 Next steps:
+   1. Test extraction on new documents
+   2. Monitor accuracy trends
+   3. Collect more feedback if needed
+
+✅ All done!

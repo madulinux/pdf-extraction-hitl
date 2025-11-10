@@ -1,0 +1,22 @@
+-- ============================================================================
+-- Migration 007: Add next field hint to field_contexts
+-- Date: 2025-11-11
+-- Purpose: Help model learn field boundaries by knowing next field position
+-- ============================================================================
+
+-- Add column for next field information (simple approach)
+-- ALTER TABLE field_contexts ADD COLUMN next_field_y REAL;  -- Y position of next field
+-- ALTER TABLE field_contexts ADD COLUMN typical_length INTEGER;  -- Typical field length in chars
+
+-- ============================================================================
+-- Notes:
+-- ============================================================================
+-- next_field_y: Y-coordinate of next field (helps model know when to stop)
+-- typical_length: Expected length of field value (learned from feedback)
+--
+-- Example for event_location:
+--   next_field_y: 380 (issue_place position)
+--   typical_length: 45 (average address length)
+--
+-- This is MINIMAL optimization - only what we need for current problem
+-- ============================================================================
