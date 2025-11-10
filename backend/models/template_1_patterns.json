@@ -1,6 +1,8 @@
 {
-  "event_name": {
-    "common_prefixes": [],
+  "issue_date": {
+    "common_prefixes": [
+      "timur,"
+    ],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
@@ -11,7 +13,21 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 8
+    "sample_count": 22
+  },
+  "event_location": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 9,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 1,
+      "has_trailing_period": 0
+    },
+    "sample_count": 98
   },
   "recipient_name": {
     "common_prefixes": [],
@@ -25,63 +41,7 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 1
-  },
-  "issue_place": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 20
-  },
-  "chairman_name": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 1,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 1,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 9
-  },
-  "event_location": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 20
-  },
-  "issue_date": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 11
+    "sample_count": 6
   },
   "event_date": {
     "common_prefixes": [],
@@ -95,13 +55,13 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 4
+    "sample_count": 25
   },
-  "supervisor_name": {
+  "event_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
-      "has_parentheses_both": 1,
+      "has_parentheses_both": 0,
       "has_parentheses_start": 0,
       "has_parentheses_end": 0,
       "has_quotes": 0,
@@ -109,6 +69,58 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 20
+    "sample_count": 163
+  },
+  "issue_place": {
+    "common_prefixes": [],
+    "common_suffixes": [
+      ","
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 374,
+      "has_trailing_period": 0
+    },
+    "sample_count": 480
+  },
+  "supervisor_name": {
+    "common_prefixes": [
+      "("
+    ],
+    "common_suffixes": [
+      ")"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 478,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 480
+  },
+  "chairman_name": {
+    "common_prefixes": [
+      "("
+    ],
+    "common_suffixes": [
+      ")"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 478,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 480
   }
 }

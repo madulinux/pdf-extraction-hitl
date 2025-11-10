@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS learned_patterns (
     confidence_boost REAL DEFAULT 0.0,
     priority INTEGER DEFAULT 0,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP,
     usage_count INTEGER DEFAULT 0,
     success_count INTEGER DEFAULT 0,
@@ -91,6 +92,14 @@ WHERE is_active = 1;
 
 CREATE INDEX IF NOT EXISTS idx_learned_patterns_performance 
 ON learned_patterns(field_config_id, match_rate DESC, usage_count DESC);
+
+-- 1. Create indexes for performance (usage tracking queries)
+CREATE INDEX IF NOT EXISTS idx_learned_patterns_usage 
+ON learned_patterns(usage_count, match_rate, is_active);
+
+-- 2. Create index for pattern lookup
+CREATE INDEX IF NOT EXISTS idx_learned_patterns_field_active 
+ON learned_patterns(field_config_id, is_active, priority DESC);
 
 -- ============================================================================
 -- 5. Config Change History (Audit Trail)

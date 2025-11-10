@@ -41,10 +41,15 @@ class DataExtractor:
         from core.extraction.post_processor import AdaptivePostProcessor
         
         try:
+            print(f"🔧 [DataExtractor] Initializing PostProcessor for template {template_id}...")
             self.post_processor = AdaptivePostProcessor(template_id, db)
+            print(f"✅ [DataExtractor] PostProcessor initialized successfully")
+            print(f"   Loaded patterns for {len(self.post_processor.learned_patterns)} fields")
         except Exception as e:
             print(f"⚠️ Post-processor initialization failed: {e}")
             print(f"   Continuing without post-processing...")
+            import traceback
+            traceback.print_exc()
             self.post_processor = None
     
     def extract(self, pdf_path: str) -> Dict[str, Any]:

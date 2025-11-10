@@ -59,7 +59,7 @@ class RulePatternOptimizer:
         
         # Get all feedback for this field
         query = """
-            SELECT f.corrected_value, f.raw_value, f.field_name,
+            SELECT f.corrected_value, f.original_value, f.field_name,
                    d.file_path
             FROM feedback f
             JOIN documents d ON f.document_id = d.id
@@ -67,8 +67,7 @@ class RulePatternOptimizer:
             ORDER BY f.created_at DESC
         """
         
-        cursor = self.db.conn.execute(query, (template_id, field_name))
-        feedbacks = cursor.fetchall()
+        feedbacks = self.db.execute_query(query, (template_id, field_name))
         
         if not feedbacks:
             self.logger.info(f"No feedback found for {field_name}")
@@ -76,9 +75,9 @@ class RulePatternOptimizer:
         
         self.logger.info(f"Found {len(feedbacks)} feedback entries")
         
-        # Analyze patterns
-        corrected_values = [f[0] for f in feedbacks if f[0]]
-        raw_values = [f[1] for f in feedbacks if f[1]]
+        # Analyze patterns (feedbacks is list of dicts)
+        corrected_values = [f['corrected_value'] for f in feedbacks if f.get('corrected_value')]
+        original_values = [f['original_value'] for f in feedbacks if f.get('original_value')]
         
         analysis = {
             'field_name': field_name,
@@ -86,7 +85,7 @@ class RulePatternOptimizer:
             'total_feedback': len(feedbacks),
             'unique_corrected': len(set(corrected_values)),
             'patterns': self._discover_patterns(corrected_values, min_frequency),
-            'common_errors': self._analyze_extraction_errors(raw_values, corrected_values),
+            'common_errors': self._analyze_extraction_errors(original_values, corrected_values),
             'suggestions': []
         }
         
@@ -272,26 +271,31 @@ class RulePatternOptimizer:
                     'examples': [v for v in sample_values if self._get_token_shape(v) == shape][:3]
                 })
         
-        # Suggestion 2: Based on word counts
-        if patterns.get('word_counts'):
-            for word_count, freq in list(patterns['word_counts'].items())[:2]:
-                if word_count == 1:
-                    regex = r'\S+'
-                    desc = 'Single word'
-                elif word_count == 2:
-                    regex = r'\S+\s+\S+'
-                    desc = 'Two words'
-                else:
-                    regex = r'(?:\S+\s+){' + str(word_count-1) + r'}\S+'
-                    desc = f'{word_count} words'
-                
-                suggestions.append({
-                    'type': 'word_count',
-                    'pattern': regex,
-                    'description': desc,
-                    'frequency': freq,
-                    'examples': [v for v in sample_values if len(v.split()) == word_count][:3]
-                })
+        # Suggestion 2: Based on word counts (DISABLED - too rigid!)
+        # ❌ PROBLEM: Exact word count patterns like (?:\S+\s+){7}\S+ are too specific
+        # They fail when data has slight variations (e.g., "Jalan KH" prefix missing)
+        # This causes accuracy to DROP after learning more data!
+        # 
+        # SOLUTION: Use flexible patterns instead (e.g., .+, [^,]+, etc.)
+        # if patterns.get('word_counts'):
+        #     for word_count, freq in list(patterns['word_counts'].items())[:2]:
+        #         if word_count == 1:
+        #             regex = r'\S+'
+        #             desc = 'Single word'
+        #         elif word_count == 2:
+        #             regex = r'\S+\s+\S+'
+        #             desc = 'Two words'
+        #         else:
+        #             regex = r'(?:\S+\s+){' + str(word_count-1) + r'}\S+'
+        #             desc = f'{word_count} words'
+        #         
+        #         suggestions.append({
+        #             'type': 'word_count',
+        #             'pattern': regex,
+        #             'description': desc,
+        #             'frequency': freq,
+        #             'examples': [v for v in sample_values if len(v.split()) == word_count][:3]
+        #         })
         
         # Suggestion 3: Based on delimiters
         if patterns.get('delimiters'):
@@ -354,7 +358,10 @@ class RulePatternOptimizer:
         backup: bool = True
     ) -> bool:
         """
-        Update template configuration with new patterns
+        ⚠️ DEPRECATED: Update template config JSON file with new learned patterns
+        
+        Use apply_patterns_to_db() instead for database-backed configs.
+        This method is kept for backward compatibility with JSON-only mode.
         
         Args:
             config_path: Path to template config JSON
@@ -365,6 +372,11 @@ class RulePatternOptimizer:
         Returns:
             True if successful
         """
+        self.logger.warning(
+            "⚠️ update_template_config() is deprecated. "
+            "Use apply_patterns_to_db() for database-backed configs."
+        )
+        
         try:
             # Load current config
             with open(config_path, 'r') as f:

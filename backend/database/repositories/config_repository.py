@@ -7,6 +7,7 @@ Handles database operations for template configurations and learned patterns.
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
+import logging
 
 
 class ConfigRepository:
@@ -20,6 +21,7 @@ class ConfigRepository:
             db_manager: DatabaseManager instance
         """
         self.db = db_manager
+        self.logger = logging.getLogger(self.__class__.__name__)
     
     # ========================================================================
     # Template Config Operations
@@ -307,7 +309,16 @@ class ConfigRepository:
         metadata: Dict = None
     ) -> int:
         """
-        Add a learned pattern
+        Add or update a learned pattern (UPSERT logic)
+        
+        If pattern already exists:
+        - Increment frequency
+        - Update match_rate if provided
+        - Keep higher priority
+        - Merge examples (keep unique, max 10)
+        
+        If pattern is new:
+        - Insert new record
         
         Args:
             field_config_id: Field config ID
@@ -321,27 +332,115 @@ class ConfigRepository:
             metadata: Additional metadata
             
         Returns:
-            pattern_id: ID of created pattern
+            pattern_id: ID of created/updated pattern
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
         
         try:
+            # ✅ Check if pattern already exists
             cursor.execute("""
-                INSERT INTO learned_patterns 
-                (field_config_id, pattern, pattern_type, description, 
-                 frequency, match_rate, priority, examples, metadata, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (
-                field_config_id, pattern, pattern_type, description,
-                frequency, match_rate, priority,
-                json.dumps(examples) if examples else None,
-                json.dumps(metadata) if metadata else None
-            ))
+                SELECT id, frequency, priority, examples, match_rate
+                FROM learned_patterns
+                WHERE field_config_id = ? AND pattern = ?
+            """, (field_config_id, pattern))
             
-            pattern_id = cursor.lastrowid
-            conn.commit()
-            return pattern_id
+            existing = cursor.fetchone()
+            
+            if existing:
+                # ✅ UPDATE existing pattern
+                existing_id = existing['id']
+                existing_frequency = existing['frequency'] or 0
+                existing_priority = existing['priority'] or 0
+                existing_examples = json.loads(existing['examples']) if existing['examples'] else []
+                existing_match_rate = existing['match_rate']
+                
+                # Merge data
+                new_frequency = existing_frequency + frequency
+                new_priority = max(existing_priority, priority)
+                
+                # Merge examples (keep unique, max 10)
+                merged_examples = list(set(existing_examples + (examples or [])))[:10]
+                
+                # Update match_rate (weighted average if both exist)
+                if match_rate is not None and existing_match_rate is not None:
+                    # Weighted average based on frequency
+                    total_freq = new_frequency
+                    new_match_rate = (
+                        (existing_match_rate * existing_frequency + match_rate * frequency) / total_freq
+                    )
+                elif match_rate is not None:
+                    new_match_rate = match_rate
+                else:
+                    new_match_rate = existing_match_rate
+                
+                # Try to update with updated_at, fallback if column doesn't exist
+                try:
+                    cursor.execute("""
+                        UPDATE learned_patterns
+                        SET frequency = ?,
+                            priority = ?,
+                            match_rate = ?,
+                            examples = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (
+                        new_frequency,
+                        new_priority,
+                        new_match_rate,
+                        json.dumps(merged_examples),
+                        existing_id
+                    ))
+                except Exception as e:
+                    if 'no such column: updated_at' in str(e):
+                        # Fallback: update without updated_at
+                        cursor.execute("""
+                            UPDATE learned_patterns
+                            SET frequency = ?,
+                                priority = ?,
+                                match_rate = ?,
+                                examples = ?
+                            WHERE id = ?
+                        """, (
+                            new_frequency,
+                            new_priority,
+                            new_match_rate,
+                            json.dumps(merged_examples),
+                            existing_id
+                        ))
+                    else:
+                        raise
+                
+                conn.commit()
+                
+                self.logger.info(
+                    f"✅ Updated pattern {existing_id}: "
+                    f"frequency {existing_frequency} → {new_frequency}, "
+                    f"priority {existing_priority} → {new_priority}"
+                )
+                
+                return existing_id
+            
+            else:
+                # ✅ INSERT new pattern
+                cursor.execute("""
+                    INSERT INTO learned_patterns 
+                    (field_config_id, pattern, pattern_type, description, 
+                     frequency, match_rate, priority, examples, metadata, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """, (
+                    field_config_id, pattern, pattern_type, description,
+                    frequency, match_rate, priority,
+                    json.dumps(examples) if examples else None,
+                    json.dumps(metadata) if metadata else None
+                ))
+                
+                pattern_id = cursor.lastrowid
+                conn.commit()
+                
+                self.logger.info(f"✅ Inserted new pattern {pattern_id}: {pattern[:50]}")
+                
+                return pattern_id
             
         finally:
             conn.close()
@@ -648,5 +747,828 @@ class ConfigRepository:
             
             return history
             
+        finally:
+            conn.close()
+    
+    # ========================================================================
+    # Pattern Operations
+    # ========================================================================
+    
+    def get_learned_patterns_by_field(
+        self,
+        template_id: int,
+        field_name: str,
+        active_only: bool = True
+    ) -> List[Dict]:
+        """
+        Get learned patterns for a specific field
+        
+        Args:
+            template_id: Template ID
+            field_name: Field name
+            active_only: Only return active patterns
+            
+        Returns:
+            List of pattern dicts
+        """
+        query = """
+            SELECT 
+                lp.id,
+                lp.pattern_type,
+                lp.pattern,
+                lp.description,
+                lp.frequency,
+                lp.priority,
+                lp.is_active,
+                lp.added_at,
+                lp.last_used_at,
+                lp.usage_count,
+                lp.success_count,
+                lp.match_rate,
+                lp.confidence_boost,
+                lp.examples,
+                lp.metadata
+            FROM learned_patterns lp
+            JOIN field_configs fc ON lp.field_config_id = fc.id
+            JOIN template_configs tc ON fc.config_id = tc.id
+            WHERE tc.template_id = ? AND fc.field_name = ?
+        """
+        
+        params = [template_id, field_name]
+        
+        if active_only:
+            query += " AND lp.is_active = 1"
+        
+        query += " ORDER BY lp.priority DESC, lp.frequency DESC"
+        
+        return self.db.execute_query(query, tuple(params))
+    
+    def get_all_learned_patterns_by_template(
+        self,
+        template_id: int,
+        active_only: bool = True
+    ) -> Dict[str, List[Dict]]:
+        """
+        Get all learned patterns grouped by field for a template
+        
+        Args:
+            template_id: Template ID
+            active_only: Only return active patterns
+            
+        Returns:
+            Dict mapping field_name to list of patterns
+        """
+        query = """
+            SELECT 
+                fc.field_name,
+                lp.id,
+                lp.pattern_type,
+                lp.pattern,
+                lp.description,
+                lp.frequency,
+                lp.priority,
+                lp.is_active,
+                lp.added_at,
+                lp.last_used_at,
+                lp.usage_count,
+                lp.success_count,
+                lp.match_rate,
+                lp.confidence_boost
+            FROM learned_patterns lp
+            JOIN field_configs fc ON lp.field_config_id = fc.id
+            JOIN template_configs tc ON fc.config_id = tc.id
+            WHERE tc.template_id = ?
+        """
+        
+        params = [template_id]
+        
+        if active_only:
+            query += " AND lp.is_active = 1"
+        
+        query += " ORDER BY fc.field_name, lp.priority DESC, lp.frequency DESC"
+        
+        rows = self.db.execute_query(query, tuple(params))
+        
+        # Group by field_name
+        patterns_by_field = {}
+        for row in rows:
+            field_name = row['field_name']
+            if field_name not in patterns_by_field:
+                patterns_by_field[field_name] = []
+            
+            pattern_dict = {k: v for k, v in row.items() if k != 'field_name'}
+            patterns_by_field[field_name].append(pattern_dict)
+        
+        return patterns_by_field
+    
+    def get_learning_jobs(
+        self,
+        template_id: int,
+        field_name: Optional[str] = None,
+        limit: int = 50
+    ) -> List[Dict]:
+        """
+        Get pattern learning job history
+        
+        Args:
+            template_id: Template ID
+            field_name: Optional field name filter
+            limit: Maximum number of records
+            
+        Returns:
+            List of learning job dicts
+        """
+        query = """
+            SELECT 
+                id,
+                field_name,
+                job_type,
+                status,
+                feedback_count,
+                patterns_discovered,
+                patterns_applied,
+                started_at,
+                completed_at,
+                error_message,
+                result_summary
+            FROM pattern_learning_jobs
+            WHERE template_id = ?
+        """
+        
+        params = [template_id]
+        
+        if field_name:
+            query += " AND field_name = ?"
+            params.append(field_name)
+        
+        query += " ORDER BY started_at DESC LIMIT ?"
+        params.append(limit)
+        
+        return self.db.execute_query(query, tuple(params))
+    
+    def get_pattern_statistics(
+        self,
+        template_id: int,
+        field_name: str
+    ) -> Dict:
+        """
+        Get pattern usage statistics for a field
+        
+        Args:
+            template_id: Template ID
+            field_name: Field name
+            
+        Returns:
+            Dict with statistics
+        """
+        # Get feedback count
+        feedback_query = """
+            SELECT COUNT(*) as count
+            FROM feedback f
+            JOIN documents d ON f.document_id = d.id
+            WHERE d.template_id = ? AND f.field_name = ?
+        """
+        feedback_result = self.db.execute_query(feedback_query, (template_id, field_name))
+        
+        # Get extraction accuracy
+        accuracy_query = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN f.original_value = f.corrected_value THEN 1 ELSE 0 END) as correct
+            FROM feedback f
+            JOIN documents d ON f.document_id = d.id
+            WHERE d.template_id = ? AND f.field_name = ?
+        """
+        accuracy_result = self.db.execute_query(accuracy_query, (template_id, field_name))
+        
+        total = accuracy_result[0]['total'] if accuracy_result else 0
+        correct = accuracy_result[0]['correct'] if accuracy_result else 0
+        accuracy = (correct / total * 100) if total > 0 else 0
+        
+        return {
+            'total_feedback': feedback_result[0]['count'] if feedback_result else 0,
+            'total_extractions': total,
+            'correct_extractions': correct,
+            'accuracy_percentage': round(accuracy, 2)
+        }
+    
+    def get_feedback_examples(
+        self,
+        template_id: int,
+        field_name: str,
+        limit: int = 5
+    ) -> List[Dict]:
+        """
+        Get recent feedback examples for a field
+        
+        Args:
+            template_id: Template ID
+            field_name: Field name
+            limit: Maximum number of examples
+            
+        Returns:
+            List of feedback example dicts
+        """
+        query = """
+            SELECT 
+                f.original_value,
+                f.corrected_value,
+                f.created_at
+            FROM feedback f
+            JOIN documents d ON f.document_id = d.id
+            WHERE d.template_id = ? AND f.field_name = ?
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        """
+        
+        return self.db.execute_query(query, (template_id, field_name, limit))
+    
+    # ========================================================================
+    # Pattern Usage Tracking (NEW!)
+    # ========================================================================
+    
+    def update_pattern_usage(
+        self,
+        pattern_id: int,
+        matched: bool
+    ) -> None:
+        """
+        Update pattern usage statistics
+        
+        Args:
+            pattern_id: Pattern ID
+            matched: True if pattern successfully matched
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            if matched:
+                # ✅ Pattern matched successfully
+                cursor.execute("""
+                    UPDATE learned_patterns
+                    SET usage_count = COALESCE(usage_count, 0) + 1,
+                        success_count = COALESCE(success_count, 0) + 1,
+                        match_rate = CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1),
+                        last_used_at = CURRENT_TIMESTAMP,
+                        confidence_boost = CASE
+                            WHEN CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1) >= 0.9 THEN 0.2
+                            WHEN CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1) >= 0.7 THEN 0.1
+                            ELSE 0.0
+                        END
+                    WHERE id = ?
+                """, (pattern_id,))
+            else:
+                # ❌ Pattern tried but didn't match
+                cursor.execute("""
+                    UPDATE learned_patterns
+                    SET usage_count = COALESCE(usage_count, 0) + 1,
+                        match_rate = CAST(COALESCE(success_count, 0) AS REAL) / (COALESCE(usage_count, 0) + 1),
+                        last_used_at = CURRENT_TIMESTAMP,
+                        confidence_boost = CASE
+                            WHEN CAST(COALESCE(success_count, 0) AS REAL) / (COALESCE(usage_count, 0) + 1) < 0.3 THEN -0.1
+                            ELSE COALESCE(confidence_boost, 0.0)
+                        END
+                    WHERE id = ?
+                """, (pattern_id,))
+            
+            conn.commit()
+            
+        finally:
+            conn.close()
+    
+    def deactivate_low_performing_patterns(
+        self,
+        field_config_id: int,
+        min_usage: int = 10,
+        min_match_rate: float = 0.3
+    ) -> int:
+        """
+        Deactivate patterns with poor performance
+        
+        Args:
+            field_config_id: Field config ID
+            min_usage: Minimum usage before evaluation
+            min_match_rate: Minimum match rate to keep active
+            
+        Returns:
+            Number of patterns deactivated
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                UPDATE learned_patterns
+                SET is_active = 0
+                WHERE field_config_id = ?
+                  AND COALESCE(usage_count, 0) >= ?
+                  AND COALESCE(match_rate, 0.0) < ?
+                  AND is_active = 1
+            """, (field_config_id, min_usage, min_match_rate))
+            
+            deactivated = cursor.rowcount
+            conn.commit()
+            
+            self.logger.info(f"🗑️  Deactivated {deactivated} low-performing patterns")
+            
+            return deactivated
+            
+        finally:
+            conn.close()
+    
+    def cleanup_duplicate_patterns(
+        self,
+        field_config_id: int = None
+    ) -> Dict:
+        """
+        Merge duplicate patterns and keep the best one
+        
+        Args:
+            field_config_id: Specific field config ID (None = all)
+            
+        Returns:
+            Cleanup summary
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Find duplicates
+            query = """
+                SELECT 
+                    field_config_id,
+                    pattern,
+                    COUNT(*) as count,
+                    GROUP_CONCAT(id) as ids,
+                    SUM(COALESCE(frequency, 0)) as total_frequency,
+                    MAX(COALESCE(priority, 0)) as max_priority,
+                    AVG(COALESCE(match_rate, 0.0)) as avg_match_rate
+                FROM learned_patterns
+            """
+            
+            if field_config_id:
+                query += " WHERE field_config_id = ?"
+                params = (field_config_id,)
+            else:
+                params = ()
+            
+            query += """
+                GROUP BY field_config_id, pattern
+                HAVING COUNT(*) > 1
+            """
+            
+            cursor.execute(query, params)
+            duplicates = cursor.fetchall()
+            
+            merged_count = 0
+            deleted_count = 0
+            
+            for dup in duplicates:
+                ids = [int(x) for x in dup['ids'].split(',')]
+                keep_id = ids[0]  # Keep first one
+                delete_ids = ids[1:]
+                
+                # Update the kept pattern with merged data
+                # Note: updated_at column might not exist in older databases
+                try:
+                    cursor.execute("""
+                        UPDATE learned_patterns
+                        SET frequency = ?,
+                            priority = ?,
+                            match_rate = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (
+                        dup['total_frequency'],
+                        dup['max_priority'],
+                        dup['avg_match_rate'],
+                        keep_id
+                    ))
+                except Exception as e:
+                    # Fallback: update without updated_at if column doesn't exist
+                    if 'no such column: updated_at' in str(e):
+                        cursor.execute("""
+                            UPDATE learned_patterns
+                            SET frequency = ?,
+                                priority = ?,
+                                match_rate = ?
+                            WHERE id = ?
+                        """, (
+                            dup['total_frequency'],
+                            dup['max_priority'],
+                            dup['avg_match_rate'],
+                            keep_id
+                        ))
+                    else:
+                        raise
+                
+                # Delete duplicates
+                placeholders = ','.join('?' * len(delete_ids))
+                cursor.execute(f"""
+                    DELETE FROM learned_patterns
+                    WHERE id IN ({placeholders})
+                """, delete_ids)
+                
+                merged_count += 1
+                deleted_count += len(delete_ids)
+                
+                self.logger.info(
+                    f"✅ Merged pattern {dup['pattern'][:50]}: "
+                    f"kept ID {keep_id}, deleted {len(delete_ids)} duplicates"
+                )
+            
+            conn.commit()
+            
+            return {
+                'success': True,
+                'patterns_merged': merged_count,
+                'duplicates_deleted': deleted_count
+            }
+            
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Failed to cleanup duplicates: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        finally:
+            conn.close()
+    
+    # ========================================================================
+    # Pattern Statistics (Prefix/Suffix/Noise Learning)
+    # ========================================================================
+    
+    def upsert_pattern_statistic(
+        self,
+        field_config_id: int,
+        statistic_type: str,
+        pattern_value: str,
+        frequency: int = 1,
+        confidence: float = 0.0,
+        sample_count: int = 0,
+        metadata: Dict = None
+    ) -> int:
+        """
+        Add or update pattern statistic (UPSERT)
+        
+        Args:
+            field_config_id: Field config ID
+            statistic_type: 'prefix', 'suffix', 'structural_noise'
+            pattern_value: The actual pattern (e.g., "tanggal", "has_parentheses_both")
+            frequency: How many times seen
+            confidence: Confidence score (0.0 - 1.0)
+            sample_count: Total samples analyzed
+            metadata: Additional info
+            
+        Returns:
+            statistic_id: ID of created/updated statistic
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Check if exists
+            cursor.execute("""
+                SELECT id, frequency, sample_count
+                FROM pattern_statistics
+                WHERE field_config_id = ? 
+                  AND statistic_type = ? 
+                  AND pattern_value = ?
+            """, (field_config_id, statistic_type, pattern_value))
+            
+            existing = cursor.fetchone()
+            
+            if existing:
+                # UPDATE: increment frequency
+                new_frequency = existing['frequency'] + frequency
+                new_sample_count = max(existing['sample_count'], sample_count)
+                
+                cursor.execute("""
+                    UPDATE pattern_statistics
+                    SET frequency = ?,
+                        confidence = ?,
+                        sample_count = ?,
+                        metadata = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (
+                    new_frequency,
+                    confidence,
+                    new_sample_count,
+                    json.dumps(metadata) if metadata else None,
+                    existing['id']
+                ))
+                
+                conn.commit()
+                return existing['id']
+            
+            else:
+                # INSERT new statistic
+                cursor.execute("""
+                    INSERT INTO pattern_statistics
+                    (field_config_id, statistic_type, pattern_value, 
+                     frequency, confidence, sample_count, metadata, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                """, (
+                    field_config_id,
+                    statistic_type,
+                    pattern_value,
+                    frequency,
+                    confidence,
+                    sample_count,
+                    json.dumps(metadata) if metadata else None
+                ))
+                
+                statistic_id = cursor.lastrowid
+                conn.commit()
+                return statistic_id
+        
+        finally:
+            conn.close()
+    
+    def get_pattern_statistics(
+        self,
+        field_config_id: int,
+        statistic_type: str = None,
+        active_only: bool = True,
+        min_frequency: int = 2
+    ) -> List[Dict]:
+        """
+        Get pattern statistics for a field
+        
+        Args:
+            field_config_id: Field config ID
+            statistic_type: Filter by type (None = all)
+            active_only: Only return active statistics
+            min_frequency: Minimum frequency threshold
+            
+        Returns:
+            List of statistics
+        """
+        query = """
+            SELECT 
+                id,
+                statistic_type,
+                pattern_value,
+                frequency,
+                confidence,
+                sample_count,
+                is_active,
+                metadata,
+                created_at,
+                updated_at
+            FROM pattern_statistics
+            WHERE field_config_id = ?
+        """
+        
+        params = [field_config_id]
+        
+        if statistic_type:
+            query += " AND statistic_type = ?"
+            params.append(statistic_type)
+        
+        if active_only:
+            query += " AND is_active = 1"
+        
+        if min_frequency > 0:
+            query += " AND frequency >= ?"
+            params.append(min_frequency)
+        
+        query += " ORDER BY frequency DESC, confidence DESC"
+        
+        return self.db.execute_query(query, tuple(params))
+    
+    def get_all_pattern_statistics(
+        self,
+        template_id: int,
+        active_only: bool = True
+    ) -> Dict[str, Dict]:
+        """
+        Get all pattern statistics for a template, grouped by field
+        
+        Args:
+            template_id: Template ID
+            active_only: Only return active statistics
+            
+        Returns:
+            Dict mapping field_name to statistics
+        """
+        query = """
+            SELECT 
+                fc.field_name,
+                ps.statistic_type,
+                ps.pattern_value,
+                ps.frequency,
+                ps.confidence,
+                ps.sample_count
+            FROM pattern_statistics ps
+            JOIN field_configs fc ON ps.field_config_id = fc.id
+            JOIN template_configs tc ON fc.config_id = tc.id
+            WHERE tc.template_id = ?
+        """
+        
+        if active_only:
+            query += " AND ps.is_active = 1"
+        
+        query += " ORDER BY fc.field_name, ps.frequency DESC"
+        
+        results = self.db.execute_query(query, (template_id,))
+        
+        # Group by field_name
+        grouped = {}
+        for row in results:
+            field_name = row['field_name']
+            if field_name not in grouped:
+                grouped[field_name] = {
+                    'common_prefixes': [],
+                    'common_suffixes': [],
+                    'structural_noise': {},
+                    'sample_count': 0
+                }
+            
+            stat_type = row['statistic_type']
+            pattern_value = row['pattern_value']
+            frequency = row['frequency']
+            sample_count = row['sample_count']
+            
+            if stat_type == 'prefix':
+                grouped[field_name]['common_prefixes'].append(pattern_value)
+            elif stat_type == 'suffix':
+                grouped[field_name]['common_suffixes'].append(pattern_value)
+            elif stat_type == 'structural_noise':
+                grouped[field_name]['structural_noise'][pattern_value] = frequency
+            
+            # Update sample count (use max)
+            grouped[field_name]['sample_count'] = max(
+                grouped[field_name]['sample_count'],
+                sample_count
+            )
+        
+        return grouped
+    
+    def analyze_and_update_pattern_statistics(
+        self,
+        template_id: int,
+        min_frequency_threshold: int = 3
+    ) -> Dict:
+        """
+        Analyze feedback and update pattern statistics
+        
+        Args:
+            template_id: Template ID
+            min_frequency_threshold: Minimum frequency to consider a pattern
+            
+        Returns:
+            Summary of updates
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get all feedback for this template
+            cursor.execute("""
+                SELECT 
+                    f.field_name,
+                    f.original_value,
+                    f.corrected_value,
+                    fc.id as field_config_id
+                FROM feedback f
+                JOIN documents d ON f.document_id = d.id
+                JOIN field_configs fc ON (
+                    fc.field_name = f.field_name 
+                    AND fc.config_id IN (
+                        SELECT id FROM template_configs WHERE template_id = ?
+                    )
+                )
+                WHERE d.template_id = ?
+                  AND f.original_value != f.corrected_value
+            """, (template_id, template_id))
+            
+            feedbacks = cursor.fetchall()
+            
+            if not feedbacks:
+                return {'success': True, 'message': 'No corrections found', 'updates': 0}
+            
+            updates = 0
+            field_stats = {}
+            
+            for fb in feedbacks:
+                field_name = fb['field_name']
+                field_config_id = fb['field_config_id']
+                original = fb['original_value']
+                corrected = fb['corrected_value']
+                
+                if field_name not in field_stats:
+                    field_stats[field_name] = {
+                        'field_config_id': field_config_id,
+                        'prefixes': [],
+                        'suffixes': [],
+                        'structural': []
+                    }
+                
+                # Detect prefix (what was removed from start)
+                if original.startswith(corrected):
+                    # Suffix was removed
+                    suffix = original[len(corrected):].strip()
+                    if suffix:
+                        # Generalize date patterns in suffix
+                        import re
+                        # Pattern: ", DD Month YYYY" or ", DD MonthName YYYY"
+                        suffix_generalized = re.sub(r',\s*\d{1,2}\s+\w+\s+\d{4}', ', [DATE]', suffix)
+                        field_stats[field_name]['suffixes'].append(suffix_generalized)
+                elif corrected in original:
+                    # Prefix or suffix was removed
+                    idx = original.index(corrected)
+                    if idx > 0:
+                        prefix = original[:idx].strip()
+                        if prefix:
+                            # Generalize location prefixes (e.g., "Utara,", "Selatan,")
+                            import re
+                            prefix_generalized = re.sub(r'^[A-Z][a-z]+,', '[LOCATION],', prefix)
+                            field_stats[field_name]['prefixes'].append(prefix_generalized)
+                    
+                    end_idx = idx + len(corrected)
+                    if end_idx < len(original):
+                        suffix = original[end_idx:].strip()
+                        if suffix:
+                            # Generalize date patterns in suffix
+                            import re
+                            suffix_generalized = re.sub(r',\s*\d{1,2}\s+\w+\s+\d{4}', ', [DATE]', suffix)
+                            # Generalize multiple names pattern (e.g., ") (Name" or ") (Name)")
+                            suffix_generalized = re.sub(r'\)\s*\(.+', ') ([NAME]', suffix_generalized)
+                            field_stats[field_name]['suffixes'].append(suffix_generalized)
+                
+                # Detect structural noise
+                if ')' in original and ')' not in corrected:
+                    field_stats[field_name]['structural'].append('has_parentheses_end')
+                if '(' in original and '(' not in corrected:
+                    field_stats[field_name]['structural'].append('has_parentheses_start')
+                if original.endswith(',') and not corrected.endswith(','):
+                    field_stats[field_name]['structural'].append('has_trailing_comma')
+            
+            # Update database
+            for field_name, stats in field_stats.items():
+                field_config_id = stats['field_config_id']
+                
+                # Count frequencies
+                from collections import Counter
+                
+                prefix_counts = Counter(stats['prefixes'])
+                for prefix, freq in prefix_counts.items():
+                    if freq >= min_frequency_threshold:
+                        self.upsert_pattern_statistic(
+                            field_config_id=field_config_id,
+                            statistic_type='prefix',
+                            pattern_value=prefix.lower(),
+                            frequency=freq,
+                            confidence=freq / len(feedbacks),
+                            sample_count=len(feedbacks)
+                        )
+                        updates += 1
+                
+                suffix_counts = Counter(stats['suffixes'])
+                for suffix, freq in suffix_counts.items():
+                    if freq >= min_frequency_threshold:
+                        self.upsert_pattern_statistic(
+                            field_config_id=field_config_id,
+                            statistic_type='suffix',
+                            pattern_value=suffix.lower(),
+                            frequency=freq,
+                            confidence=freq / len(feedbacks),
+                            sample_count=len(feedbacks)
+                        )
+                        updates += 1
+                
+                structural_counts = Counter(stats['structural'])
+                for noise_type, freq in structural_counts.items():
+                    if freq >= min_frequency_threshold:
+                        self.upsert_pattern_statistic(
+                            field_config_id=field_config_id,
+                            statistic_type='structural_noise',
+                            pattern_value=noise_type,
+                            frequency=freq,
+                            confidence=freq / len(feedbacks),
+                            sample_count=len(feedbacks)
+                        )
+                        updates += 1
+            
+            conn.commit()
+            
+            return {
+                'success': True,
+                'message': f'Updated {updates} pattern statistics',
+                'updates': updates,
+                'fields_analyzed': len(field_stats)
+            }
+        
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Failed to analyze pattern statistics: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
         finally:
             conn.close()

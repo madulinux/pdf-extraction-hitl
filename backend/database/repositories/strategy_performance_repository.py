@@ -143,11 +143,10 @@ class StrategyPerformanceRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        
         try:
             cursor.execute("""
                 SELECT field_name, strategy_type, accuracy, 
-                       total_extractions, correct_extractions
+                       total_extractions, correct_extractions, last_updated
                 FROM strategy_performance
                 WHERE template_id = ?
                 ORDER BY field_name, accuracy DESC
@@ -160,7 +159,8 @@ class StrategyPerformanceRepository:
                     'strategy_type': row['strategy_type'],
                     'accuracy': row['accuracy'],
                     'total_extractions': row['total_extractions'],
-                    'correct_extractions': row['correct_extractions']
+                    'correct_extractions': row['correct_extractions'],
+                    'last_updated': row['last_updated']
                 })
             
             return results

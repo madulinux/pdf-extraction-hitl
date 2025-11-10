@@ -10,7 +10,8 @@ sys.path.insert(0, '.')
 
 from database.db_manager import DatabaseManager
 from core.extraction.services import ExtractionService
-from database.repositories import DocumentRepository, FeedbackRepository
+from database.repositories.document_repository import DocumentRepository
+from database.repositories.feedback_repository import FeedbackRepository
 import json
 
 # Setup

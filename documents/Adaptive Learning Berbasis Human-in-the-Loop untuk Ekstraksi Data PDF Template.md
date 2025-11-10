@@ -2364,58 +2364,22 @@ pertimbangan etis perlu diperhatikan:
 
 ## Metode Evaluasi
 
-Untuk mengevaluasi efektivitas sistem ekstraksi data adaptif, penelitian
-ini menggunakan berbagai metrik dan metode evaluasi. Bagian ini
-menjelaskan metrik, metode, dan skenario pengujian yang digunakan dalam
-evaluasi.
+Untuk memformalkan metrik yang digunakan, didefinisikan terlebih dahulu beberapa notasi. Misalkan $N$ adalah total jumlah dokumen yang diproses dan $M$ adalah total jumlah field yang diekstrak per dokumen. Total ekstraksi (sel) yang dievaluasi adalah $K = N \times M$.
 
 ### Metrik Evaluasi
+Untuk memformalkan metrik yang digunakan, didefinisikan terlebih dahulu beberapa notasi. Misalkan $N$ adalah total jumlah dokumen yang diproses dan $M$ adalah total jumlah field yang diekstrak per dokumen. Total ekstraksi (sel) yang dievaluasi adalah $K = N \times M$.
 
-Beberapa metrik evaluasi yang digunakan dalam penelitian ini meliputi:
+Digunakan sebuah fungsi indikator $C(d_i, f_j)$ yang didefinisikan untuk dokumen $d_i$ (di mana $i = 1, \dots, N$) dan field $f_j$ (di mana $j = 1, \dots, M$). Fungsi ini bernilai:$C(d_i, f_j) = 1$, jika ekstraksi untuk field $f_j$ pada dokumen $d_i$ benar.$C(d_i, f_j) = 0$, jika ekstraksi tersebut salah.Beberapa metrik evaluasi yang digunakan dalam penelitian ini meliputi:
 
-1.  Presisi: Proporsi bidang yang diekstrak dengan benar dari semua
-    bidang yang diekstrak.
+1. Akurasi per Field (Field-level Accuracy)Metrik ini mengukur kinerja ekstraksi untuk satu field spesifik ($f_j$) di semua $N$ dokumen. Metrik ini berguna untuk mengidentifikasi field mana yang paling sulit atau paling mudah diekstrak oleh sistem. Akurasi per field ($A(f_j)$) dihitung sebagai:$$A(f_j) = \frac{\sum_{i=1}^{N} C(d_i, f_j)}{N}$$Di mana $\sum_{i=1}^{N} C(d_i, f_j)$ adalah jumlah total dokumen di mana field $f_j$ diekstrak dengan benar.
 
-> $$Presisi = TP/(TP + FP)$$
->
-> di mana:
+2. Akurasi Keseluruhan (Overall Accuracy)Metrik ini mengukur proporsi total field yang diekstrak dengan benar terhadap total field yang seharusnya diekstrak di semua dokumen. Metrik ini memberikan gambaran umum tentang kinerja sistem secara keseluruhan (sering disebut juga micro-average accuracy). Akurasi keseluruhan ($A_{\text{overall}}$) dihitung sebagai:$$A_{\text{overall}} = \frac{\sum_{i=1}^{N} \sum_{j=1}^{M} C(d_i, f_j)}{N \times M}$$
 
-- $TP$ (True Positive): Jumlah bidang yang diekstrak dengan benar
+3. Rata-Rata Confidence Score (Average Confidence)Metrik ini mengukur tingkat kepercayaan (confidence) rata-rata yang dilaporkan oleh sistem untuk setiap ekstraksi. Metrik ini digunakan untuk menilai seberapa baik sistem dapat mengestimasi kebenarannya sendiri. Rata-rata confidence score ($\bar{C}$) dihitung sebagai:$$\bar{C} = \frac{\sum_{i=1}^{N} \sum_{j=1}^{M} c_{ij}}{N \times M}$$Di mana $c_{ij}$ adalah confidence score yang dilaporkan sistem untuk ekstraksi field $f_j$ pada dokumen $d_i$.
 
-- $FP$ (False Positive): Jumlah bidang yang diekstrak secara salah
+4. Tingkat Peningkatan (Improvement Rate)Metrik ini digunakan untuk mengukur efektivitas mekanisme adaptif (pembelajaran) dari sistem, dengan menunjukkan perubahan relatif dalam akurasi (biasanya $A_{\text{overall}}$) setelah periode pembelajaran atau intervensi. Tingkat peningkatan ($\Delta A\%$) dihitung sebagai:$$\Delta A\% = \left( \frac{A_t - A_0}{A_0} \right) \times 100\%$$Di mana $A_0$ adalah akurasi awal (sebelum pembelajaran) dan $A_t$ adalah akurasi akhir (setelah pembelajaran).
 
-2.  Recall: Proporsi bidang yang diekstrak dengan benar dari semua
-    bidang yang seharusnya diekstrak.
-
-> $$Recall = TP/(TP + FN)$$
->
-> di mana:
-
-- $FN$ (False Negative): Jumlah bidang yang seharusnya diekstrak tetapi
-  tidak diekstrak
-
-3.  F1-Score: Rata-rata harmonik dari presisi dan recall, yang
-    memberikan ukuran keseimbangan antara keduanya.
-
-> $$F1 = 2*(Presisi*Recall)/(Presisi + Recall)$$
-
-4.  Akurasi per Bidang: Presisi, recall, dan F1-score untuk setiap
-    bidang individual.
-
-5.  Akurasi Keseluruhan: Proporsi semua bidang yang diekstrak dengan
-    benar dari semua bidang.
-
-> $$Akurasi = (TP + TN)/(TP + TN + FP + FN)$$
->
-> di mana:
-
-- $TN$ (True Negative): Jumlah bidang yang dengan benar tidak diekstrak
-
-6.  Waktu Ekstraksi: Waktu yang dibutuhkan untuk mengekstrak data dari
-    dokumen.
-
-7.  Kurva Pembelajaran: Peningkatan akurasi seiring bertambahnya data
-    umpan balik.
+5. Tingkat Koreksi (Correction Rate)Metrik ini mengukur proporsi field yang diekstraksi oleh sistem yang memerlukan koreksi manual oleh pengguna. Metrik ini berfungsi sebagai proksi untuk mengukur beban kerja pengguna (user effort). Tingkat koreksi ($R_{\text{corr}}$) dihitung sebagai:$$R_{\text{corr}} = \frac{K_{\text{corr}}}{K_{\text{total}}}$$Di mana $K_{\text{corr}}$ adalah jumlah total field yang dikoreksi secara manual oleh pengguna, dan $K_{\text{total}}$ adalah total field yang diekstrak ($K_{\text{total}} = N \times M$).
 
 ### Framework Metodologi Evaluasi
 

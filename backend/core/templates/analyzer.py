@@ -5,15 +5,15 @@ Core logic extracted from example-code/app/template_analysis/strategies.py
 import pdfplumber
 import re
 import json
+import logging
 from typing import Dict, List, Tuple, Any
-from core.patterns import PatternManager
 
 
 class TemplateAnalyzer:
     """Analyzes PDF templates to identify extractable fields"""
     
     def __init__(self):
-        self.pattern_manager = PatternManager()
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.fields = []
         self.text_content = ""
         self.pages_text = []
@@ -54,7 +54,6 @@ class TemplateAnalyzer:
         
         # Build field config with locations array
         for field_name, field_occurrences in fields_by_name.items():
-            pattern = self.pattern_manager.get_pattern_for_field(field_name)
             
             # Build locations array
             locations = []
@@ -81,7 +80,6 @@ class TemplateAnalyzer:
             
             fields_dict[field_name] = {
                 'marker_text': field_occurrences[0]["marker"],
-                'pattern': pattern,
                 'locations': locations
             }
         

@@ -21,10 +21,12 @@ from api.v1.auth import auth_bp
 from api.v1.templates import templates_bp
 from api.v1.extraction import extraction_bp as extraction_v1_bp
 from api.v1.learning import learning_bp
-from api.v1.patterns import patterns_bp as patterns_v1_bp
 from api.v1.preview import preview_bp as preview_v1_bp
 from api.v1.data_quality import data_quality_bp
 from api.v1.strategy_performance import strategy_performance_bp
+from api.v1.pattern_info import pattern_info_bp
+from api.v1.pattern_cleanup import pattern_cleanup_bp
+from api.v1.pattern_statistics import pattern_statistics_bp
 
 # Import utilities
 from utils.response import APIResponse
@@ -109,10 +111,12 @@ def register_blueprints(app):
     app.register_blueprint(templates_bp)
     app.register_blueprint(extraction_v1_bp)
     app.register_blueprint(learning_bp)
-    app.register_blueprint(patterns_v1_bp)
     app.register_blueprint(preview_v1_bp)
     app.register_blueprint(data_quality_bp)
     app.register_blueprint(strategy_performance_bp)
+    app.register_blueprint(pattern_info_bp)
+    app.register_blueprint(pattern_cleanup_bp)
+    app.register_blueprint(pattern_statistics_bp)
 
 def register_error_handlers(app):
     """Register global error handlers"""

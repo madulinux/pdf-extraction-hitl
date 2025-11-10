@@ -4,6 +4,10 @@ Strategy Performance API Endpoints
 Provides endpoints for retrieving and analyzing extraction strategy performance.
 """
 from flask import Blueprint, request, jsonify
+from core.preview import PreviewService
+from utils.response import APIResponse
+from utils.decorators import handle_errors
+from api.middleware.auth import require_auth
 from core.extraction.strategy_performance_service import StrategyPerformanceService
 # from api.middleware.auth import require_auth  # TODO: Re-enable after testing
 
@@ -11,7 +15,8 @@ strategy_performance_bp = Blueprint('strategy_performance', __name__, url_prefix
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance', methods=['GET'])
-# @require_auth  # TODO: Re-enable after testing
+@require_auth
+@handle_errors
 def get_template_performance(template_id: int):
     """
     Get all strategy performance data for a template
@@ -60,21 +65,21 @@ def get_template_performance(template_id: int):
         service = StrategyPerformanceService()
         performance = service.get_template_performance(template_id)
         
-        return jsonify({
-            'success': True,
+        return APIResponse.success({
             'data': performance,
-            'count': len(performance)
+            'meta': {
+                'template_id': template_id,
+                'total_fields': len(performance)
+            }
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance/stats', methods=['GET'])
-# # @require_auth  # TODO: Re-enable after testing  # Temporarily disabled for testing
+@require_auth
+@handle_errors
 def get_strategy_stats(template_id: int):
     """
     Get aggregated statistics for each strategy
@@ -88,21 +93,20 @@ def get_strategy_stats(template_id: int):
         service = StrategyPerformanceService()
         stats = service.get_strategy_stats(template_id)
         
-        return jsonify({
-            'success': True,
+        return APIResponse.success({
             'data': stats,
-            'template_id': template_id
+            'meta': {
+                'template_id': template_id
+            }
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance/fields/<field_name>', methods=['GET'])
-# @require_auth  # TODO: Re-enable after testing
+@require_auth
+@handle_errors
 def get_field_performance(template_id: int, field_name: str):
     """
     Get performance comparison for a specific field
@@ -116,20 +120,21 @@ def get_field_performance(template_id: int, field_name: str):
         service = StrategyPerformanceService()
         comparison = service.get_field_comparison(template_id, field_name)
         
-        return jsonify({
-            'success': True,
-            'data': comparison
+        return APIResponse.success({
+            'data': comparison,
+            'meta': {
+                'template_id': template_id,
+                'field_name': field_name
+            }
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance/comparison', methods=['GET'])
-# @require_auth  # TODO: Re-enable after testing
+@require_auth
+@handle_errors
 def get_all_fields_comparison(template_id: int):
     """
     Get strategy comparison for all fields
@@ -143,22 +148,21 @@ def get_all_fields_comparison(template_id: int):
         service = StrategyPerformanceService()
         comparisons = service.get_all_fields_comparison(template_id)
         
-        return jsonify({
-            'success': True,
+        return APIResponse.success({
             'data': comparisons,
-            'template_id': template_id,
-            'total_fields': len(comparisons)
+            'meta': {
+                'template_id': template_id,
+                'total_fields': len(comparisons)
+            }
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance/best', methods=['GET'])
-# @require_auth  # TODO: Re-enable after testing
+@require_auth
+@handle_errors
 def get_best_strategies(template_id: int):
     """
     Get best performing strategy for each field
@@ -182,21 +186,21 @@ def get_best_strategies(template_id: int):
             if comp['best_strategy']
         }
         
-        return jsonify({
-            'success': True,
+        return APIResponse.success({
             'data': best_strategies,
-            'template_id': template_id
+            'meta': {
+                'template_id': template_id,
+                'total_fields': len(best_strategies)
+            }
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))
 
 
 @strategy_performance_bp.route('/templates/<int:template_id>/strategy-performance/<strategy_type>', methods=['GET'])
-# @require_auth  # TODO: Re-enable after testing
+@require_auth
+@handle_errors
 def get_strategy_fields(template_id: int, strategy_type: str):
     """
     Get all fields and their performance for a specific strategy
@@ -229,8 +233,7 @@ def get_strategy_fields(template_id: int, strategy_type: str):
             total_extractions = 0
             total_correct = 0
         
-        return jsonify({
-            'success': True,
+        return APIResponse.success({
             'data': {
                 'strategy_type': strategy_type,
                 'fields': strategy_performance,
@@ -244,7 +247,4 @@ def get_strategy_fields(template_id: int, strategy_type: str):
         })
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return APIResponse.error(str(e))

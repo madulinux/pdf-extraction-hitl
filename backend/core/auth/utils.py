@@ -55,7 +55,7 @@ class JWTManager:
     # Get secret key from environment or use default (change in production!)
     SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-this-in-production')
     ALGORITHM = 'HS256'
-    ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
+    ACCESS_TOKEN_EXPIRE_MINUTES = 300  # 5 hours
     REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days
     
     @classmethod

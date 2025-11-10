@@ -18,10 +18,10 @@ def diagnose_training_data(template_id: int):
     print("=" * 80)
     
     db = DatabaseManager()
-    
+    feedback_repo = FeedbackRepository(db)
     # Get feedback
     print("\n📊 Fetching feedback data...")
-    feedback_by_doc = db.get_feedback_by_document(template_id)
+    feedback_by_doc = feedback_repo.find_by_document_id(template_id)
     print(f"   Documents with feedback: {len(feedback_by_doc)}")
     
     total_feedback = sum(len(feedbacks) for feedbacks in feedback_by_doc.values())

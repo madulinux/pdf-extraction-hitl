@@ -26,12 +26,12 @@ class AdaptiveLearner:
         if model_path and os.path.exists(model_path):
             self.model = self._load_model(model_path)
         else:
-            # Initialize new CRF model with improved hyperparameters
+            # Initialize new CRF model with optimized hyperparameters for high accuracy
             self.model = sklearn_crfsuite.CRF(
                 algorithm='lbfgs',
-                c1=0.1,               # ✅ L1 regularization (feature selection)
-                c2=0.2,               # ✅ L2 regularization (prevent overfitting)
-                max_iterations=300,   # ✅ More iterations for better convergence
+                c1=0.05,              # ✅ Lower L1 for less aggressive feature pruning
+                c2=0.1,               # ✅ Lower L2 for more model flexibility
+                max_iterations=500,   # ✅ More iterations for better convergence on complex patterns
                 all_possible_transitions=True,
                 verbose=False
             )
@@ -237,10 +237,13 @@ class AdaptiveLearner:
         features = []
         labels = []
         
-        # Find matching tokens in the word list
+        # ✅ ADAPTIVE: Find best matching sequence in PDF words
+        # Instead of exact token matching, use sequence-based fuzzy matching
+        word_texts = [w['text'] for w in words]
+        matched_indices = self._find_best_sequence_match(word_texts, corrected_tokens)
+        
+        # Create BIO labels based on matched sequence
         for i, word in enumerate(words):
-            word_text = word['text']
-            
             # ✅ Extract features with context
             word_features = self._extract_word_features(
                 word, words, i,
@@ -249,10 +252,11 @@ class AdaptiveLearner:
             )
             features.append(word_features)
             
-            # Determine BIO label
-            if word_text in corrected_tokens:
-                token_idx = corrected_tokens.index(word_text)
-                if token_idx == 0:
+            # Determine BIO label based on matched sequence
+            if i in matched_indices:
+                # This word is part of the matched sequence
+                seq_position = matched_indices.index(i)
+                if seq_position == 0:
                     labels.append(f'B-{field_name.upper()}')
                 else:
                     labels.append(f'I-{field_name.upper()}')
@@ -260,6 +264,108 @@ class AdaptiveLearner:
                 labels.append('O')
         
         return features, labels
+    
+    def _find_best_sequence_match(
+        self, 
+        word_texts: List[str], 
+        target_tokens: List[str]
+    ) -> List[int]:
+        """
+        Find the best matching sequence of words in PDF that matches target tokens.
+        Uses fuzzy matching and sequence alignment to handle variations.
+        
+        Args:
+            word_texts: List of word texts from PDF
+            target_tokens: List of tokens from corrected value
+            
+        Returns:
+            List of indices in word_texts that match the target sequence
+        """
+        if not target_tokens:
+            return []
+        
+        best_match_indices = []
+        best_match_score = 0
+        
+        # Try to find the best contiguous sequence
+        for start_idx in range(len(word_texts)):
+            for end_idx in range(start_idx + 1, min(start_idx + len(target_tokens) * 2, len(word_texts) + 1)):
+                candidate_words = word_texts[start_idx:end_idx]
+                
+                # Calculate match score using fuzzy matching
+                score = self._calculate_sequence_match_score(candidate_words, target_tokens)
+                
+                if score > best_match_score:
+                    best_match_score = score
+                    best_match_indices = list(range(start_idx, end_idx))
+        
+        # If no good match found, fall back to token-by-token matching
+        if best_match_score < 0.5:
+            best_match_indices = []
+            for token in target_tokens:
+                try:
+                    idx = word_texts.index(token)
+                    if idx not in best_match_indices:
+                        best_match_indices.append(idx)
+                except ValueError:
+                    # Token not found, try fuzzy match
+                    for i, word in enumerate(word_texts):
+                        if i not in best_match_indices and self._fuzzy_match(word, token):
+                            best_match_indices.append(i)
+                            break
+        
+        return sorted(best_match_indices)
+    
+    def _calculate_sequence_match_score(
+        self, 
+        candidate_words: List[str], 
+        target_tokens: List[str]
+    ) -> float:
+        """
+        Calculate how well a candidate sequence matches target tokens.
+        
+        Args:
+            candidate_words: Candidate word sequence from PDF
+            target_tokens: Target token sequence
+            
+        Returns:
+            Match score between 0 and 1
+        """
+        if not candidate_words or not target_tokens:
+            return 0.0
+        
+        # Join and compare as strings (case-insensitive)
+        candidate_text = ' '.join(candidate_words).lower()
+        target_text = ' '.join(target_tokens).lower()
+        
+        # Calculate similarity using longest common subsequence
+        from difflib import SequenceMatcher
+        matcher = SequenceMatcher(None, candidate_text, target_text)
+        similarity = matcher.ratio()
+        
+        # Bonus for exact length match
+        length_ratio = min(len(candidate_words), len(target_tokens)) / max(len(candidate_words), len(target_tokens))
+        
+        # Combined score
+        score = similarity * 0.8 + length_ratio * 0.2
+        
+        return score
+    
+    def _fuzzy_match(self, word: str, token: str, threshold: float = 0.8) -> bool:
+        """
+        Check if word fuzzy matches token.
+        
+        Args:
+            word: Word from PDF
+            token: Target token
+            threshold: Similarity threshold
+            
+        Returns:
+            True if match, False otherwise
+        """
+        from difflib import SequenceMatcher
+        matcher = SequenceMatcher(None, word.lower(), token.lower())
+        return matcher.ratio() >= threshold
     
     def _extract_word_features(
         self, 
@@ -407,7 +513,7 @@ class AdaptiveLearner:
             features['prefix-3'] = text[:3]
             features['suffix-3'] = text[-3:]
         
-        # ✅ NEW: Set date context and boundary features
+        # ✅ ENHANCED: Extended context window (2-3 words) for better prefix/suffix detection
         if index > 0:
             prev_word = all_words[index - 1]['text']
             prev_y = all_words[index - 1].get('top', 0)
@@ -417,6 +523,21 @@ class AdaptiveLearner:
             features['prev_word.isupper'] = prev_word.isupper()
             features['prev_word.istitle'] = prev_word.istitle()
             features['prev_word.isdigit'] = prev_word.isdigit()
+            
+            # ✅ NEW: 2-word context (critical for multi-word prefixes like "Jalan W.R.")
+            if index > 1:
+                prev2_word = all_words[index - 2]['text']
+                features['prev2_word'] = prev2_word.lower()
+                features['prev2_word.istitle'] = prev2_word.istitle()
+                # Bigram feature (2-word sequence before current word)
+                features['prev_bigram'] = f"{prev2_word.lower()}_{prev_word.lower()}"
+            
+            # ✅ NEW: 3-word context (for longer prefixes)
+            if index > 2:
+                prev3_word = all_words[index - 3]['text']
+                features['prev3_word'] = prev3_word.lower()
+                # Trigram feature
+                features['prev_trigram'] = f"{prev3_word.lower()}_{prev2_word.lower() if index > 1 else ''}_{prev_word.lower()}"
             
             # Boundary features
             features['is_after_punctuation'] = prev_word in [',', '.', ':', ';', ')', '(']
@@ -432,7 +553,7 @@ class AdaptiveLearner:
         else:
             features['BOS'] = True  # Beginning of sequence
         
-        # Context features (next word)
+        # ✅ ENHANCED: Extended next word context
         if index < len(all_words) - 1:
             next_word = all_words[index + 1]['text']
             
@@ -440,6 +561,21 @@ class AdaptiveLearner:
             features['next_word.isupper'] = next_word.isupper()
             features['next_word.istitle'] = next_word.istitle()
             features['next_word.isdigit'] = next_word.isdigit()
+            
+            # ✅ NEW: 2-word lookahead context
+            if index < len(all_words) - 2:
+                next2_word = all_words[index + 2]['text']
+                features['next2_word'] = next2_word.lower()
+                features['next2_word.istitle'] = next2_word.istitle()
+                # Bigram feature (2-word sequence after current word)
+                features['next_bigram'] = f"{next_word.lower()}_{next2_word.lower()}"
+            
+            # ✅ NEW: 3-word lookahead context
+            if index < len(all_words) - 3:
+                next3_word = all_words[index + 3]['text']
+                features['next3_word'] = next3_word.lower()
+                # Trigram feature
+                features['next_trigram'] = f"{next_word.lower()}_{next2_word.lower() if index < len(all_words) - 2 else ''}_{next3_word.lower()}"
             
             # Boundary features
             features['is_before_punctuation'] = next_word in [',', '.', ':', ';', ')', '(']

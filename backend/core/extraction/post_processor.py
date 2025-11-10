@@ -40,7 +40,7 @@ class AdaptivePostProcessor:
         """
         self.template_id = template_id
         self.db = db_manager
-        self.learned_patterns = self._load_or_learn_patterns()
+        self.learned_patterns = self._load_patterns_from_database()
     
     def reload_patterns(self) -> None:
         """
@@ -49,11 +49,41 @@ class AdaptivePostProcessor:
         This should be called before each extraction to ensure
         the latest learned patterns are used.
         """
-        self.learned_patterns = self._load_or_learn_patterns()
+        self.learned_patterns = self._load_patterns_from_database()
+    
+    def _load_patterns_from_database(self) -> Dict:
+        """
+        Load pattern statistics from database
+        
+        Returns:
+            Dictionary of learned patterns per field
+        """
+        if not self.db:
+            return {}
+        
+        try:
+            from database.repositories.config_repository import ConfigRepository
+            config_repo = ConfigRepository(self.db)
+            
+            # Get all pattern statistics for this template
+            patterns = config_repo.get_all_pattern_statistics(
+                template_id=self.template_id,
+                active_only=True
+            )
+            
+            return patterns
+        
+        except Exception as e:
+            print(f"⚠️ Could not load pattern statistics from database: {e}")
+            # Fallback to old method
+            return self._load_or_learn_patterns()
     
     def _load_or_learn_patterns(self) -> Dict:
         """
-        Load cached patterns or learn from feedback
+        DEPRECATED: Load cached patterns or learn from feedback
+        
+        This is kept for backward compatibility only.
+        New code should use _load_patterns_from_database()
         
         Returns:
             Dictionary of learned patterns per field
@@ -388,13 +418,37 @@ class AdaptivePostProcessor:
                 value = value.strip('"').strip('(').strip(')').strip()
                 break  # Only remove one prefix
         
-        # Remove common suffixes (case-insensitive)
+        # Remove common suffixes (case-insensitive + pattern matching)
         for suffix in patterns.get('common_suffixes', []):
-            if value.lower().endswith(suffix):
+            # Handle generalized patterns (case-insensitive)
+            suffix_lower = suffix.lower()
+            if '[date]' in suffix_lower:
+                # Match any date pattern: ", DD Month YYYY"
+                import re
+                # Escape special regex chars except [date]
+                pattern = re.escape(suffix)
+                pattern = pattern.replace(r'\[date\]', r'\d{1,2}\s+\w+\s+\d{4}')
+                pattern = pattern.replace(r'\[DATE\]', r'\d{1,2}\s+\w+\s+\d{4}')
+                if re.search(pattern, value, re.IGNORECASE):
+                    value = re.sub(pattern, '', value, flags=re.IGNORECASE).strip()
+                    value = value.strip('"').strip('(').strip(')').strip()
+                    break
+            elif '[name]' in suffix_lower:
+                # Match any name pattern: ") (Name" (may not have closing paren)
+                import re
+                # Escape special regex chars except [name]
+                pattern = re.escape(suffix)
+                pattern = pattern.replace(r'\[name\]', r'.+')
+                pattern = pattern.replace(r'\[NAME\]', r'.+')
+                if re.search(pattern, value):
+                    value = re.sub(pattern, '', value).strip()
+                    value = value.strip('"').strip('(').strip(')').strip()
+                    break
+            elif value.lower().endswith(suffix_lower):
+                # Exact match
                 value = value[:-len(suffix)].strip()
-                # Remove quotes/parentheses after suffix removal
                 value = value.strip('"').strip('(').strip(')').strip()
-                break  # Only remove one suffix
+                break
         
         return value
     
@@ -426,17 +480,25 @@ class AdaptivePostProcessor:
         Returns:
             Processed results
         """
+        print(f"🧹 [PostProcessor] process_results called with {len(results.get('extracted_data', {}))} fields")
+        
         if 'extracted_data' not in results:
+            print(f"⚠️ [PostProcessor] No extracted_data in results!")
             return results
         
         extracted_data = results['extracted_data']
+        cleaned_count = 0
         
         # Clean each field
         for field_name, value in extracted_data.items():
             if isinstance(value, str):
                 cleaned = self.clean_value(field_name, value)
+                if cleaned != value:
+                    print(f"   🧹 Cleaned {field_name}: '{value}' → '{cleaned}'")
+                    cleaned_count += 1
                 extracted_data[field_name] = cleaned
         
+        print(f"✅ [PostProcessor] Cleaned {cleaned_count}/{len(extracted_data)} fields")
         results['extracted_data'] = extracted_data
         
         return results

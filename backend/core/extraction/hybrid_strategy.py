@@ -10,6 +10,7 @@ Aligned with thesis research objectives:
 import logging
 import json
 import os
+import time  # ✅ NEW: For extraction time tracking
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -125,7 +126,7 @@ class HybridExtractionStrategy:
         'new': {'min_attempts': 0, 'confidence': 0.35, 'strategy': 0.25, 'performance': 0.40}
     }
     
-    def __init__(self, performance_file: Optional[str] = None, db = None):
+    def __init__(self, db = None, performance_file: Optional[str] = None):
         self.logger = logging.getLogger(__name__)
         self.db = db  # ✅ Store database connection for performance queries
         
@@ -141,8 +142,8 @@ class HybridExtractionStrategy:
         
         # Strategy weights (adaptive - will be updated based on performance)
         self.strategy_weights = {
-            StrategyType.RULE_BASED: 0.4,
-            StrategyType.POSITION_BASED: 0.5,
+            StrategyType.RULE_BASED: 0.5,
+            StrategyType.POSITION_BASED: 0.4,
             StrategyType.CRF: 0.0,  # Increases with training
         }
     
@@ -163,6 +164,9 @@ class HybridExtractionStrategy:
         Returns:
             Dictionary with extraction results
         """
+        # ✅ NEW: Start timing extraction
+        start_time = time.time()
+        
         template_id = template_config.get('template_id', 0)
         template_name = template_config.get('template_name', 'unknown')
         
@@ -250,7 +254,11 @@ class HybridExtractionStrategy:
                 results['confidence_scores'][field_name] = 0.0
                 results['extraction_methods'][field_name] = 'none'
         
-        self.logger.info(f"Extraction completed: {len(results['extracted_data'])} fields")
+        # ✅ NEW: Calculate extraction time
+        extraction_time_ms = int((time.time() - start_time) * 1000)
+        results['extraction_time_ms'] = extraction_time_ms
+        
+        self.logger.info(f"Extraction completed: {len(results['extracted_data'])} fields in {extraction_time_ms}ms")
         if results['conflicts']:
             self.logger.info(f"Conflicts detected in {len(results['conflicts'])} fields")
         
@@ -680,12 +688,31 @@ class HybridExtractionStrategy:
                     if field_name in corrections:
                         # Field was corrected - check if this strategy had the right value
                         corrected_value = corrections[field_name]
-                        strategy_was_correct = (strategy_value == corrected_value)
+                        
+                        # ✅ CRITICAL FIX: Normalize whitespace for comparison
+                        # Handle newlines, multiple spaces, leading/trailing whitespace
+                        strategy_value_norm = ' '.join(str(strategy_value).split())
+                        corrected_value_norm = ' '.join(str(corrected_value).split())
+                        
+                        strategy_was_correct = (strategy_value_norm == corrected_value_norm)
+                        
+                        # ✅ DEBUG: Log comparison for troubleshooting
+                        if strategy_was_correct:
+                            self.logger.info(f"    ✅ {strategy_name} had CORRECT value for '{field_name}'")
+                        else:
+                            self.logger.debug(f"    ❌ {strategy_name} had WRONG value for '{field_name}'")
+                            self.logger.debug(f"       Strategy: '{strategy_value_norm[:50]}'")
+                            self.logger.debug(f"       Corrected: '{corrected_value_norm[:50]}'")
                     else:
                         # Field was NOT corrected - selected strategy was correct
                         # Check if this strategy also had the same (correct) value
                         selected_value = extraction_results.get('extracted_data', {}).get(field_name, '')
-                        strategy_was_correct = (strategy_value == selected_value)
+                        
+                        # ✅ CRITICAL FIX: Normalize whitespace for comparison
+                        strategy_value_norm = ' '.join(str(strategy_value).split())
+                        selected_value_norm = ' '.join(str(selected_value).split())
+                        
+                        strategy_was_correct = (strategy_value_norm == selected_value_norm)
                     
                     self._update_strategy_performance(
                         template_id, 

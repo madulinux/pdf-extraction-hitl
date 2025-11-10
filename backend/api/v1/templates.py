@@ -5,12 +5,13 @@ Template management endpoints
 from flask import Blueprint, request, g, current_app
 
 from core.templates.services import TemplateService
-from core.templates.repositories import TemplateRepository
+from database.repositories.template_repository import TemplateRepository
 from utils.response import APIResponse
 from utils.decorators import handle_errors
 from api.middleware.auth import require_auth, require_role
 from utils.validators import Validator
 from shared.exceptions import ValidationError, NotFoundError
+from database.db_manager import DatabaseManager
 import os
 
 
@@ -21,7 +22,8 @@ templates_bp = Blueprint('templates', __name__, url_prefix='/api/v1/templates')
 def get_template_service():
     """Get template service instance"""
     db_path = os.getenv('DATABASE_PATH', 'data/app.db')
-    repository = TemplateRepository(db_path)
+    db = DatabaseManager()
+    repository = TemplateRepository(db)
     return TemplateService(
         repository=repository,
         upload_folder=current_app.config['UPLOAD_FOLDER'],

@@ -88,9 +88,12 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         # Try extraction for each location with all patterns
         best_result = None
         best_confidence = 0.0
+        best_pattern_id = None
         
         for location in locations:
             for pattern_info in patterns:
+                pattern_id = pattern_info.get('pattern_id')
+                
                 try:
                     result = self._extract_from_location(
                         location, field_name, pattern_info['pattern'], all_words
@@ -99,9 +102,20 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                     if result and result.confidence > best_confidence:
                         best_result = result
                         best_confidence = result.confidence
+                        best_pattern_id = pattern_id
                         # Track which pattern was used
                         best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
                         best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
+                        best_result.metadata['pattern_id'] = pattern_id
+                        
+                        # ✅ Track successful pattern match
+                        if pattern_id:
+                            self._update_pattern_usage(pattern_id, matched=True)
+                    else:
+                        # ❌ Track failed pattern attempt
+                        if pattern_id and result is None:
+                            self._update_pattern_usage(pattern_id, matched=False)
+                            
                 except Exception as e:
                     self.logger.error(f"Error extracting from location: {e}")
                     continue
@@ -121,7 +135,11 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             List of FieldValue from all locations
         """
         field_name = field_config.get('field_name', 'unknown')
-        regex_pattern = field_config.get('regex_pattern') or field_config.get('pattern', r'.+')
+        
+        # Get pattern from validation_rules or use smart default
+        validation_rules = field_config.get('validation_rules', {})
+        regex_pattern = validation_rules.get('pattern') or self._get_default_pattern(field_config)
+        
         locations = get_field_locations(field_config)
         
         results = []
@@ -149,21 +167,30 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         Returns:
             List of pattern dicts with 'pattern', 'description', 'type'
         """
+        field_name = field_config.get('field_name', 'unknown')
         patterns = []
         
-        # Base pattern (from template config)
-        base_pattern = field_config.get('regex_pattern') or field_config.get('pattern', r'.+')
+        # Base pattern (from validation_rules or catch-all default)
+        validation_rules = field_config.get('validation_rules', {})
+        base_pattern = validation_rules.get('pattern') or self._get_default_pattern(field_config)
+        
         patterns.append({
             'pattern': base_pattern,
             'description': 'base_pattern',
             'type': 'manual',
-            'pattern_id': None
+            'pattern_id': None,
+            'source': 'validation_rules' if validation_rules.get('pattern') else 'default'
         })
+        
+        # Log base pattern being used
+        self.logger.info(f"📋 [{field_name}] Base pattern: {base_pattern[:50]}... (source: {patterns[0]['source']})")
         
         # Try to load learned patterns from database first
         db_patterns = self._load_patterns_from_db(field_config)
         if db_patterns:
-            self.logger.debug(f"Loaded {len(db_patterns)} patterns from database")
+            self.logger.info(f"🎓 [{field_name}] Loaded {len(db_patterns)} learned patterns from database")
+            for idx, p in enumerate(db_patterns[:3]):  # Log top 3
+                self.logger.info(f"   Pattern {idx+1}: {p['type']} - {p['pattern'][:50]}... (priority: {p.get('priority', 0)})")
             patterns.extend(db_patterns)
         else:
             # Fallback: Load from JSON config (backward compatibility)
@@ -245,6 +272,43 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         except Exception as e:
             self.logger.error(f"Failed to load patterns from database: {e}")
             return []
+    
+    def _update_pattern_usage(self, pattern_id: int, matched: bool):
+        """
+        Update pattern usage statistics
+        
+        Args:
+            pattern_id: Pattern ID
+            matched: True if pattern matched successfully
+        """
+        try:
+            from database.db_manager import DatabaseManager
+            from database.repositories.config_repository import ConfigRepository
+            
+            db = DatabaseManager()
+            config_repo = ConfigRepository(db)
+            
+            config_repo.update_pattern_usage(pattern_id, matched)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to update pattern usage: {e}")
+    
+    def _get_default_pattern(self, field_config: Dict) -> str:
+        """
+        Get default pattern - always use catch-all
+        
+        ❌ NO HARDCODING: Pattern learning happens from user feedback,
+        not from predefined rules.
+        
+        Args:
+            field_config: Field configuration from database
+            
+        Returns:
+            Default catch-all regex pattern
+        """
+        # Always use catch-all pattern
+        # Real patterns will be learned from user feedback
+        return r'.+'
     
     def _extract_from_location(
         self, 
@@ -998,7 +1062,7 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 word_features['prefix-3'] = text[:3]
                 word_features['suffix-3'] = text[-3:]
             
-            # ✅ NEW: Set date context and boundary features (MUST MATCH learner.py!)
+            # ✅ ENHANCED: Extended context window (2-3 words) - MUST MATCH learner.py!
             if i > 0:
                 prev_word = words[i - 1].get('text', '')
                 prev_y = words[i - 1].get('top', 0)
@@ -1008,6 +1072,21 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 word_features['prev_word.isupper'] = prev_word.isupper()
                 word_features['prev_word.istitle'] = prev_word.istitle()
                 word_features['prev_word.isdigit'] = prev_word.isdigit()
+                
+                # ✅ NEW: 2-word context (critical for multi-word prefixes like "Jalan W.R.")
+                if i > 1:
+                    prev2_word = words[i - 2].get('text', '')
+                    word_features['prev2_word'] = prev2_word.lower()
+                    word_features['prev2_word.istitle'] = prev2_word.istitle()
+                    # Bigram feature (2-word sequence before current word)
+                    word_features['prev_bigram'] = f"{prev2_word.lower()}_{prev_word.lower()}"
+                
+                # ✅ NEW: 3-word context (for longer prefixes)
+                if i > 2:
+                    prev3_word = words[i - 3].get('text', '')
+                    word_features['prev3_word'] = prev3_word.lower()
+                    # Trigram feature
+                    word_features['prev_trigram'] = f"{prev3_word.lower()}_{prev2_word.lower() if i > 1 else ''}_{prev_word.lower()}"
                 
                 # Boundary features
                 word_features['is_after_punctuation'] = prev_word in [',', '.', ':', ';', ')', '(']
@@ -1023,7 +1102,7 @@ class CRFExtractionStrategy(ExtractionStrategy):
             else:
                 word_features['BOS'] = True
             
-            # Context features (next word)
+            # ✅ ENHANCED: Extended next word context - MUST MATCH learner.py!
             if i < len(words) - 1:
                 next_word = words[i + 1].get('text', '')
                 
@@ -1031,6 +1110,21 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 word_features['next_word.isupper'] = next_word.isupper()
                 word_features['next_word.istitle'] = next_word.istitle()
                 word_features['next_word.isdigit'] = next_word.isdigit()
+                
+                # ✅ NEW: 2-word lookahead context
+                if i < len(words) - 2:
+                    next2_word = words[i + 2].get('text', '')
+                    word_features['next2_word'] = next2_word.lower()
+                    word_features['next2_word.istitle'] = next2_word.istitle()
+                    # Bigram feature (2-word sequence after current word)
+                    word_features['next_bigram'] = f"{next_word.lower()}_{next2_word.lower()}"
+                
+                # ✅ NEW: 3-word lookahead context
+                if i < len(words) - 3:
+                    next3_word = words[i + 3].get('text', '')
+                    word_features['next3_word'] = next3_word.lower()
+                    # Trigram feature
+                    word_features['next_trigram'] = f"{next_word.lower()}_{next2_word.lower() if i < len(words) - 2 else ''}_{next3_word.lower()}"
                 
                 # Boundary features
                 word_features['is_before_punctuation'] = next_word in [',', '.', ':', ';', ')', '(']
