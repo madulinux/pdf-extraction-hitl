@@ -960,6 +960,29 @@ class CRFExtractionStrategy(ExtractionStrategy):
                         raw_value = parts[1].strip()
                         print(f"   🎯 [Adaptive] Removed text before label '{label}'")
                 
+                # ✅ ADAPTIVE: For location fields, stop at postal code (5 digits)
+                # This is learned from data pattern, not hardcoded field name
+                import re
+                # Detect if this looks like a location field (has postal code pattern)
+                postal_match = re.search(r'\b\d{5}\b', raw_value)
+                if postal_match:
+                    # Take everything up to and including postal code
+                    end_pos = postal_match.end()
+                    # Check if there's significant text after postal code
+                    remaining = raw_value[end_pos:].strip()
+                    if len(remaining) > 10:  # Likely next field bleeding
+                        raw_value = raw_value[:end_pos].strip()
+                        print(f"   🎯 [Adaptive] Stopped at postal code boundary")
+                
+                # ✅ ADAPTIVE: Remove text in parentheses at end (often extra info)
+                # This is generic pattern, not field-specific
+                paren_pattern = r'\s*\([^)]*\)\s*$'
+                if re.search(paren_pattern, raw_value):
+                    cleaned = re.sub(paren_pattern, '', raw_value).strip()
+                    if cleaned:
+                        print(f"   🎯 [Adaptive] Removed trailing parentheses")
+                        raw_value = cleaned
+                
                 # ✅ CRITICAL FIX: Apply post-processing like rule-based does
                 # This removes parentheses, trailing commas, etc.
                 cleaned_value = self._post_process_value(raw_value, field_name, raw_value)

@@ -1,31 +1,49 @@
 {
+  "event_date": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 10
+  },
   "chairman_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 1,
+      "has_parentheses_end": 0,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 3
+    "sample_count": 4
   },
-  "issue_date": {
-    "common_prefixes": [],
-    "common_suffixes": [],
+  "supervisor_name": {
+    "common_prefixes": [
+      "("
+    ],
+    "common_suffixes": [
+      ") (dr"
+    ],
     "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 2,
+      "has_parentheses_both": 2,
+      "has_parentheses_start": 9,
+      "has_parentheses_end": 0,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 136
+    "sample_count": 29
   },
   "issue_place": {
     "common_prefixes": [],
@@ -39,9 +57,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 105
+    "sample_count": 44
   },
-  "event_name": {
+  "issue_date": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -53,21 +71,21 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 39
+    "sample_count": 19
   },
-  "event_date": {
+  "event_location": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
+      "has_parentheses_end": 27,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 109
+    "sample_count": 81
   },
   "recipient_name": {
     "common_prefixes": [],
@@ -81,34 +99,20 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 42
+    "sample_count": 14
   },
-  "supervisor_name": {
+  "event_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 4,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 8
-    },
-    "sample_count": 104
-  },
-  "event_location": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 59,
+      "has_parentheses_end": 0,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 294
+    "sample_count": 14
   }
 }
