@@ -266,9 +266,10 @@ class AutomatedSeeder:
         for field_name, true_value in ground_truth.items():
             extracted_value = extracted_data.get(field_name, "")
 
-            # Normalize for comparison (strip whitespace, lowercase)
-            true_normalized = str(true_value).strip()
-            extracted_normalized = str(extracted_value).strip()
+            # Normalize for comparison (handle newlines, multiple spaces, strip whitespace)
+            # This ensures values like "Line1\nLine2" match "Line1 Line2"
+            true_normalized = ' '.join(str(true_value).split())
+            extracted_normalized = ' '.join(str(extracted_value).split())
 
             if true_normalized != extracted_normalized:
                 corrections[field_name] = true_value
@@ -303,8 +304,14 @@ class AutomatedSeeder:
             results = extraction_result["results"]
             extracted_data = results["extracted_data"]
 
+            # sleep for 1 second
+            time.sleep(1)
+
             # 3. Compare and generate corrections
             corrections = self.compare_and_correct(extracted_data, ground_truth)
+
+            # sleep for 1 second
+            time.sleep(1)
 
             # 4. Submit corrections
             validation_result = self.submit_corrections(document_id, corrections)
