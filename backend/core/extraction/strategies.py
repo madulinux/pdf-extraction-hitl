@@ -928,6 +928,9 @@ class CRFExtractionStrategy(ExtractionStrategy):
             # ✅ ADAPTIVE: Get next field boundary
             next_field_y = context.get('next_field_y')
             
+            # ✅ ADAPTIVE: Track parentheses state to skip content inside
+            inside_parentheses = False
+            
             # ✅ Let model learn boundaries from training data
             # But enforce hard stop at next_field_y (adaptive, not hardcoded!)
             for i, (pred, marginal) in enumerate(zip(predictions, marginals)):
@@ -935,14 +938,26 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     if i < len(all_words):
                         word = all_words[i]
                         word_y = word.get('top', 0)
+                        word_text = word.get('text', '')
                         
                         # ✅ ADAPTIVE: Stop if we reach next field boundary
                         if next_field_y and word_y >= next_field_y:
                             print(f"   🛑 [Adaptive] Stopped at next field boundary (Y={next_field_y})")
                             break
                         
+                        # ✅ ADAPTIVE: Track and skip ALL content inside parentheses
+                        # This prevents extracting metadata like "(Supervisor: Dr. John)"
+                        if word_text == '(':
+                            inside_parentheses = True
+                            continue
+                        elif word_text == ')':
+                            inside_parentheses = False
+                            continue
+                        elif inside_parentheses:
+                            continue  # Skip content inside parentheses
+                        
                         conf = marginal.get(pred, 0.0)
-                        extracted_tokens.append(word.get('text', ''))
+                        extracted_tokens.append(word_text)
                         confidences.append(conf)
             
             if extracted_tokens:
@@ -959,29 +974,6 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     if len(parts) > 1:
                         raw_value = parts[1].strip()
                         print(f"   🎯 [Adaptive] Removed text before label '{label}'")
-                
-                # ✅ ADAPTIVE: For location fields, stop at postal code (5 digits)
-                # This is learned from data pattern, not hardcoded field name
-                import re
-                # Detect if this looks like a location field (has postal code pattern)
-                postal_match = re.search(r'\b\d{5}\b', raw_value)
-                if postal_match:
-                    # Take everything up to and including postal code
-                    end_pos = postal_match.end()
-                    # Check if there's significant text after postal code
-                    remaining = raw_value[end_pos:].strip()
-                    if len(remaining) > 10:  # Likely next field bleeding
-                        raw_value = raw_value[:end_pos].strip()
-                        print(f"   🎯 [Adaptive] Stopped at postal code boundary")
-                
-                # ✅ ADAPTIVE: Remove text in parentheses at end (often extra info)
-                # This is generic pattern, not field-specific
-                paren_pattern = r'\s*\([^)]*\)\s*$'
-                if re.search(paren_pattern, raw_value):
-                    cleaned = re.sub(paren_pattern, '', raw_value).strip()
-                    if cleaned:
-                        print(f"   🎯 [Adaptive] Removed trailing parentheses")
-                        raw_value = cleaned
                 
                 # ✅ CRITICAL FIX: Apply post-processing like rule-based does
                 # This removes parentheses, trailing commas, etc.

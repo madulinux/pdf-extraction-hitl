@@ -1,25 +1,27 @@
 {
-  "event_date": {
+  "event_location": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
+      "has_parentheses_end": 385,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 10
+    "sample_count": 611
   },
   "chairman_name": {
     "common_prefixes": [],
-    "common_suffixes": [],
+    "common_suffixes": [
+      ")"
+    ],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
+      "has_parentheses_end": 3,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
@@ -28,22 +30,18 @@
     "sample_count": 4
   },
   "supervisor_name": {
-    "common_prefixes": [
-      "("
-    ],
-    "common_suffixes": [
-      ") (dr"
-    ],
+    "common_prefixes": [],
+    "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 2,
-      "has_parentheses_start": 9,
-      "has_parentheses_end": 0,
+      "has_parentheses_start": 2,
+      "has_parentheses_end": 2,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
-      "has_trailing_period": 0
+      "has_trailing_period": 3
     },
-    "sample_count": 29
+    "sample_count": 24
   },
   "issue_place": {
     "common_prefixes": [],
@@ -57,35 +55,7 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 44
-  },
-  "issue_date": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 19
-  },
-  "event_location": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 27,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 81
+    "sample_count": 63
   },
   "recipient_name": {
     "common_prefixes": [],
@@ -99,7 +69,35 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 14
+    "sample_count": 72
+  },
+  "event_date": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 6
+  },
+  "issue_date": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 15
   },
   "event_name": {
     "common_prefixes": [],
@@ -113,6 +111,6 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 14
+    "sample_count": 18
   }
 }
