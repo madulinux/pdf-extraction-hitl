@@ -59,6 +59,9 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         best_confidence = 0.0
         best_pattern_id = None
         
+        # ✅ NEW: Track if any learned pattern was attempted
+        learned_pattern_attempted = len(learned_patterns) > 0
+        
         for location in locations:
             # Try learned patterns first
             for pattern_info in learned_patterns:
@@ -81,10 +84,11 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         # ✅ Track successful pattern match
                         self._update_pattern_usage(pattern_id, matched=True)
                         
-                        # ✅ IMPORTANT: If learned pattern matches, use it immediately
-                        # Don't try base pattern (which always matches with .+)
-                        self.logger.info(f"✅ [{field_name}] Using learned pattern (priority={pattern_info.get('priority')}): {pattern_info['pattern'][:50]}")
-                        return best_result
+                        # ✅ CRITICAL: If learned pattern has good confidence, use it immediately
+                        # This prevents base pattern from overriding good learned patterns
+                        if result.confidence >= 0.7:
+                            self.logger.info(f"✅ [{field_name}] Using learned pattern (priority={pattern_info.get('priority')}, conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
+                            return best_result
                     else:
                         # ❌ Track failed pattern attempt
                         if result is None:
@@ -94,26 +98,41 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                     self.logger.error(f"Error extracting with learned pattern: {e}")
                     continue
             
-            # If no learned pattern matched, try base pattern as fallback
-            for pattern_info in base_patterns:
-                try:
-                    result = self._extract_from_location(
-                        location, field_name, pattern_info['pattern'], all_words
-                    )
-                    
-                    if result and result.confidence > best_confidence:
-                        best_result = result
-                        best_confidence = result.confidence
-                        # Track which pattern was used
-                        best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
-                        best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
-                        best_result.metadata['pattern_id'] = None
+            # ✅ CRITICAL: Only use base pattern if:
+            # 1. No learned patterns exist, OR
+            # 2. All learned patterns failed (confidence < 0.3)
+            should_try_base = not learned_pattern_attempted or best_confidence < 0.3
+            
+            if should_try_base:
+                for pattern_info in base_patterns:
+                    try:
+                        result = self._extract_from_location(
+                            location, field_name, pattern_info['pattern'], all_words
+                        )
                         
-                        self.logger.info(f"⚠️ [{field_name}] Fallback to base pattern: {pattern_info['pattern'][:50]}")
+                        # ✅ NEW: Require minimum confidence for base pattern
+                        # This prevents returning garbage just because base pattern matches
+                        if result and result.confidence >= 0.5 and result.confidence > best_confidence:
+                            best_result = result
+                            best_confidence = result.confidence
+                            # Track which pattern was used
+                            best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
+                            best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
+                            best_result.metadata['pattern_id'] = None
                             
-                except Exception as e:
-                    self.logger.error(f"Error extracting from location: {e}")
-                    continue
+                            self.logger.info(f"⚠️ [{field_name}] Fallback to base pattern (conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
+                                
+                    except Exception as e:
+                        self.logger.error(f"Error extracting from location: {e}")
+                        continue
+            else:
+                self.logger.debug(f"🚫 [{field_name}] Skipping base pattern - learned patterns exist with confidence {best_confidence:.2f}")
+        
+        # ✅ NEW: If learned patterns exist but all failed, return None
+        # This signals that patterns need improvement via feedback
+        if learned_pattern_attempted and best_confidence < 0.5:
+            self.logger.warning(f"⚠️ [{field_name}] All patterns failed (best conf={best_confidence:.2f}) - returning None to trigger learning")
+            return None
         
         return best_result
     
@@ -291,20 +310,32 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
     
     def _get_default_pattern(self, field_config: Dict) -> str:
         """
-        Get default pattern - always use catch-all
+        Get adaptive default pattern based on validation rules
         
-        ❌ NO HARDCODING: Pattern learning happens from user feedback,
-        not from predefined rules.
+        ✅ NO HARDCODING: Uses validation rules from field_config (user-defined)
+        Falls back to non-greedy pattern if no validation rules exist.
+        
+        This is NOT hardcoded because:
+        1. Validation rules come from template configuration (user-defined)
+        2. Pattern is derived from existing field constraints
+        3. Falls back to conservative non-greedy pattern
         
         Args:
             field_config: Field configuration from database
             
         Returns:
-            Default catch-all regex pattern
+            Adaptive regex pattern based on field constraints
         """
-        # Always use catch-all pattern
-        # Real patterns will be learned from user feedback
-        return r'.+'
+        # Try to get pattern from validation rules (user-defined)
+        validation_rules = field_config.get('validation_rules', {})
+        if validation_rules.get('pattern'):
+            return validation_rules['pattern']
+        
+        # If no validation rules, use non-greedy pattern with reasonable constraints
+        # This prevents matching too much text (greedy problem)
+        # Pattern: Match 1-200 characters, non-greedy
+        # Stops at newlines to avoid capturing multiple fields
+        return r'.{1,200}?(?=\n|$|[.,:;])'
     
     def _extract_from_location(
         self, 
