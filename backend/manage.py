@@ -170,12 +170,14 @@ def show_help():
         migrate         Run database migrations
         migrate:fresh   Drop all tables and re-run migrations (⚠️  deletes all data)
         seed            Seed database with initial data
+        run             Run the application
         help            Show this help message
 
         Examples:
         python manage.py migrate
         python manage.py migrate:fresh
         python manage.py seed
+        python manage.py run
         
         # Fresh start with seed data
         python manage.py migrate:fresh && python manage.py seed
@@ -192,6 +194,7 @@ def main():
         'migrate': migrate,
         'migrate:fresh': migrate_fresh,
         'seed': seed,
+        'run': run,
         'help': show_help,
     }
     
@@ -200,6 +203,12 @@ def main():
     else:
         print(f"❌ Unknown command: {command}")
         print("Run 'python manage.py help' for available commands")
+
+def run():
+    """Run the application"""
+    print("Running the application...")
+    # run flask app with gunicorn (development server) dengan live reload dan logging debug mode ke console dan file app.log
+    os.system('gunicorn -w 4 app:app --reload --log-level debug')
 
 if __name__ == '__main__':
     main()

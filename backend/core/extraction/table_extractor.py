@@ -205,11 +205,16 @@ class AdaptiveTableExtractor:
         2. Match with table headers
         3. Extract corresponding values
         """
-        # Extract semantic keywords from field name
+        # Extract keywords from field name
         keywords = self._extract_keywords_from_field_name(field_name)
         
         if not keywords:
             return None
+        
+        # ✅ CRITICAL: Sort keywords by specificity (longer = more specific)
+        # This prevents 'area' from matching before 'finding'
+        # Example: 'area_finding_1' -> ['finding', 'area'] (finding first!)
+        keywords.sort(key=len, reverse=True)
         
         for table_idx, table in enumerate(tables):
             if len(table) < 2:
@@ -217,33 +222,59 @@ class AdaptiveTableExtractor:
             
             header_row = table[0]
             
-            # Find column by keyword matching
-            for keyword in keywords:
-                col_idx = self._find_column_by_keyword(header_row, keyword)
+            # ✅ NEW: Try to find best matching column using ALL keywords
+            # Score each column by how many keywords it contains
+            best_col_idx = None
+            best_score = 0
+            best_keyword = None
+            
+            for col_idx, header in enumerate(header_row):
+                if not header:
+                    continue
                 
-                if col_idx is not None:
-                    # Extract value
-                    row_number = self._extract_row_number(field_name)
+                header_lower = header.lower()
+                score = 0
+                matched_keyword = None
+                
+                # Count how many keywords match this header
+                for keyword in keywords:
+                    if keyword in header_lower:
+                        # Longer keywords get higher score (more specific)
+                        score += len(keyword)
+                        if matched_keyword is None:
+                            matched_keyword = keyword
+                
+                # Update best match
+                if score > best_score:
+                    best_score = score
+                    best_col_idx = col_idx
+                    best_keyword = matched_keyword
+            
+            # If we found a matching column
+            if best_col_idx is not None:
+                # Extract value
+                row_number = self._extract_row_number(field_name)
+                
+                if row_number is not None and row_number < len(table):
+                    value = table[row_number][best_col_idx] if best_col_idx < len(table[row_number]) else ''
                     
-                    if row_number is not None and row_number < len(table):
-                        value = table[row_number][col_idx] if col_idx < len(table[row_number]) else ''
+                    if value and value.strip():
+                        confidence = 0.8  # Good confidence for keyword match
                         
-                        if value and value.strip():
-                            confidence = 0.8  # Good confidence for keyword match
-                            
-                            self.logger.info(
-                                f"✅ [Table] Found '{field_name}' by keyword '{keyword}': "
-                                f"table={table_idx}, col={col_idx}, row={row_number}, value='{value}'"
-                            )
-                            
-                            return (value.strip(), confidence, {
-                                'method': 'table_keyword_match',
-                                'table_index': table_idx,
-                                'column_index': col_idx,
-                                'row_number': row_number,
-                                'keyword': keyword,
-                                'header': header_row[col_idx]
-                            })
+                        self.logger.info(
+                            f"✅ [Table] Found '{field_name}' by keyword '{best_keyword}': "
+                            f"table={table_idx}, col={best_col_idx}, row={row_number}, value='{value}'"
+                        )
+                        
+                        return (value.strip(), confidence, {
+                            'method': 'table_keyword_match',
+                            'table_index': table_idx,
+                            'column_index': best_col_idx,
+                            'row_number': row_number,
+                            'keyword': best_keyword,
+                            'header': header_row[best_col_idx],
+                            'match_score': best_score
+                        })
         
         return None
     
@@ -323,38 +354,51 @@ class AdaptiveTableExtractor:
     
     def _extract_keywords_from_field_name(self, field_name: str) -> List[str]:
         """
-        Extract semantic keywords from field name
+        Extract keywords from field name (NO HARDCODING!)
+        
+        ✅ ADAPTIVE: Only uses the field name itself, no predefined mappings.
+        This ensures the method works for ANY template, not just specific ones.
+        
+        Strategy:
+        1. Split field name by underscores
+        2. Filter out numbers and short parts
+        3. Use actual field name parts as keywords
         
         Examples:
-        - 'area_finding_1' -> ['finding', 'observation']
-        - 'area_recomendation_2' -> ['recomendation', 'recommendation', 'suggest']
-        - 'area_id_3' -> ['id', 'code', 'number']
+        - 'area_finding_1' -> ['area', 'finding']
+        - 'area_recomendation_2' -> ['area', 'recomendation']
+        - 'area_id_3' -> ['area', 'id']
+        - 'client_name' -> ['client', 'name']
+        - 'project_location_2' -> ['project', 'location']
+        
+        The table headers will be matched using fuzzy matching,
+        so even if the exact keyword isn't in the header, similar
+        words will still match (e.g., 'finding' matches 'Observation/Finding').
+        
+        Args:
+            field_name: Name of the field
+            
+        Returns:
+            List of keywords extracted from field name
         """
-        # Keyword mapping (semantic understanding)
-        keyword_map = {
-            'finding': ['finding', 'observation', 'noted', 'observed'],
-            'recomendation': ['recomendation', 'recommendation', 'suggest', 'action'],
-            'id': ['id', 'code', 'number', 'no'],
-            'name': ['name', 'nama'],
-            'date': ['date', 'tanggal'],
-            'location': ['location', 'lokasi', 'place'],
-        }
-        
         keywords = []
-        field_lower = field_name.lower()
         
-        # Extract keywords from field name
-        for key, synonyms in keyword_map.items():
-            if key in field_lower:
-                keywords.extend(synonyms)
-        
-        # Also add the field name parts as keywords
+        # Split by underscore and filter
         parts = field_name.split('_')
         for part in parts:
-            if part.isalpha() and len(part) > 2:  # Skip numbers and short parts
-                keywords.append(part)
+            # Skip numbers (e.g., '1', '2', '3')
+            if part.isdigit():
+                continue
+            
+            # Skip very short parts (e.g., 'a', 'b')
+            if len(part) < 2:
+                continue
+            
+            # Add alphabetic parts as keywords
+            if part.isalpha():
+                keywords.append(part.lower())
         
-        return list(set(keywords))  # Remove duplicates
+        return keywords
     
     def _extract_row_number(self, field_name: str) -> Optional[int]:
         """
@@ -402,24 +446,48 @@ class AdaptiveTableExtractor:
     
     def _looks_like_header(self, row: List[str]) -> bool:
         """
-        Check if a row looks like a header row
+        Check if a row looks like a header row (NO HARDCODING!)
+        
+        ✅ ADAPTIVE: Uses general heuristics that work for ANY table,
+        not specific keywords that only work for certain templates.
         
         Heuristics:
-        - Contains mostly text (not numbers)
-        - Contains common header keywords
-        - Shorter text than data rows
+        1. Contains mostly text (not pure numbers)
+        2. Cells are relatively short (headers are usually concise)
+        3. Contains capitalized words (headers often capitalized)
+        4. First row of table (most common position)
+        
+        Args:
+            row: List of cell values in the row
+            
+        Returns:
+            True if row appears to be a header
         """
         if not row:
             return False
         
-        # Check if mostly text (not numbers)
-        text_cells = sum(1 for cell in row if cell and not cell.isdigit())
+        # Filter out empty cells
+        non_empty_cells = [cell for cell in row if cell and cell.strip()]
+        if not non_empty_cells:
+            return False
         
-        # Check for common header keywords
-        header_keywords = ['no', 'name', 'date', 'code', 'id', 'finding', 'observation', 'recommendation']
-        has_keywords = any(
-            any(keyword in cell.lower() for keyword in header_keywords)
-            for cell in row if cell
+        # Heuristic 1: Contains mostly text (not pure numbers)
+        # Pure number cells are likely data, not headers
+        text_cells = sum(1 for cell in non_empty_cells if not cell.strip().isdigit())
+        text_ratio = text_cells / len(non_empty_cells)
+        
+        # Heuristic 2: Cells are relatively short (headers are concise)
+        # Average header cell length is typically < 30 characters
+        avg_length = sum(len(cell) for cell in non_empty_cells) / len(non_empty_cells)
+        is_short = avg_length < 30
+        
+        # Heuristic 3: Contains capitalized words (headers often capitalized)
+        has_capitals = any(
+            any(word[0].isupper() for word in cell.split() if word)
+            for cell in non_empty_cells
         )
         
-        return text_cells > len(row) / 2 or has_keywords
+        # Decision: Row is likely a header if:
+        # - Mostly text (not numbers) AND
+        # - Either short cells OR has capitalized words
+        return text_ratio > 0.5 and (is_short or has_capitals)

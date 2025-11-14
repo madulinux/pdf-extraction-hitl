@@ -1,67 +1,5 @@
 {
-  "area_recomendation_3": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 41
-  },
-  "surveyor_id": {
-    "common_prefixes": [
-      "id:"
-    ],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 5,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 13
-  },
-  "client_name": {
-    "common_prefixes": [
-      "project field survey report pt lorem ipsum dolor"
-    ],
-    "common_suffixes": [
-      "ii. executive summary observation/finding recomendation"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 23
-  },
-  "project_location": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 2
-  },
-  "project_name": {
+  "diskon": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -75,182 +13,7 @@
     },
     "sample_count": 5
   },
-  "area_recomendation_2": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 41
-  },
-  "survey_date": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 2
-  },
-  "survey_date_2": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      "at the",
-      "at"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 8
-  },
-  "area_id_2": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 13
-  },
-  "approver_id": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 42
-  },
-  "area_finding_3": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 38
-  },
-  "area_id_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 13
-  },
-  "surveyor_name": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 2
-  },
-  "area_finding_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 37
-  },
-  "approver_name": {
-    "common_prefixes": [
-      "approved by, project manager"
-    ],
-    "common_suffixes": [
-      ")"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 2,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 7
-  },
-  "area_recomendation_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 41
-  },
-  "client_name_2": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 42
-  },
-  "surveyor_name_sign": {
+  "nama_direktur": {
     "common_prefixes": [],
     "common_suffixes": [
       ")"
@@ -264,9 +27,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 7
+    "sample_count": 13
   },
-  "area_finding_2": {
+  "nama_pelanggan": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -278,25 +41,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 38
+    "sample_count": 5
   },
-  "project_location_2": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      "site. based"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 30
-  },
-  "area_id_3": {
+  "total_akhir": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -308,6 +55,48 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 14
+    "sample_count": 5
+  },
+  "ppn": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 5
+  },
+  "subtotal": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 5
+  },
+  "alamat_pelanggan": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 11
   }
 }

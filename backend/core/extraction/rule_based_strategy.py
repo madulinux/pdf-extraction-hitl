@@ -30,9 +30,13 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         
         # ✅ NEW: Try table extraction first for table-like fields
         # This is part of rule-based strategy (structured data extraction)
+        self.logger.debug(f"🔍 [{field_name}] Checking if table extraction needed...")
         table_result = self._try_table_extraction(pdf_path, field_config, all_words)
         if table_result:
+            self.logger.info(f"✅ [{field_name}] Table extraction SUCCESS: {table_result.value[:50]}")
             return table_result
+        else:
+            self.logger.debug(f"⚠️ [{field_name}] Table extraction returned None - falling back to patterns")
         
         # Get patterns: base pattern + learned patterns from feedback
         patterns = self._get_all_patterns(field_config)
@@ -687,7 +691,10 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         # ✅ ADAPTIVE: Only try table extraction for fields that look like they're in tables
         # Heuristic: field name contains numbers (e.g., area_finding_1, area_id_2)
         # or field name suggests tabular data (e.g., contains 'area', 'item', 'row')
-        if not self._looks_like_table_field(field_name):
+        is_table_field = self._looks_like_table_field(field_name)
+        self.logger.debug(f"[Table] Field '{field_name}' looks_like_table: {is_table_field}")
+        
+        if not is_table_field:
             return None
         
         try:

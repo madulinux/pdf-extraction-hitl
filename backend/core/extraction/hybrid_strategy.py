@@ -162,9 +162,9 @@ class HybridExtractionStrategy:
 
         # Strategy weights (adaptive - will be updated based on performance)
         self.strategy_weights = {
-            StrategyType.RULE_BASED: 0.5,
+            StrategyType.RULE_BASED: 0.4,
             StrategyType.POSITION_BASED: 0.4,
-            StrategyType.CRF: 0.0,  # Increases with training
+            StrategyType.CRF: 0.2,  # Increases with training
         }
 
     def extract_all_fields(
