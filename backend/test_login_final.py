@@ -35,10 +35,10 @@ if __name__ == '__main__':
     print("=" * 60)
     
     # Test admin
-    test_login('admin', 'admin123')
+    test_login('madulinux', 'justice#404')
     
     # Test user
-    test_login('user', 'user123')
+    test_login('user', 'justice#404')
     
     # Test wrong password
-    test_login('admin', 'wrongpassword')
+    test_login('madulinux', 'wrongpassword')

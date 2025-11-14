@@ -42,8 +42,8 @@ class AutomatedSeeder:
     def __init__(
         self,
         api_base_url: str = API_BASE_URL,
-        username: str = "admin",
-        password: str = "admin123",
+        username: str = "madulinux",
+        password: str = "justice#404",
     ):
         self.api_base_url = api_base_url
         self.session = requests.Session()
@@ -143,6 +143,49 @@ class AutomatedSeeder:
         result = response.json()
         data = result.get("data", {})
         return data
+
+    def train_model(self, template_name: str, full: bool = False):
+        """
+        Train model
+        """
+
+        # get template
+        template = self.ceck_template(template_name)
+        if not template:
+            logger.info(f"Template {template_name} not found")
+            return
+        template_id = template.get("template_id")
+
+        logger.info(f"Training model [{template_id}] {template_name}")
+        try:
+            response = self.session.post(
+                f"{self.api_base_url}/learning/train",
+                json={
+                    "template_id": template_id,
+                    "use_all_feedback": True,
+                    "is_incremental": not full,
+                },
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                # Token expired, try to refresh
+                logger.info("🔄 Token expired, refreshing...")
+                self.refresh_access_token()
+                # Retry request
+                response = self.session.post(
+                    f"{self.api_base_url}/learning/train",
+                    json={
+                        "template_id": template_id,
+                        "use_all_feedback": True,
+                        "is_incremental": not full,
+                    },
+                )
+                response.raise_for_status()
+            else:
+                raise
+
+        logger.info(f"✅ Model trained successfully")
 
     def upload_template(self, template_path: str, template_name: str) -> Dict:
         """
@@ -269,10 +312,18 @@ class AutomatedSeeder:
 
             # Normalize for comparison (handle newlines, multiple spaces, strip whitespace)
             # This ensures values like "Line1\nLine2" match "Line1 Line2"
-            true_normalized = ' '.join(str(true_value).split())
-            extracted_normalized = ' '.join(str(extracted_value).split())
+            true_normalized = " ".join(str(true_value).split())
+            extracted_normalized = " ".join(str(extracted_value).split())
 
             if true_normalized != extracted_normalized:
+                # normalize lenient validation (skip correction if only whitespace or (.,,) difference)
+                if true_normalized.strip() == extracted_normalized.strip():
+                    continue
+                elif true_normalized.strip().replace(
+                    ".", ","
+                ) == extracted_normalized.strip().replace(".", ","):
+                    continue
+
                 corrections[field_name] = true_value
                 logger.debug(f"  ❌ {field_name}: '{extracted_value}' → '{true_value}'")
             else:
@@ -281,7 +332,12 @@ class AutomatedSeeder:
         return corrections
 
     def process_single_document(
-        self, pdf_path: str, json_path: str, template_id: int
+        self,
+        pdf_path: str,
+        json_path: str,
+        template_id: int,
+        retrain: bool = False,
+        template_type: str = None,
     ) -> Dict:
         """
         Process a single document: extract → compare → correct
@@ -317,6 +373,16 @@ class AutomatedSeeder:
             # 4. Submit corrections
             validation_result = self.submit_corrections(document_id, corrections)
 
+            # 5. Retrain model if requested
+
+            if retrain and template_type:
+                time.sleep(0.5)
+                logger.info("\n" + "=" * 70)
+                logger.info("Retraining model...")
+                logger.info("=" * 70)
+                time.sleep(0.5)
+                self.train_model(template_type)
+
             # 5. Return stats
             return {
                 "success": True,
@@ -342,6 +408,7 @@ class AutomatedSeeder:
         count: int,
         template_pdf_path: str = None,
         output_dir: str = None,
+        retrain: bool = False,
     ) -> Dict:
         """
         Seed a complete template with N documents
@@ -403,12 +470,16 @@ class AutomatedSeeder:
             )
 
             result = self.process_single_document(
-                str(pdf_file), str(json_file), template_id
+                pdf_path=str(pdf_file),
+                json_path=str(json_file),
+                template_id=template_id,
+                retrain=retrain,
+                template_type=template_type,
             )
             results.append(result)
 
             # Small delay to avoid overwhelming the API
-            time.sleep(0.5)
+            time.sleep(1)
 
         # 5. Calculate summary statistics
         successful = [r for r in results if r.get("success")]
@@ -422,13 +493,15 @@ class AutomatedSeeder:
 
         elapsed_time = time.time() - start_time
 
+        total_results = len(results)
+
         # 6. Print summary
         logger.info("\n" + "=" * 70)
         logger.info("📊 SEEDING SUMMARY")
         logger.info("=" * 70)
         logger.info(f"Template: {template_type}")
         logger.info(f"Template ID: {template_id}")
-        logger.info(f"Documents processed: {len(successful)}/{len(results)}")
+        logger.info(f"Documents processed: {total_results}")
         logger.info(f"Failed: {len(failed)}")
         logger.info(f"\nField Statistics:")
         logger.info(f"  Total fields: {total_fields}")
@@ -443,7 +516,12 @@ class AutomatedSeeder:
         else:
             logger.info(f"  ⚠️ No fields extracted (all documents failed)")
         logger.info(f"\nTime elapsed: {elapsed_time:.2f} seconds")
-        logger.info(f"Avg time per document: {elapsed_time/len(results):.2f} seconds")
+        if total_results > 0:
+            logger.info(
+                f"Avg time per document: {elapsed_time/total_results:.2f} seconds"
+            )
+        else:
+            logger.info(f"Avg time per document: N/A")
         logger.info("=" * 70)
 
         #  delete output path and files output_path
@@ -498,14 +576,14 @@ def main():
     parser.add_argument(
         "--username",
         type=str,
-        default="admin",
-        help="Username for authentication (default: admin)",
+        default="madulinux",
+        help="Username for authentication (default: madulinux)",
     )
     parser.add_argument(
         "--password",
         type=str,
-        default="admin123",
-        help="Password for authentication (default: admin123)",
+        default="justice#404",
+        help="Password for authentication (default: justice#404)",
     )
 
     args = parser.parse_args()

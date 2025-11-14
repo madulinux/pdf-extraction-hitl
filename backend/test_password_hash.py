@@ -7,7 +7,7 @@ from core.auth.utils import PasswordHasher
 migration_hash = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYIeWEgEjqK'
 
 # Test password
-password = 'admin123'
+password = 'justice#404'
 
 # Verify
 hasher = PasswordHasher()

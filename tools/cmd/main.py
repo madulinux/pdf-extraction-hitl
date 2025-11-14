@@ -9,10 +9,19 @@ from multiprocessing import Pool, cpu_count
 from functools import partial
 import logging
 import locale
+import random
+from faker import Faker
 
 app = typer.Typer()
 
-from utils.string_helper import get_nik, get_random_kabupaten_name, get_random_no_hp
+from utils.string_helper import (
+    get_kabupaten,
+    get_kecamatan,
+    get_kelurahan,
+    get_nik,
+    get_provinsi,
+    get_random_no_hp,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -134,11 +143,11 @@ def generate_documents(
     storage_templates = os.path.join(os.getcwd(), "storage/templates")
 
     switcher = {
+        "letter_template": _letter_template_values,
+        "table_template": _invoice_template_values,
+        "form_template": _form_template_values,
+        "mixed_template": _report_template_values,
         "certificate_template": _certificate_template_values,
-        "contract_template": _contract_template_values,
-        "invoice_template": _invoice_template_values,
-        "job_application_template": _job_application_template_values,
-        "medical_form_template": _medical_form_template_values,
     }
 
     if template:
@@ -223,31 +232,227 @@ def generate_documents(
                 )
 
 
-def _certificate_template_values():
-    from faker import Faker
+def _letter_template_values():
 
     fake = Faker("id_ID")
+    desa = get_kelurahan()
+    kecamatan = get_kecamatan(id=desa.get("kecamatan_id"))
+    kabupaten = get_kabupaten(id=kecamatan.get("kabupaten_id"))
+    tempat_lahir = get_kabupaten()
+    gender = fake.random_element(elements=("Laki-Laki", "Perempuan"))
+    usia = fake.random_int(min=18, max=55)
+    date_of_birth = datetime.datetime.now() - timedelta(days=usia * 365)
+    nik = get_nik(gender, date_of_birth, kabupaten_id=tempat_lahir.get("id"))
 
-    event_date = fake.date_between(start_date="-60w", end_date="-1d")
-    issue_date = event_date + timedelta(days=fake.random_int(min=5, max=15))
-    event_name = (
-        fake.random_element(elements=["Seminar", "Workshop", "Training"])
-        + " "
-        + fake.job()
+    agama = fake.random_element(
+        elements=("Islam", "Kristen", "Hindu", "Buddha", "Konghucu")
     )
+    status_perkawinan = fake.random_element(
+        elements=("Kawin", "Belum Kawin", "Pernah Kawin")
+    )
+    tempat_lahir = get_kabupaten()
+
+    tanggal_sign = fake.date_between(start_date="-2y", end_date="-1d")
+
+    # desa first character every word
+    nick_desa = "".join([word[0] for word in desa.get("name").split(" ")])
+
+    nomor_surat = (
+        str(fake.random_int(min=1, max=999)).zfill(5)
+        + "/"
+        + nick_desa.upper()
+        + "/"
+        + tanggal_sign.strftime("%m/%Y")
+    )
+
+    rt = fake.random_int(min=1, max=99)
+    rw = fake.random_int(min=1, max=99)
+
     return {
-        "recipient_name": fake.name(),
-        "event_name": event_name,
-        "event_date": event_date.strftime("%d %B %Y"),
-        "event_location": fake.address(),
-        "issue_place": get_random_kabupaten_name().title(),
-        "issue_date": issue_date.strftime("%d %B %Y"),
-        "supervisor_name": fake.name(),
-        "chairman_name": fake.name(),
-        "certificate_number": _certificate_number(
-            "certificate", issue_date.strftime("%m/%Y")
+        "kop_kabupaten": kabupaten.get("name").upper(),
+        "kop_kecamatan": kecamatan.get("name").upper(),
+        "kop_desa": desa.get("name").upper(),
+        "alamat_kantor_desa": fake.street_address(),
+        "telp_kantor_desa": fake.phone_number(),
+        "nomor_surat": nomor_surat,
+        "desa": desa.get("name").title(),
+        "kecamatan": kecamatan.get("name").title(),
+        "kabupaten": kabupaten.get("name").title(),
+        "nik": nik,
+        "nama_lengkap": (
+            fake.name_female() if gender == "Perempuan" else fake.name_male()
+        ),
+        "tempat_lahir": tempat_lahir.get("name").title(),
+        "tanggal_lahir": date_of_birth.strftime("%d-%m-%Y"),
+        "jenis_kelamin": gender,
+        "pekerjaan": fake.job(),
+        "agama": agama,
+        "status_kawin": status_perkawinan,
+        "alamat": fake.street_address(),
+        "keperluan": fake.sentence(nb_words=7),
+        "rt": str(rt).zfill(3),
+        "rw": str(rw).zfill(3),
+        "kabupaten_sign": kabupaten.get("name").title(),
+        "tanggal_sign": tanggal_sign.strftime("%d-%m-%Y"),
+        "desa_sign": desa.get("name").title(),
+        "kepala_desa": fake.name(),
+    }
+
+
+def _letter_template_values_bk():
+
+    fake = Faker()
+    id = "LOC-" + str(uuid.uuid4()).replace("-", "")[:24]
+
+    event_date = fake.date_between(start_date="-2y", end_date="-1d")
+    return {
+        "city_name": fake.city(),
+        "city_hall_address": fake.street_address(),
+        "city_hall_phone": fake.phone_number(),
+        "letter_reference_number": id,
+        "id_number": get_nik(),
+        "date_issued": event_date.strftime("%B %d, %Y"),
+        "full_name": fake.name(),
+        "address": fake.address(),
+        "occupation": fake.job(),
+        "official_name": fake.name(),
+    }
+
+
+def _table_template_values():
+    pass
+
+
+def _form_template_values():
+    fake = Faker("id_ID")
+
+    gender = fake.random_element(elements=("Laki-Laki", "Perempuan"))
+    usia = fake.random_int(min=18, max=45)
+    date_of_birth = datetime.datetime.now() - timedelta(days=usia * 365)
+    desa = get_kelurahan()
+    kecamatan = get_kecamatan(id=desa.get("kecamatan_id"))
+    kabupaten = get_kabupaten(id=kecamatan.get("kabupaten_id"))
+    provinsi = get_provinsi(id=kabupaten.get("provinsi_id"))
+    tempat_lahir = get_kabupaten()
+    nik = get_nik(gender, date_of_birth, kabupaten_id=tempat_lahir.get("id"))
+
+    return {
+        "nik": nik,
+        "nama_lengkap": (
+            fake.name_female() if gender == "Perempuan" else fake.name_male()
+        ),
+        "jenis_kelamin": gender,
+        "tempat_lahir": tempat_lahir.get("name").title(),
+        "tanggal_lahir": date_of_birth.strftime("%d-%m-%Y"),
+        "alamat": fake.street_address(),
+        "desa": desa.get("name").title(),
+        "usia": str(usia),
+        "kecamatan": kecamatan.get("name").title(),
+        "kabupaten": kabupaten.get("name").title(),
+        "provinsi": provinsi.get("name").title(),
+        "no_hp": get_random_no_hp(),
+        "email": fake.email(),
+        "kabupaten_daftar": get_kabupaten().get("name").title(),
+        "tanggal_daftar": fake.date_between(start_date="-2y", end_date="-1d").strftime(
+            "%d-%m-%Y"
+        ),
+        "status_kawin": fake.random_element(
+            elements=("Belum Kawin", "Kawin", "Pernah Kawin")
         ),
     }
+
+
+def _report_template_values():
+    fake = Faker("en_US")
+
+    project_name = fake.bs()
+    project_location = fake.city()
+    survey_date = fake.date_between(start_date="-2y", end_date="-1d")
+    surveyor_name = fake.name()
+    client_name = fake.company()
+
+    return {
+        "project_name": project_name,
+        "project_location": project_location,
+        "survey_date": survey_date.strftime("%B %d, %Y"),
+        "surveyor_name": surveyor_name,
+        "client_name": client_name,
+        "survey_date_2": survey_date.strftime("%B %d, %Y"),  # ✅ Keep same format as survey_date
+        "project_location_2": project_location,  # ✅ Keep full value, same as project_location
+        "client_name_2": client_name,  # ✅ Keep full value, same as client_name
+        "area_id_1": fake.sbn9(separator=""),
+        "area_finding_1": fake.sentence(nb_words=4),
+        "area_recomendation_1": fake.sentence(nb_words=9),
+        "area_id_2": fake.sbn9(separator=""),
+        "area_finding_2": fake.sentence(nb_words=4),
+        "area_recomendation_2": fake.sentence(nb_words=9),
+        "area_id_3": fake.sbn9(separator=""),
+        "area_finding_3": fake.sentence(nb_words=4),
+        "area_recomendation_3": fake.sentence(nb_words=9),
+        "approver_name": fake.name(),
+        "approver_id": get_nik(),
+        "surveyor_name_sign": surveyor_name,
+        "surveyor_id": get_nik(),
+    }
+
+
+def _get_course_name():
+
+    # 1. Expanded list of fields of study (Bidang Studi)
+    fields_of_study = [
+        "Computer Science",
+        "Biology",
+        "History",
+        "Mathematics",
+        "Art History",
+        "Psychology",
+        "Chemistry",
+        "Physics",
+        "Political Science",
+        "Economics",
+        "Sociology",
+        "Data Science",
+        "Cybersecurity",
+        "Environmental Science",
+        "Business Administration",
+        "Software Engineering",
+        "Artificial Intelligence",
+    ]
+
+    # 2. Expanded list of course types/introductory phrases (Jenis Kursus)
+    course_types = [
+        "Introduction to",
+        "Advanced Studies in",
+        "Foundations of",
+        "Topics in",
+        "Survey of",
+        "Seminar on",
+        "Principles of",
+        "Practical Applications of",
+        "Research Methodologies in",
+        "The Essentials of",
+    ]
+
+    # 3. New variable: Specific Focus/Qualifier (Fokus Spesifik/Kualifikasi)
+    specific_focus = [
+        "for Beginners",
+        "in the 21st Century",
+        "with Hands-On Projects",
+        "using Python",
+        "using Java",
+        "using modern techniques",
+        "focused on theory",
+        "focused on field work",
+        "A Global Perspective",
+        "The European Context",
+        "Case Studies in Industry",
+    ]
+
+    field = random.choice(fields_of_study)
+    course_type = random.choice(course_types)
+    focus = random.choice(specific_focus)
+    # Gabungkan ketiganya
+    return f"{course_type} {field} {focus}"
 
 
 def _certificate_number(type: str = "certificate", date: str = "") -> str:
@@ -260,8 +465,6 @@ def _certificate_number(type: str = "certificate", date: str = "") -> str:
     }
     code = switcher.get(type, lambda: "NBC")
 
-    from faker import Faker
-
     fake = Faker("id_ID")
 
     # random padded left 3 number
@@ -273,7 +476,6 @@ def _certificate_number(type: str = "certificate", date: str = "") -> str:
 
 
 def _contract_template_values():
-    from faker import Faker
 
     fake = Faker("id_ID")
 
@@ -281,25 +483,66 @@ def _contract_template_values():
     date_of_birth = fake.date_of_birth(minimum_age=18, maximum_age=65)
     nik = get_nik(gender, date_of_birth)
 
+    time_period = fake.random_int(min=12, max=24)
+
     start_date = fake.date_between(
         start_date=datetime.date(2022, 1, 1), end_date=datetime.date(2025, 1, 1)
     )
-    end_date = start_date + timedelta(days=365)
+    end_date = start_date + timedelta(days=time_period * 30)
 
+    date_of_letter = start_date - timedelta(days=fake.random_int(min=1, max=6))
+
+    days_warn = fake.random_int(min=7, max=14)
+
+    working_hours = fake.random_int(min=7, max=11)
+    working_days = fake.random_int(min=5, max=6)
+
+    # new datetime 2025-01-01 00:00:00
+    now = datetime.datetime(2025, 1, 1, 0, 0, 0)
+    work_hours_int = fake.random_int(min=7, max=11)
+    work_hours = now.replace(hour=work_hours_int)
+    closing_time = now.replace(hour=work_hours_int + working_hours)
+
+    work_breaks_time = fake.random_element(elements=(30, 35, 40, 45, 50, 55, 60))
+    start_breaks_time = now.replace(hour=work_hours_int + round(working_hours / 2))
+    end_breaks_time = start_breaks_time + timedelta(minutes=work_breaks_time)
+
+    annual_leave = fake.random_int(min=7, max=14)
+    personal_leave = fake.random_int(min=round(annual_leave / 2), max=annual_leave)
+    mass_leave = annual_leave - personal_leave
+    kabupaten = get_kabupaten()
     return {
         "contract_number": _certificate_number("contract"),
-        "contract_date": start_date.strftime("%d %B %Y"),
-        "company_name": fake.company(),
-        "company_address": fake.address(),
-        "company_representative": fake.name(),
+        "company_representative_name": fake.name(),
+        "company_representative_position": fake.job(),
+        "company_representative_address": fake.street_address(),
         "employee_name": (
-            fake.name_male() if gender == "Laki-Laki" else fake.name_female()
+            fake.name_female() if gender == "Perempuan" else fake.name_male()
         ),
+        "employee_birth": kabupaten.get("name")
+        + ", "
+        + date_of_birth.strftime("%d-%m-%Y"),
+        "employee_last_education": fake.random_element(
+            elements=("SMA", "Diploma", "S1", "S2", "S3")
+        ),
+        "employee_gender": gender,
+        "employee_religion": fake.random_element(
+            elements=("Islam", "Kristen", "Hindu", "Buddha", "Konghucu")
+        ),
+        "employee_address": fake.street_address(),
         "employee_nik": nik,
-        "employee_address": fake.address(),
         "employee_phone": get_random_no_hp(),
-        "position": fake.job_female() if gender == "Perempuan" else fake.job_male(),
-        "division": fake.random_element(
+        "time_period": f"{time_period} Bulan",
+        "start_date": start_date.strftime("%d-%m-%Y"),
+        "end_date": end_date.strftime("%d-%m-%Y"),
+        "days_warn": str(days_warn) + " Hari",
+        "work_hours": "Pukul " + work_hours.strftime("%H:%M"),
+        "closing_time": "Pukul " + closing_time.strftime("%H:%M"),
+        "work_breaks_time": str(work_breaks_time) + " Menit",
+        "start_breaks_time": "Pukul " + start_breaks_time.strftime("%H:%M"),
+        "end_breaks_time": "Pukul " + end_breaks_time.strftime("%H:%M"),
+        "employee_position": fake.job(),
+        "employee_division": fake.random_element(
             elements=(
                 "HRD",
                 "IT",
@@ -318,13 +561,27 @@ def _contract_template_values():
                 "WORKING",
             )
         ),
-        "start_date": start_date.strftime("%d-%m-%Y"),
-        "end_date": end_date.strftime("%d-%m-%Y"),
-        "basic_salary": _rupiah_format(fake.random_int(min=3000000, max=10000000)),
-        "allowance": _rupiah_format(fake.random_int(min=1000000, max=5000000)),
-        "working_hours": fake.random_int(min=8, max=10),
-        "annual_leave": fake.random_int(min=11, max=15),
-        "probation_period": fake.random_int(min=3, max=6),
+        "duties_and_responsibilities_1": fake.sentence(
+            nb_words=fake.random_int(min=3, max=8)
+        ),
+        "duties_and_responsibilities_2": fake.sentence(
+            nb_words=fake.random_int(min=3, max=8)
+        ),
+        "duties_and_responsibilities_3": fake.sentence(
+            nb_words=fake.random_int(min=3, max=8)
+        ),
+        "basic_salary": _rupiah_format(fake.random_int(min=10, max=200) * 100000),
+        "allowance_1": _rupiah_format(fake.random_int(min=10, max=100) * 10000),
+        "allowance_2": _rupiah_format(fake.random_int(min=10, max=100) * 10000),
+        "allowance_3": _rupiah_format(fake.random_int(min=10, max=100) * 10000),
+        "overtime_pay": _rupiah_format(fake.random_int(min=10, max=500) * 1000),
+        "working_years": str(fake.random_int(min=1, max=3)) + " Tahun",
+        "annual_leave": str(annual_leave) + " Hari",
+        "personal_leave": str(personal_leave) + " Hari",
+        "mass_leave": str(mass_leave) + " Hari",
+        "annual_warn": str(annual_leave) + " Hari",
+        "city_name": kabupaten.get("name").title(),
+        "date_of_letter": date_of_letter.strftime("%d-%m-%Y"),
     }
 
 
@@ -337,7 +594,6 @@ def _rupiah_format(number: int, with_prefix: bool = False, desimal: int = 0) -> 
 
 
 def _invoice_template_values():
-    from faker import Faker
 
     fake = Faker("id_ID")
 
@@ -356,30 +612,23 @@ def _invoice_template_values():
         "Garam",
     ]
 
-    item_1_quantity = fake.random_int(min=1, max=10)
-    item_1_rate = fake.random_int(min=1000, max=100000)
+    item_1_quantity = fake.random_int(min=1, max=100)
+    item_1_rate = fake.random_int(min=1, max=100) * 1000
     item_1_amount = item_1_quantity * item_1_rate
-    item_1_tax = round(item_1_amount * 0.12)
 
-    item_2_quantity = fake.random_int(min=1, max=10)
-    item_2_rate = fake.random_int(min=1000, max=100000)
+    item_2_quantity = fake.random_int(min=1, max=100)
+    item_2_rate = fake.random_int(min=1, max=100) * 1000
     item_2_amount = item_2_quantity * item_2_rate
-    item_2_tax = round(item_2_amount * 0.12)
 
-    item_3_quantity = fake.random_int(min=1, max=10)
-    item_3_rate = fake.random_int(min=1000, max=100000)
+    item_3_quantity = fake.random_int(min=1, max=100)
+    item_3_rate = fake.random_int(min=1, max=100) * 1000
     item_3_amount = item_3_quantity * item_3_rate
-    item_3_tax = round(item_3_amount * 0.12)
-
-    item_4_quantity = fake.random_int(min=1, max=10)
-    item_4_rate = fake.random_int(min=1000, max=100000)
-    item_4_amount = item_4_quantity * item_4_rate
-    item_4_tax = round(item_4_amount * 0.12)
 
     # round 2 digit
-    total_amount = round(item_1_amount + item_2_amount + item_3_amount + item_4_amount)
-    total_tax = round(item_1_tax + item_2_tax + item_3_tax + item_4_tax)
-    total = round(total_amount + total_tax)
+    subtotal = round(item_1_amount + item_2_amount + item_3_amount)
+    diskon = round(subtotal * (fake.random_int(min=1, max=15) / 100))
+    ppn11 = round(subtotal * 0.11)
+    total = round(subtotal - diskon + ppn11)
 
     item_1_desc = fake.random_element(elements=bahan_pokok)
     bahan_pokok.remove(item_1_desc)
@@ -387,58 +636,42 @@ def _invoice_template_values():
     bahan_pokok.remove(item_2_desc)
     item_3_desc = fake.random_element(elements=bahan_pokok)
     bahan_pokok.remove(item_3_desc)
-    item_4_desc = fake.random_element(elements=bahan_pokok)
-    bahan_pokok.remove(item_4_desc)
+
+    tanggal_invoice = fake.date_between(start_date="-3y", end_date="today")
+    tanggal_jatuh_tempo = tanggal_invoice + timedelta(
+        days=fake.random_int(min=7, max=60)
+    )
 
     return {
-        "company_name": fake.company(),
-        "company_address": fake.street_address(),
-        "company_phone": get_random_no_hp(),
-        "company_email": fake.email(),
-        "invoice_number": _certificate_number("invoice"),
-        "invoice_date": fake.date(pattern="%d-%m-%Y", end_datetime="-1d"),
-        "due_date": fake.date(pattern="%d-%m-%Y", end_datetime="-1d"),
-        "payment_terms": fake.sentence(nb_words=3),
-        "client_name": fake.name(),
-        "client_address": fake.street_address(),
-        "client_phone": get_random_no_hp(),
-        "project_name": fake.word(),
-        "po_number": fake.random_int(min=100000, max=999999),
-        "salesperson": fake.name(),
-        "i_1_desc": item_1_desc,
-        "i_1_qty": str(item_1_quantity),
-        "i_1_rate": _rupiah_format(item_1_rate),
-        "i_1_sum": _rupiah_format(item_1_amount),
-        "i_1_tax": _rupiah_format(item_1_tax),
-        "i_2_desc": item_2_desc,
-        "i_2_qty": str(item_2_quantity),
-        "i_2_rate": _rupiah_format(item_2_rate),
-        "i_2_sum": _rupiah_format(item_2_amount),
-        "i_2_tax": _rupiah_format(item_2_tax),
-        "i_3_desc": item_3_desc,
-        "i_3_qty": str(item_3_quantity),
-        "i_3_rate": _rupiah_format(item_3_rate),
-        "i_3_sum": _rupiah_format(item_3_amount),
-        "i_3_tax": _rupiah_format(item_3_tax),
-        "i_4_desc": item_4_desc,
-        "i_4_qty": str(item_4_quantity),
-        "i_4_rate": _rupiah_format(item_4_rate),
-        "i_4_sum": _rupiah_format(item_4_amount),
-        "i_4_tax": _rupiah_format(item_4_tax),
-        "total_sum": _rupiah_format(total_amount),
-        "total_tax": _rupiah_format(total_tax),
-        "total": _rupiah_format(total),
-        "bank_name": fake.random_element(
-            elements=("BNI", "BRI", "BCA", "MANDIRI", "BNI", "BRI", "BCA", "MANDIRI")
+        "nama_pelanggan": fake.name(),
+        "alamat_pelanggan": fake.street_address(),
+        "telp_pelanggan": get_random_no_hp(),
+        "nomor_invoice": _certificate_number(
+            "invoice", tanggal_invoice.strftime("%m/%Y")
         ),
-        "account_number": fake.random_int(min=1000000000, max=9999999999),
-        "account_name": fake.name(),
-        "invoice_notes": fake.sentence(),
+        "tanggal_invoice": tanggal_invoice.strftime("%d-%m-%Y"),
+        "tanggal_jatuh_tempo": tanggal_jatuh_tempo.strftime("%d-%m-%Y"),
+        "item_description_1": item_1_desc,
+        "item_qty_1": str(item_1_quantity),
+        "item_harga_1": _rupiah_format(item_1_rate),
+        "item_jumlah_1": _rupiah_format(item_1_amount),
+        "item_description_2": item_2_desc,
+        "item_qty_2": str(item_2_quantity),
+        "item_harga_2": _rupiah_format(item_2_rate),
+        "item_jumlah_2": _rupiah_format(item_2_amount),
+        "item_description_3": item_3_desc,
+        "item_qty_3": str(item_3_quantity),
+        "item_harga_3": _rupiah_format(item_3_rate),
+        "item_jumlah_3": _rupiah_format(item_3_amount),
+        "subtotal": _rupiah_format(subtotal),
+        "diskon": _rupiah_format(diskon),
+        "ppn": _rupiah_format(ppn11),
+        "total_akhir": _rupiah_format(total),
+        "nama_direktur": fake.name(),
     }
 
 
 def _job_application_template_values():
-    from faker import Faker
 
     fake = Faker("id_ID")
     id = uuid.uuid4()
@@ -477,15 +710,15 @@ def _job_application_template_values():
     ).strftime("%Y")
 
     full_name = fake.name_male() if gender == "Laki-Laki" else fake.name_female()
-    kabupaten = get_random_kabupaten_name()
+    kabupaten = get_kabupaten()
 
     return {
         "nik": get_nik(gender, dob),
         "nama": full_name,
-        "tempat_lahir": kabupaten.title(),
+        "tempat_lahir": kabupaten.get("name").title(),
         "tanggal_lahir": dob.strftime("%d-%m-%Y"),
         "status_kawin": marital_status,
-        "alamat": fake.street_address() + ", " + kabupaten.title(),
+        "alamat": fake.street_address() + ", " + kabupaten.get("name").title(),
         "no_hp": get_random_no_hp(),
         "email": fake.email(),
         "sd_nama": f"{fake.random_element(elements=("SD", "SDN", "SDIT"))} {fake.random_int(min=1, max=100)} {kabupaten.title()}",
@@ -499,7 +732,7 @@ def _job_application_template_values():
             elements=("UIN", "Universitas Negeri", "Politeknik", "STMIK")
         )
         + " "
-        + get_random_kabupaten_name(),
+        + get_kabupaten().get("name").title(),
         "terakhir_jurusan": fake.random_element(
             elements=(
                 "Teknik Informatika",
@@ -524,7 +757,6 @@ def _job_application_template_values():
 
 
 def _medical_form_template_values():
-    from faker import Faker
 
     fake = Faker("id_ID")
     id = uuid.uuid4()
@@ -558,7 +790,32 @@ def _medical_form_template_values():
         "prescription": fake.sentence(nb_words=fake.random_int(min=4, max=13)),
         "recommendations": fake.sentence(nb_words=fake.random_int(min=4, max=13)),
         "follow_up_date": follow_up_date.strftime("%d-%m-%Y"),
-        "clinic_location": get_random_kabupaten_name().title(),
+        "clinic_location": get_kabupaten().get("name").title(),
+    }
+
+
+def _certificate_template_values():
+
+    fake = Faker("en_US")
+    id = "CE-" + str(uuid.uuid4())
+
+    event_date = fake.date_between(start_date="-20y", end_date="-1d")
+
+    instructor_name = fake.name()
+    return {
+        "recipient_name": fake.name(),
+        "course_name": _get_course_name(),
+        "completed_at": event_date.strftime("%B %d, %Y"),
+        "course_hours": fake.random_int(min=24, max=99),
+        "instructor_name": instructor_name,
+        "instructor_sign": instructor_name,
+        "certificate_number": id,
+        "certificate_url": fake.url() + id,
+        "version": str(fake.random_int(min=1, max=9))
+        + "."
+        + str(fake.random_int(min=0, max=9))
+        + "."
+        + str(fake.random_int(min=0, max=9)),
     }
 
 

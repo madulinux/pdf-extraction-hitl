@@ -1,19 +1,179 @@
 {
-  "event_location": {
+  "client_name_2": {
     "common_prefixes": [],
-    "common_suffixes": [],
+    "common_suffixes": [
+      "team"
+    ],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
-      "has_parentheses_end": 385,
+      "has_parentheses_end": 0,
       "has_quotes": 0,
       "has_brackets": 0,
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 611
+    "sample_count": 60
   },
-  "chairman_name": {
+  "surveyor_id": {
+    "common_prefixes": [
+      "id:"
+    ],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 5,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 12
+  },
+  "project_location_2": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 32
+  },
+  "approver_name": {
+    "common_prefixes": [],
+    "common_suffixes": [
+      ")"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 5,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 6
+  },
+  "area_id_1": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 16
+  },
+  "area_finding_2": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
+  },
+  "surveyor_name": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 3
+  },
+  "area_finding_1": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
+  },
+  "area_recomendation_1": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
+  },
+  "area_finding_3": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
+  },
+  "approver_id": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
+  },
+  "area_id_3": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 12
+  },
+  "surveyor_name_sign": {
     "common_prefixes": [],
     "common_suffixes": [
       ")"
@@ -27,23 +187,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 4
+    "sample_count": 7
   },
-  "supervisor_name": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 2,
-      "has_parentheses_start": 2,
-      "has_parentheses_end": 2,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 3
-    },
-    "sample_count": 24
-  },
-  "issue_place": {
+  "project_location": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -55,9 +201,25 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 63
+    "sample_count": 10
   },
-  "recipient_name": {
+  "survey_date_2": {
+    "common_prefixes": [],
+    "common_suffixes": [
+      "at"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 7
+  },
+  "area_recomendation_3": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -69,9 +231,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 72
+    "sample_count": 60
   },
-  "event_date": {
+  "project_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -83,9 +245,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 6
+    "sample_count": 8
   },
-  "issue_date": {
+  "area_id_2": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -99,7 +261,7 @@
     },
     "sample_count": 15
   },
-  "event_name": {
+  "client_name": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -111,6 +273,20 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 18
+    "sample_count": 29
+  },
+  "area_recomendation_2": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 60
   }
 }

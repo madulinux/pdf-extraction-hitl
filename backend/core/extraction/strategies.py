@@ -139,13 +139,24 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         if not locations:
             return None
         
-        # Try extraction for each location with all patterns
+        # ✅ CRITICAL: Try learned patterns FIRST (by priority)
+        # Learned patterns are more specific and should override base pattern
+        # Only fallback to base pattern if NO learned pattern matches
+        
+        # Separate learned patterns from base pattern
+        learned_patterns = [p for p in patterns if p.get('pattern_id') is not None]
+        base_patterns = [p for p in patterns if p.get('pattern_id') is None]
+        
+        # Sort learned patterns by priority (highest first)
+        learned_patterns.sort(key=lambda x: x.get('priority', 0), reverse=True)
+        
         best_result = None
         best_confidence = 0.0
         best_pattern_id = None
         
         for location in locations:
-            for pattern_info in patterns:
+            # Try learned patterns first
+            for pattern_info in learned_patterns:
                 pattern_id = pattern_info.get('pattern_id')
                 
                 try:
@@ -158,17 +169,42 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         best_confidence = result.confidence
                         best_pattern_id = pattern_id
                         # Track which pattern was used
-                        best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
-                        best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
+                        best_result.metadata['pattern_used'] = pattern_info.get('description', 'learned')
+                        best_result.metadata['pattern_type'] = pattern_info.get('type', 'learned')
                         best_result.metadata['pattern_id'] = pattern_id
                         
                         # ✅ Track successful pattern match
-                        if pattern_id:
-                            self._update_pattern_usage(pattern_id, matched=True)
+                        self._update_pattern_usage(pattern_id, matched=True)
+                        
+                        # ✅ IMPORTANT: If learned pattern matches, use it immediately
+                        # Don't try base pattern (which always matches with .+)
+                        self.logger.info(f"✅ [{field_name}] Using learned pattern (priority={pattern_info.get('priority')}): {pattern_info['pattern'][:50]}")
+                        return best_result
                     else:
                         # ❌ Track failed pattern attempt
-                        if pattern_id and result is None:
+                        if result is None:
                             self._update_pattern_usage(pattern_id, matched=False)
+                            
+                except Exception as e:
+                    self.logger.error(f"Error extracting with learned pattern: {e}")
+                    continue
+            
+            # If no learned pattern matched, try base pattern as fallback
+            for pattern_info in base_patterns:
+                try:
+                    result = self._extract_from_location(
+                        location, field_name, pattern_info['pattern'], all_words
+                    )
+                    
+                    if result and result.confidence > best_confidence:
+                        best_result = result
+                        best_confidence = result.confidence
+                        # Track which pattern was used
+                        best_result.metadata['pattern_used'] = pattern_info.get('description', 'base')
+                        best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
+                        best_result.metadata['pattern_id'] = None
+                        
+                        self.logger.info(f"⚠️ [{field_name}] Fallback to base pattern: {pattern_info['pattern'][:50]}")
                             
                 except Exception as e:
                     self.logger.error(f"Error extracting from location: {e}")
@@ -414,20 +450,36 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             label_y1 = label_pos.get('y1', 0)
             label_y_center = (label_y0 + label_y1) / 2
             
-            # ✅ NEW: Get next field boundary
+            # ✅ NEW: Get next field boundary (Y and X)
             next_field_y = context.get('next_field_y')
             
+            # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
+            # This prevents extracting into next field when they're on same line
+            words_after = context.get('words_after', [])
+            next_field_x = None
+            if words_after and len(words_after) > 0:
+                # First word after is likely the next field marker
+                next_field_x = words_after[0].get('x')
+            
             # Collect candidate words after label
-            # ✅ NEW: Stop at next field boundary
+            # ✅ NEW: Stop at next field boundary (Y or X)
             candidate_words = []
             for word in all_words:
                 word_x0 = word.get('x0', 0)
                 word_y = word.get('top', 0)
                 word_y_center = (word.get('top', 0) + word.get('bottom', 0)) / 2
                 
-                # ✅ NEW: Stop if we reach next field
-                if next_field_y and word_y >= next_field_y:
-                    break
+                # ✅ CRITICAL: For same-line fields, ONLY use X-boundary
+                # If next_field_x exists, it means next field is on same line
+                # In this case, ignore Y-boundary (it's unreliable for same-line fields)
+                if next_field_x:
+                    # Same-line field: use X-boundary only
+                    if word_x0 >= next_field_x and abs(word_y_center - label_y_center) < 10:
+                        break
+                else:
+                    # Different-line field: use Y-boundary
+                    if next_field_y and word_y >= next_field_y:
+                        break
                 
                 # Word is after label and on same line
                 if word_x0 > label_x1 and abs(word_y_center - label_y_center) < 10:
@@ -491,19 +543,52 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             # Data REPLACES marker at same position, not appended after it
             marker_x0 = location.get('x0', 0)
             marker_x1 = location.get('x1', 0)
+            marker_y0 = location.get('y0', 0)
+            marker_y1 = location.get('y1', 0)
+            marker_y_center = (marker_y0 + marker_y1) / 2
+            
+            # ✅ NEW: Get context for boundary detection
+            context = location.get('context', {})
+            next_field_y = context.get('next_field_y')
+            
+            # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
+            words_after = context.get('words_after', [])
+            next_field_x = None
+            if words_after and len(words_after) > 0:
+                next_field_x = words_after[0].get('x')
             
             # Start search BEFORE marker to catch data that overlaps
             x0 = marker_x0 - 50  # Buffer to catch data slightly before marker
-            y0 = location.get('y0', 0) - 10  # Expand vertical search
+            y0 = marker_y0 - 10  # Expand vertical search
             x1 = marker_x1 + 400  # Search well beyond marker
-            y1 = location.get('y1', 0) + 10  # Expand vertical search
+            y1 = marker_y1 + 10  # Expand vertical search
             
-            # Find words in the search area
+            # Find words in the search area with boundary checking
             candidate_words = []
             for word in all_words:
-                if (word.get('x0', 0) >= x0 and word.get('x1', 0) <= x1 and
-                    word.get('top', 0) >= y0 and word.get('bottom', 0) <= y1):
-                    candidate_words.append(word)
+                word_x0 = word.get('x0', 0)
+                word_x1 = word.get('x1', 0)
+                word_y = word.get('top', 0)
+                word_y_center = (word.get('top', 0) + word.get('bottom', 0)) / 2
+                
+                # Basic area check
+                if not (word_x0 >= x0 and word_x1 <= x1 and
+                        word_y >= y0 and word.get('bottom', 0) <= y1):
+                    continue
+                
+                # ✅ CRITICAL: For same-line fields, ONLY use X-boundary
+                # If next_field_x exists, it means next field is on same line
+                # In this case, ignore Y-boundary (it's unreliable for same-line fields)
+                if next_field_x:
+                    # Same-line field: use X-boundary only
+                    if word_x0 >= next_field_x and abs(word_y_center - marker_y_center) < 10:
+                        continue
+                else:
+                    # Different-line field: use Y-boundary
+                    if next_field_y and word_y >= next_field_y:
+                        continue
+                
+                candidate_words.append(word)
             
             # Sort by position (left to right, top to bottom)
             candidate_words.sort(key=lambda w: (w.get('top', 0), w.get('x0', 0)))
@@ -724,23 +809,37 @@ class PositionExtractionStrategy(ExtractionStrategy):
             # Sort by horizontal position (left to right)
             candidate_words.sort(key=lambda w: w['x0'])
             
-            # ✅ NEW: Get next field boundary
+            # ✅ NEW: Get next field boundary (Y and X)
             context = location.get('context', {})
             next_field_y = context.get('next_field_y') if context else None
             
+            # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
+            words_after = context.get('words_after', []) if context else []
+            next_field_x = None
+            if words_after and len(words_after) > 0:
+                next_field_x = words_after[0].get('x')
+            
             # Extract ALL words from marker position onwards (same line)
-            # ✅ NEW: Stop at next field boundary
+            # ✅ NEW: Stop at next field boundary (Y or X)
             # This handles multi-word values like "Ophelia Yuniar, S.Kom"
             value_words = []
             first_word_pos = None
             
             if candidate_words:
                 for cw in candidate_words:
+                    word_x0 = cw['word'].get('x0', 0)
                     word_y = cw['word'].get('top', 0)
                     
-                    # ✅ NEW: Stop if we reach next field
-                    if next_field_y and word_y >= next_field_y:
-                        break
+                    # ✅ CRITICAL: For same-line fields, ONLY use X-boundary
+                    # If next_field_x exists, it means next field is on same line
+                    if next_field_x:
+                        # Same-line field: use X-boundary only
+                        if word_x0 >= next_field_x:
+                            break
+                    else:
+                        # Different-line field: use Y-boundary
+                        if next_field_y and word_y >= next_field_y:
+                            break
                     
                     if cw['distance'] >= -10:  # At or after marker
                         value_words.append(cw['word'].get('text', ''))
@@ -925,24 +1024,55 @@ class CRFExtractionStrategy(ExtractionStrategy):
             extracted_tokens = []
             confidences = []
             
-            # ✅ ADAPTIVE: Get next field boundary
+            # ✅ ADAPTIVE: Get next field boundary (Y and X)
             next_field_y = context.get('next_field_y')
+            print(f"   📏 [Debug] next_field_y from context: {next_field_y}")
+            
+            # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
+            words_after = context.get('words_after', [])
+            next_field_x = None
+            if words_after and len(words_after) > 0:
+                next_field_x = words_after[0].get('x')
+                print(f"   📏 [Debug] next_field_x from words_after: {next_field_x}")
+            
+            # ✅ ADAPTIVE: Get typical field length (learned from training data)
+            typical_length = context.get('typical_length')
+            max_length = int(typical_length * 1.3) if typical_length else None  # 1.3x = 30% tolerance
+            print(f"   📏 [Debug] typical_length: {typical_length}, max_length: {max_length}")
             
             # ✅ ADAPTIVE: Track parentheses state to skip content inside
             inside_parentheses = False
             
             # ✅ Let model learn boundaries from training data
-            # But enforce hard stop at next_field_y (adaptive, not hardcoded!)
+            # But enforce hard stop at next_field_y/X (adaptive, not hardcoded!)
             for i, (pred, marginal) in enumerate(zip(predictions, marginals)):
                 if pred in [target_label, inside_label]:
                     if i < len(all_words):
                         word = all_words[i]
+                        word_x0 = word.get('x0', 0)
                         word_y = word.get('top', 0)
                         word_text = word.get('text', '')
                         
-                        # ✅ ADAPTIVE: Stop if we reach next field boundary
-                        if next_field_y and word_y >= next_field_y:
-                            print(f"   🛑 [Adaptive] Stopped at next field boundary (Y={next_field_y})")
+                        # ✅ CRITICAL: For same-line fields, ONLY use X-boundary
+                        # If next_field_x exists, it means next field is on same line
+                        if next_field_x:
+                            # Same-line field: use X-boundary only
+                            if word_x0 >= next_field_x:
+                                print(f"   🛑 [Adaptive] Stopped at next field X boundary (word_x0={word_x0} >= next_field_x={next_field_x})")
+                                print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before X boundary")
+                                break
+                        else:
+                            # Different-line field: use Y-boundary
+                            if next_field_y and word_y >= next_field_y:
+                                print(f"   🛑 [Adaptive] Stopped at next field Y boundary (word_y={word_y} >= next_field_y={next_field_y})")
+                                print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before boundary")
+                                break
+                        
+                        # ✅ ADAPTIVE: Stop if extracted length exceeds typical length (learned from training)
+                        current_length = len(' '.join(extracted_tokens + [word_text]))
+                        if max_length and current_length > max_length:
+                            print(f"   🛑 [Adaptive] Stopped at length limit (current={current_length} > max={max_length})")
+                            print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before length limit")
                             break
                         
                         # ✅ ADAPTIVE: Track and skip ALL content inside parentheses

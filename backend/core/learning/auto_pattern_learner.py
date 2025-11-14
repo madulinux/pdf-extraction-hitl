@@ -44,6 +44,12 @@ class AutoPatternLearner:
         """
         Check if pattern learning should be triggered
         
+        ✅ NEW: Trigger based on DOCUMENT COUNT instead of feedback count
+        This is more reliable because:
+        - Documents with validated data contribute to learning
+        - Not all documents have feedback (correct extractions don't need feedback)
+        - Consistent with learning from validated data
+        
         Args:
             template_id: Template ID
             field_name: Field name
@@ -52,14 +58,14 @@ class AutoPatternLearner:
             True if learning should be triggered
         """
         try:
-            # Count feedback for this field since last learning
+            # Count validated documents since last learning
+            # Include both: documents with feedback + documents without feedback (validated)
             query = """
-                SELECT COUNT(*) as feedback_count
-                FROM feedback f
-                JOIN documents d ON f.document_id = d.id
-                WHERE d.template_id = ? 
-                  AND f.field_name = ?
-                  AND f.created_at > COALESCE(
+                SELECT COUNT(DISTINCT d.id) as document_count
+                FROM documents d
+                WHERE d.template_id = ?
+                  AND d.status = 'validated'
+                  AND d.created_at > COALESCE(
                       (SELECT MAX(completed_at) 
                        FROM pattern_learning_jobs 
                        WHERE template_id = ? 
@@ -71,15 +77,22 @@ class AutoPatternLearner:
             
             result = self.db.execute_query(
                 query,
-                (template_id, field_name, template_id, field_name)
+                (template_id, template_id, field_name)
             )
             
-            if result and result[0]['feedback_count'] >= self.min_feedback_count:
+            document_count = result[0]['document_count'] if result else 0
+            
+            if document_count >= self.min_feedback_count:  # Reuse threshold (5 documents)
                 self.logger.info(
                     f"✅ Trigger condition met for {field_name}: "
-                    f"{result[0]['feedback_count']} new feedback"
+                    f"{document_count} new validated documents (threshold: {self.min_feedback_count})"
                 )
                 return True
+            else:
+                self.logger.debug(
+                    f"⏳ Not enough documents for {field_name}: "
+                    f"{document_count}/{self.min_feedback_count}"
+                )
             
             return False
             
@@ -181,6 +194,30 @@ class AutoPatternLearner:
                     f"✅ Pattern learning completed for {field_name}: "
                     f"{result.get('patterns_added', 0)} patterns applied"
                 )
+                
+                # ✅ NEW: Auto-cleanup poorly performing patterns after learning
+                try:
+                    from core.learning.pattern_cleaner import get_pattern_cleaner
+                    
+                    cleaner = get_pattern_cleaner(self.db)
+                    cleanup_result = cleaner.cleanup_poor_patterns(
+                        template_id=template_id,
+                        field_name=field_name,
+                        dry_run=False
+                    )
+                    
+                    if cleanup_result.get('deactivated') or cleanup_result.get('deleted'):
+                        self.logger.info(
+                            f"🧹 Pattern cleanup: "
+                            f"{len(cleanup_result.get('deactivated', []))} deactivated, "
+                            f"{len(cleanup_result.get('deleted', []))} deleted"
+                        )
+                        result['cleanup'] = cleanup_result
+                    
+                except Exception as e:
+                    self.logger.warning(f"Pattern cleanup failed: {e}")
+                    # Don't fail learning if cleanup fails
+                
             else:
                 self.logger.error(
                     f"❌ Pattern learning failed for {field_name}: "

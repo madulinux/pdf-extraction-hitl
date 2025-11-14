@@ -1,8 +1,16 @@
 from datetime import datetime
 import random
+import os
+import json
+from typing import List
 
 
-def get_nik(gender: str = "Laki-Laki", date_of_birth: datetime = None):
+def get_nik(
+    gender: str = "Laki-Laki",
+    date_of_birth: datetime = None,
+    kabupaten_id: str = None,
+    kecamatan_id: str = None,
+):
     from faker import Faker
 
     fake = Faker("id_ID")
@@ -12,7 +20,17 @@ def get_nik(gender: str = "Laki-Laki", date_of_birth: datetime = None):
         else date_of_birth
     )
 
-    kecamatan_id = get_random_kecamatan_id()
+    if kabupaten_id and len(kabupaten_id) == 6:
+        if kecamatan_id and len(kecamatan_id) == 6:
+            pass
+        else:
+            kecamatan = get_kecamatan(kabupaten_id)
+            kecamatan_id = kecamatan.get("id")
+
+    if kecamatan_id == None or len(kecamatan_id) < 6:
+        kecamatan = get_kecamatan()
+        kecamatan_id = kecamatan.get("id")
+
     dob_day = (
         dob.strftime("%d") if gender == "Laki-Laki" else int(dob.strftime("%d")) + 40
     )
@@ -25,614 +43,101 @@ def get_nik(gender: str = "Laki-Laki", date_of_birth: datetime = None):
     return f"{kecamatan_id}{dob_year}{dob_month}{dob_day}{last_4}"
 
 
-def get_provinsis() -> dict:
-    provinsis = {
-        "11": "ACEH",
-        "51": "BALI",
-        "36": "BANTEN",
-        "17": "BENGKULU",
-        "34": "DAERAH ISTIMEWA YOGYAKARTA",
-        "31": "DKI JAKARTA",
-        "75": "GORONTALO",
-        "15": "JAMBI",
-        "32": "JAWA BARAT",
-        "33": "JAWA TENGAH",
-        "35": "JAWA TIMUR",
-        "61": "KALIMANTAN BARAT",
-        "63": "KALIMANTAN SELATAN",
-        "62": "KALIMANTAN TENGAH",
-        "64": "KALIMANTAN TIMUR",
-        "65": "KALIMANTAN UTARA",
-        "19": "KEPULAUAN BANGKA BELITUNG",
-        "21": "KEPULAUAN RIAU",
-        "18": "LAMPUNG",
-        "81": "MALUKU",
-        "82": "MALUKU UTARA",
-        "52": "NUSA TENGGARA BARAT",
-        "53": "NUSA TENGGARA TIMUR",
-        "91": "PAPUA",
-        "92": "PAPUA BARAT",
-        "96": "PAPUA BARAT DAYA",
-        "95": "PAPUA PEGUNUNGAN",
-        "93": "PAPUA SELATAN",
-        "94": "PAPUA TENGAH",
-        "14": "RIAU",
-        "76": "SULAWESI BARAT",
-        "73": "SULAWESI SELATAN",
-        "72": "SULAWESI TENGAH",
-        "74": "SULAWESI TENGGARA",
-        "71": "SULAWESI UTARA",
-        "13": "SUMATERA BARAT",
-        "16": "SUMATERA SELATAN",
-        "12": "SUMATERA UTARA",
-    }
+def get_provinsis() -> List[dict]:
+    provinsis_json = os.path.join(os.getcwd(), "storage/data/provinsis.json")
+    with open(provinsis_json, "r") as f:
+        provinsis = json.load(f)
+
     return provinsis
 
 
-def get_kabupatens():
-    return {
-        "1105": "ACEH BARAT",
-        "1112": "ACEH BARAT DAYA",
-        "1106": "ACEH BESAR",
-        "1114": "ACEH JAYA",
-        "1101": "ACEH SELATAN",
-        "1110": "ACEH SINGKIL",
-        "1116": "ACEH TAMIANG",
-        "1104": "ACEH TENGAH",
-        "1102": "ACEH TENGGARA",
-        "1103": "ACEH TIMUR",
-        "1108": "ACEH UTARA",
-        "1306": "AGAM",
-        "5305": "ALOR",
-        "1209": "ASAHAN",
-        "9304": "ASMAT",
-        "5103": "BADUNG",
-        "6311": "BALANGAN",
-        "3204": "BANDUNG",
-        "3217": "BANDUNG BARAT",
-        "7201": "BANGGAI",
-        "7207": "BANGGAI KEPULAUAN",
-        "7211": "BANGGAI LAUT",
-        "1901": "BANGKA",
-        "1905": "BANGKA BARAT",
-        "1903": "BANGKA SELATAN",
-        "1904": "BANGKA TENGAH",
-        "3526": "BANGKALAN",
-        "5106": "BANGLI",
-        "6303": "BANJAR",
-        "3304": "BANJARNEGARA",
-        "7303": "BANTAENG",
-        "3402": "BANTUL",
-        "1607": "BANYUASIN",
-        "3302": "BANYUMAS",
-        "3510": "BANYUWANGI",
-        "6304": "BARITO KUALA",
-        "6204": "BARITO SELATAN",
-        "6213": "BARITO TIMUR",
-        "6205": "BARITO UTARA",
-        "7311": "BARRU",
-        "3325": "BATANG",
-        "1504": "BATANGHARI",
-        "1219": "BATU BARA",
-        "3216": "BEKASI",
-        "1902": "BELITUNG",
-        "1906": "BELITUNG TIMUR",
-        "5304": "BELU",
-        "1117": "BENER MERIAH",
-        "1403": "BENGKALIS",
-        "6107": "BENGKAYANG",
-        "1701": "BENGKULU SELATAN",
-        "1709": "BENGKULU TENGAH",
-        "1703": "BENGKULU UTARA",
-        "6403": "BERAU",
-        "9106": "BIAK NUMFOR",
-        "5206": "BIMA",
-        "2101": "BINTAN",
-        "1111": "BIREUEN",
-        "3505": "BLITAR",
-        "3316": "BLORA",
-        "7502": "BOALEMO",
-        "3201": "BOGOR",
-        "3522": "BOJONEGORO",
-        "7101": "BOLAANG MONGONDOW",
-        "7111": "BOLAANG MONGONDOW SELATAN",
-        "7110": "BOLAANG MONGONDOW TIMUR",
-        "7108": "BOLAANG MONGONDOW UTARA",
-        "7406": "BOMBANA",
-        "3511": "BONDOWOSO",
-        "7308": "BONE",
-        "7503": "BONE BOLANGO",
-        "9302": "BOVEN DIGOEL",
-        "3309": "BOYOLALI",
-        "3329": "BREBES",
-        "5108": "BULELENG",
-        "7302": "BULUKUMBA",
-        "6501": "BULUNGAN",
-        "1508": "BUNGO",
-        "7205": "BUOL",
-        "8104": "BURU",
-        "8109": "BURU SELATAN",
-        "7404": "BUTON",
-        "7415": "BUTON SELATAN",
-        "7414": "BUTON TENGAH",
-        "7410": "BUTON UTARA",
-        "3207": "CIAMIS",
-        "3203": "CIANJUR",
-        "3301": "CILACAP",
-        "3209": "CIREBON",
-        "1211": "DAIRI",
-        "9408": "DEIYAI",
-        "1207": "DELI SERDANG",
-        "3321": "DEMAK",
-        "1310": "DHARMASRAYA",
-        "9406": "DOGIYAI",
-        "5205": "DOMPU",
-        "7203": "DONGGALA",
-        "1611": "EMPAT LAWANG",
-        "5308": "ENDE",
-        "7316": "ENREKANG",
-        "9203": "FAK FAK",
-        "5306": "FLORES TIMUR",
-        "3205": "GARUT",
-        "1113": "GAYO LUES",
-        "5104": "GIANYAR",
-        "7501": "GORONTALO",
-        "7505": "GORONTALO UTARA",
-        "7306": "GOWA",
-        "3525": "GRESIK",
-        "3315": "GROBOGAN",
-        "6210": "GUNUNG MAS",
-        "3403": "GUNUNGKIDUL",
-        "8201": "HALMAHERA BARAT",
-        "8204": "HALMAHERA SELATAN",
-        "8202": "HALMAHERA TENGAH",
-        "8206": "HALMAHERA TIMUR",
-        "8203": "HALMAHERA UTARA",
-        "6306": "HULU SUNGAI SELATAN",
-        "6307": "HULU SUNGAI TENGAH",
-        "6308": "HULU SUNGAI UTARA",
-        "1216": "HUMBANG HASUNDUTAN",
-        "1404": "INDRAGIRI HILIR",
-        "1402": "INDRAGIRI HULU",
-        "3212": "INDRAMAYU",
-        "9407": "INTAN JAYA",
-        "3173": "JAKARTA BARAT",
-        "3171": "JAKARTA PUSAT",
-        "3174": "JAKARTA SELATAN",
-        "3175": "JAKARTA TIMUR",
-        "3172": "JAKARTA UTARA",
-        "9103": "JAYAPURA",
-        "9501": "JAYAWIJAYA",
-        "3509": "JEMBER",
-        "5101": "JEMBRANA",
-        "7304": "JENEPONTO",
-        "3320": "JEPARA",
-        "3517": "JOMBANG",
-        "9208": "KAIMANA",
-        "1401": "KAMPAR",
-        "6203": "KAPUAS",
-        "6106": "KAPUAS HULU",
-        "3313": "KARANGANYAR",
-        "5107": "KARANGASEM",
-        "3215": "KARAWANG",
-        "2102": "KARIMUN",
-        "1206": "KARO",
-        "6206": "KATINGAN",
-        "1704": "KAUR",
-        "6111": "KAYONG UTARA",
-        "3305": "KEBUMEN",
-        "3506": "KEDIRI",
-        "9111": "KEEROM",
-        "3324": "KENDAL",
-        "7109": "KEP. SIAU TAGULANDANG BIARO",
-        "1708": "KEPAHIANG",
-        "2105": "KEPULAUAN ANAMBAS",
-        "8107": "KEPULAUAN ARU",
-        "1309": "KEPULAUAN MENTAWAI",
-        "1410": "KEPULAUAN MERANTI",
-        "7103": "KEPULAUAN SANGIHE",
-        "7301": "KEPULAUAN SELAYAR",
-        "3101": "KEPULAUAN SERIBU",
-        "8205": "KEPULAUAN SULA",
-        "7104": "KEPULAUAN TALAUD",
-        "8103": "KEPULAUAN TANIMBAR",
-        "9105": "KEPULAUAN YAPEN",
-        "1501": "KERINCI",
-        "6104": "KETAPANG",
-        "3310": "KLATEN",
-        "5105": "KLUNGKUNG",
-        "7401": "KOLAKA",
-        "7411": "KOLAKA TIMUR",
-        "7408": "KOLAKA UTARA",
-        "7402": "KONAWE",
-        "7412": "KONAWE KEPULAUAN",
-        "7405": "KONAWE SELATAN",
-        "7409": "KONAWE UTARA",
-        "8171": "KOTA AMBON",
-        "6471": "KOTA BALIKPAPAN",
-        "1171": "KOTA BANDA ACEH",
-        "1871": "KOTA BANDAR LAMPUNG",
-        "3273": "KOTA BANDUNG",
-        "3279": "KOTA BANJAR",
-        "6372": "KOTA BANJARBARU",
-        "6371": "KOTA BANJARMASIN",
-        "2171": "KOTA BATAM",
-        "3579": "KOTA BATU",
-        "7472": "KOTA BAU BAU",
-        "3275": "KOTA BEKASI",
-        "1771": "KOTA BENGKULU",
-        "5272": "KOTA BIMA",
-        "1275": "KOTA BINJAI",
-        "7172": "KOTA BITUNG",
-        "3572": "KOTA BLITAR",
-        "3271": "KOTA BOGOR",
-        "6474": "KOTA BONTANG",
-        "1375": "KOTA BUKITTINGGI",
-        "3672": "KOTA CILEGON",
-        "3277": "KOTA CIMAHI",
-        "3274": "KOTA CIREBON",
-        "5171": "KOTA DENPASAR",
-        "3276": "KOTA DEPOK",
-        "1472": "KOTA DUMAI",
-        "7571": "KOTA GORONTALO",
-        "1278": "KOTA GUNUNGSITOLI",
-        "1571": "KOTA JAMBI",
-        "9171": "KOTA JAYAPURA",
-        "3571": "KOTA KEDIRI",
-        "7471": "KOTA KENDARI",
-        "7174": "KOTA KOTAMOBAGU",
-        "5371": "KOTA KUPANG",
-        "1174": "KOTA LANGSA",
-        "1173": "KOTA LHOKSEUMAWE",
-        "1673": "KOTA LUBUK LINGGAU",
-        "3577": "KOTA MADIUN",
-        "3371": "KOTA MAGELANG",
-        "7371": "KOTA MAKASSAR",
-        "3573": "KOTA MALANG",
-        "7171": "KOTA MANADO",
-        "5271": "KOTA MATARAM",
-        "1271": "KOTA MEDAN",
-        "1872": "KOTA METRO",
-        "3576": "KOTA MOJOKERTO",
-        "1371": "KOTA PADANG",
-        "1374": "KOTA PADANG PANJANG",
-        "1277": "KOTA PADANG SIDEMPUAN",
-        "1672": "KOTA PAGAR ALAM",
-        "6271": "KOTA PALANGKARAYA",
-        "1671": "KOTA PALEMBANG",
-        "7373": "KOTA PALOPO",
-        "7271": "KOTA PALU",
-        "1971": "KOTA PANGKAL PINANG",
-        "7372": "KOTA PAREPARE",
-        "1377": "KOTA PARIAMAN",
-        "3575": "KOTA PASURUAN",
-        "1376": "KOTA PAYAKUMBUH",
-        "3375": "KOTA PEKALONGAN",
-        "1471": "KOTA PEKANBARU",
-        "1272": "KOTA PEMATANGSIANTAR",
-        "6171": "KOTA PONTIANAK",
-        "1674": "KOTA PRABUMULIH",
-        "3574": "KOTA PROBOLINGGO",
-        "1172": "KOTA SABANG",
-        "3373": "KOTA SALATIGA",
-        "6472": "KOTA SAMARINDA",
-        "1373": "KOTA SAWAHLUNTO",
-        "3374": "KOTA SEMARANG",
-        "3673": "KOTA SERANG",
-        "1273": "KOTA SIBOLGA",
-        "6172": "KOTA SINGKAWANG",
-        "1372": "KOTA SOLOK",
-        "9671": "KOTA SORONG",
-        "1175": "KOTA SUBULUSSALAM",
-        "3272": "KOTA SUKABUMI",
-        "1572": "KOTA SUNGAI PENUH",
-        "3578": "KOTA SURABAYA",
-        "3372": "KOTA SURAKARTA",
-        "3671": "KOTA TANGERANG",
-        "3674": "KOTA TANGERANG SELATAN",
-        "1274": "KOTA TANJUNG BALAI",
-        "2172": "KOTA TANJUNG PINANG",
-        "6571": "KOTA TARAKAN",
-        "3278": "KOTA TASIKMALAYA",
-        "1276": "KOTA TEBING TINGGI",
-        "3376": "KOTA TEGAL",
-        "8271": "KOTA TERNATE",
-        "8272": "KOTA TIDORE KEPULAUAN",
-        "7173": "KOTA TOMOHON",
-        "8172": "KOTA TUAL",
-        "3471": "KOTA YOGYAKARTA",
-        "6302": "KOTABARU",
-        "6201": "KOTAWARINGIN BARAT",
-        "6202": "KOTAWARINGIN TIMUR",
-        "1409": "KUANTAN SINGINGI",
-        "6112": "KUBU RAYA",
-        "3319": "KUDUS",
-        "3401": "KULON PROGO",
-        "3208": "KUNINGAN",
-        "5301": "KUPANG",
-        "6407": "KUTAI BARAT",
-        "6402": "KUTAI KARTANEGARA",
-        "6408": "KUTAI TIMUR",
-        "1210": "LABUHANBATU",
-        "1222": "LABUHANBATU SELATAN",
-        "1223": "LABUHANBATU UTARA",
-        "1604": "LAHAT",
-        "6209": "LAMANDAU",
-        "3524": "LAMONGAN",
-        "1804": "LAMPUNG BARAT",
-        "1801": "LAMPUNG SELATAN",
-        "1802": "LAMPUNG TENGAH",
-        "1807": "LAMPUNG TIMUR",
-        "1803": "LAMPUNG UTARA",
-        "6108": "LANDAK",
-        "1205": "LANGKAT",
-        "9507": "LANNY JAYA",
-        "3602": "LEBAK",
-        "1707": "LEBONG",
-        "5313": "LEMBATA",
-        "1307": "LIMA PULUH KOTA",
-        "2104": "LINGGA",
-        "5201": "LOMBOK BARAT",
-        "5202": "LOMBOK TENGAH",
-        "5203": "LOMBOK TIMUR",
-        "5208": "LOMBOK UTARA",
-        "3508": "LUMAJANG",
-        "7317": "LUWU",
-        "7324": "LUWU TIMUR",
-        "7322": "LUWU UTARA",
-        "3519": "MADIUN",
-        "3308": "MAGELANG",
-        "3520": "MAGETAN",
-        "6411": "MAHAKAM ULU",
-        "3210": "MAJALENGKA",
-        "7605": "MAJENE",
-        "5321": "MALAKA",
-        "3507": "MALANG",
-        "6502": "MALINAU",
-        "8108": "MALUKU BARAT DAYA",
-        "8101": "MALUKU TENGAH",
-        "8102": "MALUKU TENGGARA",
-        "7603": "MAMASA",
-        "9120": "MAMBERAMO RAYA",
-        "9505": "MAMBERAMO TENGAH",
-        "7602": "MAMUJU",
-        "7606": "MAMUJU TENGAH",
-        "1213": "MANDAILING NATAL",
-        "5310": "MANGGARAI",
-        "5315": "MANGGARAI BARAT",
-        "5319": "MANGGARAI TIMUR",
-        "9202": "MANOKWARI",
-        "9211": "MANOKWARI SELATAN",
-        "9303": "MAPPI",
-        "7309": "MAROS",
-        "9605": "MAYBRAT",
-        "6110": "MELAWI",
-        "6102": "MEMPAWAH",
-        "1502": "MERANGIN",
-        "9301": "MERAUKE",
-        "1811": "MESUJI",
-        "9404": "MIMIKA",
-        "7102": "MINAHASA",
-        "7105": "MINAHASA SELATAN",
-        "7107": "MINAHASA TENGGARA",
-        "7106": "MINAHASA UTARA",
-        "3516": "MOJOKERTO",
-        "7206": "MOROWALI",
-        "7212": "MOROWALI UTARA",
-        "1603": "MUARA ENIM",
-        "1505": "MUARO JAMBI",
-        "1706": "MUKO MUKO",
-        "7403": "MUNA",
-        "7413": "MUNA BARAT",
-        "6212": "MURUNG RAYA",
-        "1606": "MUSI BANYUASIN",
-        "1605": "MUSI RAWAS",
-        "1613": "MUSI RAWAS UTARA",
-        "9401": "NABIRE",
-        "1115": "NAGAN RAYA",
-        "5316": "NAGEKEO",
-        "2103": "NATUNA",
-        "9508": "NDUGA",
-        "5309": "NGADA",
-        "3518": "NGANJUK",
-        "3521": "NGAWI",
-        "1204": "NIAS",
-        "1225": "NIAS BARAT",
-        "1214": "NIAS SELATAN",
-        "1224": "NIAS UTARA",
-        "6503": "NUNUKAN",
-        "1610": "OGAN ILIR",
-        "1602": "OGAN KOMERING ILIR",
-        "1601": "OGAN KOMERING ULU",
-        "1609": "OGAN KOMERING ULU SELATAN",
-        "1608": "OGAN KOMERING ULU TIMUR",
-        "3501": "PACITAN",
-        "1221": "PADANG LAWAS",
-        "1220": "PADANG LAWAS UTARA",
-        "1305": "PADANG PARIAMAN",
-        "1215": "PAKPAK BHARAT",
-        "3528": "PAMEKASAN",
-        "3601": "PANDEGLANG",
-        "3218": "PANGANDARAN",
-        "7310": "PANGKAJENE DAN KEPULAUAN",
-        "9403": "PANIAI",
-        "7208": "PARIGI MOUTONG",
-        "1308": "PASAMAN",
-        "1312": "PASAMAN BARAT",
-        "7601": "PASANGKAYU",
-        "6401": "PASER",
-        "3514": "PASURUAN",
-        "3318": "PATI",
-        "9212": "PEGUNUNGAN ARFAK",
-        "9502": "PEGUNUNGAN BINTANG",
-        "3326": "PEKALONGAN",
-        "1405": "PELALAWAN",
-        "3327": "PEMALANG",
-        "6409": "PENAJAM PASER UTARA",
-        "1612": "PENUKAL ABAB LEMATANG ILIR",
-        "1809": "PESAWARAN",
-        "1813": "PESISIR BARAT",
-        "1301": "PESISIR SELATAN",
-        "1107": "PIDIE",
-        "1118": "PIDIE JAYA",
-        "7315": "PINRANG",
-        "7504": "POHUWATO",
-        "7604": "POLEWALI MANDAR",
-        "3502": "PONOROGO",
-        "7202": "POSO",
-        "1810": "PRINGSEWU",
-        "3513": "PROBOLINGGO",
-        "6211": "PULANG PISAU",
-        "8207": "PULAU MOROTAI",
-        "8208": "PULAU TALIABU",
-        "9405": "PUNCAK",
-        "9402": "PUNCAK JAYA",
-        "3303": "PURBALINGGA",
-        "3214": "PURWAKARTA",
-        "3306": "PURWOREJO",
-        "9603": "RAJA AMPAT",
-        "1702": "REJANG LEBONG",
-        "3317": "REMBANG",
-        "1407": "ROKAN HILIR",
-        "1406": "ROKAN HULU",
-        "5314": "ROTE NDAO",
-        "5320": "SABU RAIJUA",
-        "6101": "SAMBAS",
-        "1217": "SAMOSIR",
-        "3527": "SAMPANG",
-        "6103": "SANGGAU",
-        "9110": "SARMI",
-        "1503": "SAROLANGUN",
-        "6109": "SEKADAU",
-        "1705": "SELUMA",
-        "3322": "SEMARANG",
-        "8106": "SERAM BAGIAN BARAT",
-        "8105": "SERAM BAGIAN TIMUR",
-        "3604": "SERANG",
-        "1218": "SERDANG BEDAGAI",
-        "6207": "SERUYAN",
-        "1408": "SIAK",
-        "7314": "SIDENRENG RAPPANG",
-        "3515": "SIDOARJO",
-        "7210": "SIGI",
-        "1303": "SIJUNJUNG",
-        "5307": "SIKKA",
-        "1208": "SIMALUNGUN",
-        "1109": "SIMEULUE",
-        "7307": "SINJAI",
-        "6105": "SINTANG",
-        "3512": "SITUBONDO",
-        "3404": "SLEMAN",
-        "1302": "SOLOK",
-        "1311": "SOLOK SELATAN",
-        "7312": "SOPPENG",
-        "9601": "SORONG",
-        "9602": "SORONG SELATAN",
-        "3314": "SRAGEN",
-        "3213": "SUBANG",
-        "3202": "SUKABUMI",
-        "6208": "SUKAMARA",
-        "3311": "SUKOHARJO",
-        "5312": "SUMBA BARAT",
-        "5318": "SUMBA BARAT DAYA",
-        "5317": "SUMBA TENGAH",
-        "5311": "SUMBA TIMUR",
-        "5204": "SUMBAWA",
-        "5207": "SUMBAWA BARAT",
-        "3211": "SUMEDANG",
-        "3529": "SUMENEP",
-        "9119": "SUPIORI",
-        "6309": "TABALONG",
-        "5102": "TABANAN",
-        "7305": "TAKALAR",
-        "9604": "TAMBRAUW",
-        "6504": "TANA TIDUNG",
-        "7318": "TANA TORAJA",
-        "6310": "TANAH BUMBU",
-        "1304": "TANAH DATAR",
-        "6301": "TANAH LAUT",
-        "3603": "TANGERANG",
-        "1806": "TANGGAMUS",
-        "1506": "TANJUNG JABUNG BARAT",
-        "1507": "TANJUNG JABUNG TIMUR",
-        "1203": "TAPANULI SELATAN",
-        "1201": "TAPANULI TENGAH",
-        "1202": "TAPANULI UTARA",
-        "6305": "TAPIN",
-        "3206": "TASIKMALAYA",
-        "1509": "TEBO",
-        "3328": "TEGAL",
-        "9206": "TELUK BINTUNI",
-        "9207": "TELUK WONDAMA",
-        "3323": "TEMANGGUNG",
-        "5302": "TIMOR TENGAH SELATAN",
-        "5303": "TIMOR TENGAH UTARA",
-        "1212": "TOBA",
-        "7209": "TOJO UNA UNA",
-        "7204": "TOLI TOLI",
-        "9504": "TOLIKARA",
-        "7326": "TORAJA UTARA",
-        "3503": "TRENGGALEK",
-        "3523": "TUBAN",
-        "1805": "TULANG BAWANG",
-        "1812": "TULANG BAWANG BARAT",
-        "3504": "TULUNGAGUNG",
-        "7313": "WAJO",
-        "7407": "WAKATOBI",
-        "9115": "WAROPEN",
-        "1808": "WAY KANAN",
-        "3312": "WONOGIRI",
-        "3307": "WONOSOBO",
-        "9503": "YAHUKIMO",
-        "9506": "YALIMO",
-    }
+def get_kabupatens(provinsi_id: str = None) -> List[dict]:
+    kabupatens_json = os.path.join(os.getcwd(), "storage/data/kabupatens.json")
+    result = []
+    with open(kabupatens_json, "r") as f:
+        kabupatens = json.load(f)
+        if provinsi_id:
+            result = [k for k in kabupatens if k.get("provinsi_id") == provinsi_id]
+        else:
+            result = kabupatens
+    return result
 
 
-def get_provinsi(key: str = None) -> str:
+def get_kecamatans(kabupaten_id: str = None) -> List[dict]:
+    kecamatans_json = os.path.join(os.getcwd(), "storage/data/kecamatans.json")
+    result = []
+    with open(kecamatans_json, "r") as f:
+        kecamatans = json.load(f)
+        if kabupaten_id:
+            result = [k for k in kecamatans if k.get("kabupaten_id") == kabupaten_id]
+        else:
+            result = kecamatans
+    return result
+
+
+def get_kelurahans(kecamatan_id: str = None) -> List[dict]:
+    kelurahans_json = os.path.join(os.getcwd(), "storage/data/kelurahans.json")
+    result = []
+    with open(kelurahans_json, "r") as f:
+        kelurahans = json.load(f)
+        if kecamatan_id:
+            result = [k for k in kelurahans if k.get("kecamatan_id") == kecamatan_id]
+        else:
+            result = kelurahans
+    return result
+
+
+def get_provinsi(id: str = None) -> str:
     provinsis = get_provinsis()
 
-    if key == None:
+    if id == None:
         # return random key
-        return random.choice(list(provinsis.keys()))
+        return random.choice(provinsis)
     else:
-        res = provinsis.get(key, "")
-        return res
+        res = [k for k in provinsis if k.get("id") == id]
+        return random.choice(res) if res else None
 
 
-def get_random_provinsi_id() -> str:
-    provinsis = get_provinsis()
-    return random.choice(list(provinsis.keys()))
-
-
-def get_kabupaten(key: str = None) -> str:
-    kabupatens = get_kabupatens()
-
-    if key == None:
-        # return random key
-        return random.choice(list(kabupatens.keys()))
+def get_kabupaten(id: str = None, provinsi_id: str = None) -> dict:
+    kabupatens = get_kabupatens(provinsi_id)
+    if id:
+        # return kabupaten where kabupaten.id = id
+        res = [k for k in kabupatens if k.get("id") == id]
+        return random.choice(res) if res else None
     else:
-        res = kabupatens.get(key, "")
-        return res
+        # return random kabupaten
+        return random.choice(kabupatens)
 
 
-def get_random_kabupaten_id() -> str:
-    kabupatens = get_kabupatens()
-    return random.choice(list(kabupatens.keys()))
+def get_kecamatan(id: str = None, kabupaten_id: str = None) -> dict:
+    kecamatans = get_kecamatans(kabupaten_id)
+    if id:
+        # return kecamatan where kecamatan.id = id
+        res = [k for k in kecamatans if k.get("id") == id]
+        return random.choice(res) if res else None
+    else:
+        # return random kecamatan
+        return random.choice(kecamatans)
 
 
-def get_random_kabupaten_name() -> str:
-    kabupatens = get_kabupatens()
-    return random.choice(list(kabupatens.values()))
-
-
-def get_random_kecamatan_id() -> str:
-    kabupatens = get_kabupatens()
-    # get random key from kabupatens
-    kabupaten_id = random.choice(list(kabupatens.keys()))
-
-    # return kabupaten_id + random 2 pad number
-    return f"{kabupaten_id}{random.randint(1, 99):02d}"
+def get_kelurahan(id: str = None, kecamatan_id: str = None) -> dict:
+    kelurahans = get_kelurahans(kecamatan_id)
+    if id:
+        # return kelurahan where kelurahan.id = id
+        res = [k for k in kelurahans if k.get("id") == id]
+        return random.choice(res) if res else None
+    else:
+        # return random kelurahan
+        return random.choice(kelurahans)
 
 
 def get_random_no_hp() -> str:
     return f"08{random.randint(1, 99):02d}{random.randint(0, 99):02d}{random.randint(0, 99):02d}{random.randint(0, 99):02d}"
+
+
+def test():
+    print(get_kelurahan())
+
+
+if __name__ == "__main__":
+    test()

@@ -57,42 +57,80 @@ class RulePatternOptimizer:
         
         self.logger.info(f"🔍 Analyzing feedback patterns for {field_name} (template {template_id})")
         
-        # Get all feedback for this field
-        query = """
-            SELECT f.corrected_value, f.original_value, f.field_name,
-                   d.file_path
+        # ✅ CRITICAL: Learn from BOTH feedback AND validated data (like CRF does!)
+        # This ensures patterns are learned from ALL correct values, not just corrections
+        
+        # 1. Get corrected values from feedback
+        query_feedback = """
+            SELECT f.corrected_value, f.original_value
             FROM feedback f
             JOIN documents d ON f.document_id = d.id
             WHERE d.template_id = ? AND f.field_name = ?
             ORDER BY f.created_at DESC
         """
         
-        feedbacks = self.db.execute_query(query, (template_id, field_name))
-        
-        if not feedbacks:
-            self.logger.info(f"No feedback found for {field_name}")
-            return {}
+        feedbacks = self.db.execute_query(query_feedback, (template_id, field_name))
+        corrected_values = [f['corrected_value'] for f in feedbacks if f.get('corrected_value')]
+        original_values = [f['original_value'] for f in feedbacks if f.get('original_value')]
         
         self.logger.info(f"Found {len(feedbacks)} feedback entries")
         
-        # Analyze patterns (feedbacks is list of dicts)
-        corrected_values = [f['corrected_value'] for f in feedbacks if f.get('corrected_value')]
-        original_values = [f['original_value'] for f in feedbacks if f.get('original_value')]
+        # 2. Get validated values (correct extractions without feedback)
+        query_validated = """
+            SELECT d.id, d.extraction_result
+            FROM documents d
+            WHERE d.template_id = ? 
+              AND d.status = 'validated'
+              AND d.id NOT IN (
+                  SELECT DISTINCT document_id 
+                  FROM feedback 
+                  WHERE field_name = ?
+              )
+            ORDER BY d.created_at DESC
+        """
+        
+        validated_docs = self.db.execute_query(query_validated, (template_id, field_name))
+        
+        # Extract field values from validated documents
+        import json
+        validated_values = []
+        for doc in validated_docs:
+            try:
+                extraction_result = json.loads(doc['extraction_result'])
+                extracted_data = extraction_result.get('extracted_data', {})
+                if field_name in extracted_data:
+                    value = extracted_data[field_name]
+                    if value and value.strip():
+                        validated_values.append(value.strip())
+            except:
+                continue
+        
+        self.logger.info(f"Found {len(validated_values)} validated values (no feedback)")
+        
+        # Combine corrected + validated values for pattern discovery
+        all_correct_values = corrected_values + validated_values
+        self.logger.info(f"Total values for pattern analysis: {len(all_correct_values)} (feedback: {len(corrected_values)}, validated: {len(validated_values)})")
+        
+        if not all_correct_values:
+            self.logger.info(f"No values found for pattern analysis")
+            return {}
         
         analysis = {
             'field_name': field_name,
             'template_id': template_id,
             'total_feedback': len(feedbacks),
+            'total_validated': len(validated_values),
+            'total_values': len(all_correct_values),
             'unique_corrected': len(set(corrected_values)),
-            'patterns': self._discover_patterns(corrected_values, min_frequency),
+            'patterns': self._discover_patterns(all_correct_values, min_frequency),  # ✅ Use ALL values
             'common_errors': self._analyze_extraction_errors(original_values, corrected_values),
             'suggestions': []
         }
         
-        # Generate regex suggestions
+        # Generate regex suggestions from ALL correct values
         analysis['suggestions'] = self._generate_regex_suggestions(
             analysis['patterns'],
-            corrected_values
+            all_correct_values  # ✅ Use ALL values for examples
         )
         
         return analysis
@@ -103,11 +141,23 @@ class RulePatternOptimizer:
         min_frequency: int
     ) -> Dict:
         """
-        Discover common patterns in corrected values
+        ✅ IMPROVED: Intelligent pattern discovery with data analysis
+        
+        Steps:
+        1. Collect all values and their characteristics
+        2. Analyze distribution (word counts, shapes, etc.)
+        3. Detect variability (fixed vs variable length)
+        4. Generate appropriate patterns (flexible vs strict)
         
         Returns:
-            Dict with pattern types and examples
+            Dict with pattern types, examples, and insights
         """
+        if not values:
+            return {}
+        
+        self.logger.info(f"🔍 Analyzing {len(values)} values for pattern discovery")
+        
+        # Step 1: Collect characteristics
         patterns = {
             'token_shapes': Counter(),
             'delimiters': Counter(),
@@ -117,13 +167,27 @@ class RulePatternOptimizer:
             'word_counts': Counter()
         }
         
+        # Store per-value data for analysis
+        value_data = []
+        
         for value in values:
             if not value:
                 continue
             
-            # Token shape (e.g., "Aa" for "Jakarta", "9" for "123")
-            shape = self._get_token_shape(value)
-            patterns['token_shapes'][shape] += 1
+            words = value.split()
+            word_count = len(words)
+            
+            value_info = {
+                'value': value,
+                'word_count': word_count,
+                'length': len(value),
+                'shape': self._get_token_shape(value),
+                'words': words
+            }
+            value_data.append(value_info)
+            
+            # Token shape
+            patterns['token_shapes'][value_info['shape']] += 1
             
             # Delimiters
             delimiters = re.findall(r'[,.\-/\\:;]', value)
@@ -142,10 +206,12 @@ class RulePatternOptimizer:
                 patterns['suffixes'][value[-3:]] += 1
             
             # Word count
-            word_count = len(value.split())
             patterns['word_counts'][word_count] += 1
         
-        # Filter by frequency
+        # Step 2: Analyze distribution and variability
+        insights = self._analyze_data_distribution(value_data, patterns)
+        
+        # Step 3: Filter by frequency
         filtered = {}
         for key, counter in patterns.items():
             filtered[key] = {
@@ -153,7 +219,88 @@ class RulePatternOptimizer:
                 if v >= min_frequency
             }
         
+        # Add insights to result
+        filtered['insights'] = insights
+        filtered['sample_size'] = len(value_data)
+        
+        self.logger.info(
+            f"📊 Pattern insights: "
+            f"word_count_variability={insights.get('word_count_variability')}, "
+            f"has_capitalized={insights.get('has_capitalized_words')}, "
+            f"recommended_flexibility={insights.get('recommended_flexibility')}"
+        )
+        
         return filtered
+    
+    def _analyze_data_distribution(
+        self,
+        value_data: List[Dict],
+        patterns: Dict
+    ) -> Dict:
+        """
+        Analyze data distribution to determine pattern flexibility
+        
+        Returns:
+            Dict with insights about the data
+        """
+        if not value_data:
+            return {}
+        
+        word_counts = [v['word_count'] for v in value_data]
+        unique_word_counts = set(word_counts)
+        
+        # Calculate word count statistics
+        min_words = min(word_counts)
+        max_words = max(word_counts)
+        avg_words = sum(word_counts) / len(word_counts)
+        
+        # Determine variability
+        word_count_range = max_words - min_words
+        word_count_variability = 'high' if word_count_range > 2 else 'medium' if word_count_range > 0 else 'low'
+        
+        # Check if data has capitalized words
+        has_capitalized = any(
+            any(word[0].isupper() for word in v['words'] if word)
+            for v in value_data
+        )
+        
+        # Check word count distribution
+        word_count_dist = Counter(word_counts)
+        most_common_count = word_count_dist.most_common(1)[0][0] if word_count_dist else 0
+        
+        # Determine recommended flexibility
+        if word_count_variability == 'high':
+            # High variability: use flexible pattern (min-max range)
+            recommended_flexibility = 'flexible_range'
+            recommended_min = min_words
+            recommended_max = max_words
+        elif word_count_variability == 'medium':
+            # Medium variability: use flexible pattern with limited range
+            recommended_flexibility = 'flexible_limited'
+            recommended_min = min_words
+            recommended_max = max_words
+        else:
+            # Low variability: can use specific pattern
+            recommended_flexibility = 'specific'
+            recommended_min = most_common_count
+            recommended_max = most_common_count
+        
+        insights = {
+            'word_count_variability': word_count_variability,
+            'word_count_range': word_count_range,
+            'min_words': min_words,
+            'max_words': max_words,
+            'avg_words': round(avg_words, 1),
+            'unique_word_counts': sorted(list(unique_word_counts)),
+            'most_common_word_count': most_common_count,
+            'has_capitalized_words': has_capitalized,
+            'recommended_flexibility': recommended_flexibility,
+            'recommended_min_words': recommended_min,
+            'recommended_max_words': recommended_max,
+            'sample_size': len(value_data)
+        }
+        
+        return insights
     
     def _get_token_shape(self, text: str) -> str:
         """
@@ -252,22 +399,111 @@ class RulePatternOptimizer:
         sample_values: List[str]
     ) -> List[Dict]:
         """
-        Generate regex pattern suggestions based on discovered patterns
+        ✅ IMPROVED: Generate regex patterns based on data insights
+        
+        Uses insights from _analyze_data_distribution to generate
+        appropriate patterns (flexible vs strict) based on actual data
         
         Returns:
             List of regex suggestions with metadata
         """
         suggestions = []
+        insights = patterns.get('insights', {})
         
-        # Suggestion 1: Based on token shapes
+        # ✅ CRITICAL: Use insights to generate intelligent patterns
+        if patterns.get('token_shapes') and insights:
+            has_capitalized = insights.get('has_capitalized_words', False)
+            
+            if has_capitalized:
+                min_words = insights.get('recommended_min_words', 1)
+                max_words = insights.get('recommended_max_words', 3)
+                flexibility = insights.get('recommended_flexibility', 'flexible_range')
+                
+                # Generate flexible pattern based on actual data distribution
+                if flexibility == 'flexible_range' or flexibility == 'flexible_limited':
+                    # Data has variability: use flexible pattern
+                    # Pattern: [A-Z][a-z]+(?:\s+[A-Z][a-z]+){min-1,max-1}
+                    
+                    if min_words == max_words:
+                        # Same min/max: specific pattern
+                        if min_words == 1:
+                            flexible_pattern = r'[A-Z][a-z]+'
+                            description = 'Single capitalized word'
+                        else:
+                            repeat = min_words - 1
+                            flexible_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '}'
+                            description = f'{min_words} capitalized words'
+                    else:
+                        # Variable: flexible range
+                        min_repeat = max(0, min_words - 1)
+                        max_repeat = max_words - 1
+                        flexible_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(min_repeat) + ',' + str(max_repeat) + '}'
+                        description = f'Flexible: {min_words}-{max_words} capitalized words'
+                    
+                    # Count total frequency
+                    total_freq = sum(freq for shape, freq in patterns['token_shapes'].items() if 'Aa+' in shape)
+                    
+                    # Get examples
+                    flexible_examples = [v for v in sample_values if re.fullmatch(flexible_pattern, v)][:5]
+                    
+                    suggestions.append({
+                        'type': 'token_shape_flexible',
+                        'pattern': flexible_pattern,
+                        'description': description,
+                        'frequency': total_freq,
+                        'priority': 10,  # ✅ Highest priority
+                        'examples': flexible_examples,
+                        'insights': {
+                            'min_words': min_words,
+                            'max_words': max_words,
+                            'flexibility': flexibility,
+                            'word_count_variability': insights.get('word_count_variability')
+                        }
+                    })
+                    
+                    self.logger.info(
+                        f"✅ Generated flexible pattern: {flexible_pattern} "
+                        f"(words: {min_words}-{max_words}, variability: {insights.get('word_count_variability')})"
+                    )
+                
+                else:
+                    # Low variability: use specific pattern
+                    most_common = insights.get('most_common_word_count', 1)
+                    
+                    if most_common == 1:
+                        specific_pattern = r'[A-Z][a-z]+'
+                        description = 'Single capitalized word'
+                    else:
+                        repeat = most_common - 1
+                        specific_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '}'
+                        description = f'{most_common} capitalized words'
+                    
+                    total_freq = sum(freq for shape, freq in patterns['token_shapes'].items() if 'Aa+' in shape)
+                    specific_examples = [v for v in sample_values if re.fullmatch(specific_pattern, v)][:5]
+                    
+                    suggestions.append({
+                        'type': 'token_shape_specific',
+                        'pattern': specific_pattern,
+                        'description': description,
+                        'frequency': total_freq,
+                        'priority': 10,
+                        'examples': specific_examples,
+                        'insights': {
+                            'word_count': most_common,
+                            'flexibility': flexibility
+                        }
+                    })
+        
+        # Suggestion 2: Based on specific token shapes (lower priority, for fallback)
         if patterns.get('token_shapes'):
-            for shape, freq in list(patterns['token_shapes'].items())[:3]:
+            for shape, freq in list(patterns['token_shapes'].items())[:2]:  # Limit to top 2
                 regex = self._shape_to_regex(shape)
                 suggestions.append({
                     'type': 'token_shape',
                     'pattern': regex,
                     'description': f'Matches shape: {shape}',
                     'frequency': freq,
+                    'priority': 5,  # Lower than flexible
                     'examples': [v for v in sample_values if self._get_token_shape(v) == shape][:3]
                 })
         

@@ -1,1 +1,76 @@
-[{"name": "contract_number", "occurrences": 1, "suggested_type": "string"}, {"name": "contract_date", "occurrences": 1, "suggested_type": "date"}, {"name": "company_name", "occurrences": 1, "suggested_type": "string"}, {"name": "company_address", "occurrences": 1, "suggested_type": "address"}, {"name": "company_representative", "occurrences": 2, "suggested_type": "string"}, {"name": "employee_name", "occurrences": 2, "suggested_type": "string"}, {"name": "employee_nik", "occurrences": 1, "suggested_type": "string"}, {"name": "employee_address", "occurrences": 1, "suggested_type": "address"}, {"name": "employee_phone", "occurrences": 1, "suggested_type": "phone"}, {"name": "position", "occurrences": 1, "suggested_type": "string"}, {"name": "division", "occurrences": 1, "suggested_type": "string"}, {"name": "start_date", "occurrences": 1, "suggested_type": "date"}, {"name": "basic_salary", "occurrences": 1, "suggested_type": "string"}, {"name": "allowance", "occurrences": 1, "suggested_type": "string"}, {"name": "working_hours", "occurrences": 1, "suggested_type": "string"}, {"name": "annual_leave", "occurrences": 1, "suggested_type": "string"}, {"name": "probation_period", "occurrences": 1, "suggested_type": "string"}]
+[
+  { "name": "contract_number", "occurrences": 1, "suggested_type": "string" },
+  {
+    "name": "company_representative_name",
+    "occurrences": 2,
+    "suggested_type": "string"
+  },
+  {
+    "name": "company_representative_position",
+    "occurrences": 1,
+    "suggested_type": "string"
+  },
+  {
+    "name": "company_representative_address",
+    "occurrences": 1,
+    "suggested_type": "address"
+  },
+  { "name": "company_name", "occurrences": 4, "suggested_type": "string" },
+  { "name": "company_address", "occurrences": 2, "suggested_type": "address" },
+  { "name": "employee_name", "occurrences": 2, "suggested_type": "string" },
+  { "name": "employee_birth", "occurrences": 1, "suggested_type": "date" },
+  {
+    "name": "employee_last_education",
+    "occurrences": 1,
+    "suggested_type": "string"
+  },
+  { "name": "employee_gender", "occurrences": 1, "suggested_type": "string" },
+  { "name": "employee_religion", "occurrences": 1, "suggested_type": "string" },
+  { "name": "employee_address", "occurrences": 1, "suggested_type": "address" },
+  { "name": "employee_nik", "occurrences": 1, "suggested_type": "string" },
+  { "name": "employee_phone", "occurrences": 1, "suggested_type": "phone" },
+  { "name": "time_period", "occurrences": 1, "suggested_type": "date" },
+  { "name": "start_date", "occurrences": 1, "suggested_type": "date" },
+  { "name": "days_warn", "occurrences": 1, "suggested_type": "string" },
+  { "name": "working_hours", "occurrences": 1, "suggested_type": "string" },
+  { "name": "working_days", "occurrences": 1, "suggested_type": "string" },
+  { "name": "work_hours", "occurrences": 1, "suggested_type": "string" },
+  { "name": "closing_time", "occurrences": 1, "suggested_type": "date" },
+  { "name": "work_breaks_time", "occurrences": 1, "suggested_type": "date" },
+  { "name": "start_breaks_time", "occurrences": 1, "suggested_type": "date" },
+  { "name": "work_break_time", "occurrences": 1, "suggested_type": "date" },
+  { "name": "start_break_time", "occurrences": 1, "suggested_type": "date" },
+  { "name": "employee_position", "occurrences": 1, "suggested_type": "string" },
+  { "name": "employee_division", "occurrences": 1, "suggested_type": "string" },
+  {
+    "name": "duties_and_responsibilities_1",
+    "occurrences": 1,
+    "suggested_type": "string"
+  },
+  {
+    "name": "duties_and_responsibilities_2",
+    "occurrences": 1,
+    "suggested_type": "string"
+  },
+  {
+    "name": "duties_and_responsibilities_3",
+    "occurrences": 1,
+    "suggested_type": "string"
+  },
+  { "name": "basic_salary", "occurrences": 1, "suggested_type": "string" },
+  { "name": "allowance_1", "occurrences": 1, "suggested_type": "string" },
+  { "name": "allowance_2", "occurrences": 1, "suggested_type": "string" },
+  { "name": "allowance_3", "occurrences": 1, "suggested_type": "string" },
+  { "name": "overtime_pay", "occurrences": 1, "suggested_type": "date" },
+  {
+    "name": "total_working_days",
+    "occurrences": 1,
+    "suggested_type": "number"
+  },
+  { "name": "annual_leave", "occurrences": 1, "suggested_type": "string" },
+  { "name": "personal_leave", "occurrences": 1, "suggested_type": "string" },
+  { "name": "mass_leave", "occurrences": 1, "suggested_type": "string" },
+  { "name": "annual_warn", "occurrences": 1, "suggested_type": "string" },
+  { "name": "city_name", "occurrences": 2, "suggested_type": "string" },
+  { "name": "date_of_letter", "occurrences": 1, "suggested_type": "date" }
+]

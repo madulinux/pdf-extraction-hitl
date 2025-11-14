@@ -13,6 +13,7 @@ from database.db_manager import DatabaseManager
 from database.repositories.strategy_performance_repository import (
     StrategyPerformanceRepository,
 )
+import logging
 
 
 class PerformanceMetrics:
@@ -23,6 +24,7 @@ class PerformanceMetrics:
         self.document_repository = DocumentRepository(db_manager)
         self.feedback_repository = FeedbackRepository(db_manager)
         self.strategy_performance_repository = StrategyPerformanceRepository(db_manager)
+        self.logger = logging.getLogger(__name__)
 
     def get_template_metrics(self, template_id: int) -> Dict[str, Any]:
         """
@@ -102,6 +104,12 @@ class PerformanceMetrics:
                 documents, feedbacks
             ),  # ✅ NEW: Strategy comparison
             "time_trends": self._calculate_time_trends(documents),  # ✅ NEW: Time trends
+            
+            # ✅ PHASE 1: Critical metrics for thesis
+            "hitl_metrics": self._calculate_hitl_metrics(documents, feedbacks, template_id),  # Human-in-the-Loop
+            "adaptive_learning_status": self._calculate_adaptive_learning_status(template_id),  # Pattern learning
+            "incremental_learning": self._calculate_incremental_learning(documents, feedbacks),  # Batch progress
+            "baseline_comparison": self._calculate_baseline_comparison(documents, feedbacks),  # vs Baseline
         }
 
         return metrics
@@ -164,6 +172,14 @@ class PerformanceMetrics:
                 "correct_extractions": 0,
                 "corrections": 0,
                 "avg_confidence": [],
+                "crf": 0,
+                "rule_based": 0,
+                "position_based": 0,
+                "all_strategies_attempted": {
+                    "crf": 0,
+                    "rule_based": 0,
+                    "position_based": 0,
+                },
             }
         )
 
@@ -174,11 +190,26 @@ class PerformanceMetrics:
                     result = json.loads(doc["extraction_result"])
                     extracted_data = result.get("extracted_data", {})
                     confidences = result.get("confidence_scores", {})
+                    extraction_method = result.get("extraction_methods", {})
+                    strategies_used = result.get("metadata", {}).get("strategies_used", [])
 
                     for field_name, value in extracted_data.items():
                         if value:  # Only count non-empty extractions
                             field_stats[field_name]["total_extractions"] += 1
 
+                            # Track strategies used
+                            # search where strategies_used.field_name == field_name
+                            # strategies_used = next(
+                            #     (item["all_strategies_attempted"] for item in strategies_used if item.get("field_name") == field_name),
+                            #     [] # Default value if no match is found
+                            # )
+
+                            for item in strategies_used:
+                                if item.get("field_name") == field_name:
+                                    for strategy in item.get("all_strategies_attempted", []):
+                                        field_stats[field_name]["all_strategies_attempted"][strategy] += 1
+                                    
+                            
                             # Track confidence
                             if (
                                 field_name in confidences
@@ -187,6 +218,25 @@ class PerformanceMetrics:
                                 field_stats[field_name]["avg_confidence"].append(
                                     confidences[field_name]
                                 )
+
+                            # Track extraction method
+                            if (
+                                field_name in extraction_method
+                                and extraction_method[field_name] == "crf"
+                            ):
+                                field_stats[field_name]["crf"] += 1
+                            elif (
+                                field_name in extraction_method
+                                and extraction_method[field_name] == "rule_based"
+                            ):
+                                field_stats[field_name]["rule_based"] += 1
+                            elif (
+                                field_name in extraction_method
+                                and extraction_method[field_name] == "position_based"
+                            ):
+                                field_stats[field_name]["position_based"] += 1
+                            
+
                 except:
                     pass
 
@@ -222,6 +272,10 @@ class PerformanceMetrics:
                 "correct_extractions": correct,
                 "corrections": corrections,
                 "avg_confidence": round(avg_conf, 3),
+                "crf": stats["crf"],
+                "rule_based": stats["rule_based"],
+                "position_based": stats["position_based"],
+                "all_strategies_attempted": stats["all_strategies_attempted"],
             }
 
         return result
@@ -472,11 +526,13 @@ class PerformanceMetrics:
         }
 
     def _calculate_learning_progress(
-        self, documents: List, feedbacks: List, batch_size: int = 50
+        self, documents: List, feedbacks: List, batch_size: int = 5
     ) -> Dict[str, Any]:
         """
         Calculate learning progress over batches of documents
         Shows how accuracy improves as model learns from feedback
+        
+        Uses larger batch size and moving average for stability
         """
         if not documents:
             return {
@@ -486,37 +542,53 @@ class PerformanceMetrics:
                 "last_batch_accuracy": 0.0,
             }
 
-        # Group feedback by document
+        # Group feedback by document and field
         feedback_by_doc = defaultdict(list)
+        feedback_by_field = defaultdict(int)
         for fb in feedbacks:
             feedback_by_doc[fb["document_id"]].append(fb)
+            feedback_by_field[fb["field_name"]] += 1
 
-        # Calculate accuracy per batch
+        # Calculate accuracy per batch with field-level tracking
         batches = []
+        field_accuracy_by_batch = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0}))
+        
         for i in range(0, len(documents), batch_size):
             batch_docs = documents[i : i + batch_size]
             total_fields = 0
             correct_fields = 0
+            field_stats = defaultdict(lambda: {"correct": 0, "total": 0})
 
             for doc in batch_docs:
                 try:
                     result = json.loads(doc["extraction_result"])
                     extracted = result.get("extracted_data", {})
                     doc_feedbacks = feedback_by_doc.get(doc["id"], [])
-
-                    fields_count = len([v for v in extracted.values() if v])
-                    incorrect_count = len(doc_feedbacks)
-
-                    total_fields += fields_count
-                    correct_fields += max(0, fields_count - incorrect_count)
+                    
+                    # Track per-field accuracy
+                    feedback_fields = {fb["field_name"] for fb in doc_feedbacks}
+                    
+                    for field_name, value in extracted.items():
+                        if value:  # Only count non-empty fields
+                            field_stats[field_name]["total"] += 1
+                            total_fields += 1
+                            
+                            if field_name not in feedback_fields:
+                                field_stats[field_name]["correct"] += 1
+                                correct_fields += 1
                 except:
                     pass
+            
+            # Store field stats for this batch
+            batch_num = len(batches) + 1
+            for field_name, stats in field_stats.items():
+                field_accuracy_by_batch[batch_num][field_name] = stats
 
             if total_fields > 0:
                 accuracy = correct_fields / total_fields
                 batches.append(
                     {
-                        "batch_number": len(batches) + 1,
+                        "batch_number": batch_num,
                         "start_doc": i + 1,
                         "end_doc": min(i + batch_size, len(documents)),
                         "accuracy": round(accuracy, 3),
@@ -525,24 +597,62 @@ class PerformanceMetrics:
                     }
                 )
 
-        # Calculate improvement rate
-        if len(batches) >= 2:
-            first_acc = batches[0]["accuracy"]
-            last_acc = batches[-1]["accuracy"]
+        # Apply moving average smoothing (window=3) for stability
+        smoothed_batches = []
+        window_size = 3
+        for i, batch in enumerate(batches):
+            # Calculate moving average
+            start_idx = max(0, i - window_size + 1)
+            window = batches[start_idx:i+1]
+            avg_accuracy = sum(b["accuracy"] for b in window) / len(window)
+            
+            smoothed_batch = batch.copy()
+            smoothed_batch["raw_accuracy"] = batch["accuracy"]
+            smoothed_batch["accuracy"] = round(avg_accuracy, 3)
+            smoothed_batches.append(smoothed_batch)
+        
+        # Calculate improvement rate (using smoothed values)
+        if len(smoothed_batches) >= 2:
+            first_acc = smoothed_batches[0]["accuracy"]
+            last_acc = smoothed_batches[-1]["accuracy"]
             improvement = (
                 ((last_acc - first_acc) / first_acc * 100) if first_acc > 0 else 0
             )
         else:
-            first_acc = batches[0]["accuracy"] if batches else 0.0
+            first_acc = smoothed_batches[0]["accuracy"] if smoothed_batches else 0.0
             last_acc = first_acc
             improvement = 0.0
+        
+        # Calculate variance/stability metric
+        if len(smoothed_batches) >= 2:
+            accuracies = [b["accuracy"] for b in smoothed_batches]
+            avg_acc = sum(accuracies) / len(accuracies)
+            variance = sum((x - avg_acc) ** 2 for x in accuracies) / len(accuracies)
+            stability_score = max(0, 1 - (variance ** 0.5))  # Higher = more stable
+        else:
+            stability_score = 1.0
+        
+        # Identify problematic fields (high error rate)
+        problematic_fields = []
+        if feedback_by_field:
+            total_feedbacks = len(feedbacks)
+            for field_name, error_count in sorted(feedback_by_field.items(), key=lambda x: x[1], reverse=True):
+                error_rate = error_count / total_feedbacks
+                if error_rate > 0.1:  # More than 10% of all errors
+                    problematic_fields.append({
+                        "field_name": field_name,
+                        "error_count": error_count,
+                        "error_rate": round(error_rate, 3)
+                    })
 
         return {
-            "batches": batches,
+            "batches": smoothed_batches,
             "improvement_rate": round(improvement, 2),
             "first_batch_accuracy": round(first_acc, 3),
             "last_batch_accuracy": round(last_acc, 3),
-            "total_batches": len(batches),
+            "total_batches": len(smoothed_batches),
+            "stability_score": round(stability_score, 3),
+            "problematic_fields": problematic_fields[:5],  # Top 5
         }
 
     def _calculate_confidence_trends(self, documents: List) -> Dict[str, Any]:
@@ -1005,3 +1115,457 @@ class PerformanceMetrics:
             "performance_change": round(performance_change, 2),
             "total_documents": len(time_data),
         }
+    
+    def _calculate_hitl_metrics(self, documents: List, feedbacks: List, template_id: int) -> Dict[str, Any]:
+        """
+        Calculate Human-in-the-Loop metrics
+        Measures feedback quality, human effort, and learning efficiency
+        """
+        if not feedbacks:
+            return {
+                "feedback_quality": {
+                    "avg_feedback_per_document": 0.0,
+                    "feedback_acceptance_rate": 0.0,
+                    "quality_score": 0.0
+                },
+                "human_effort": {
+                    "total_corrections": 0,
+                    "avg_corrections_per_document": 0.0,
+                    "corrections_by_field": {}
+                },
+                "learning_efficiency": {
+                    "feedback_to_improvement_ratio": 0.0,
+                    "convergence_speed": 0.0
+                }
+            }
+        
+        # Feedback Quality
+        feedback_by_doc = defaultdict(list)
+        for fb in feedbacks:
+            feedback_by_doc[fb["document_id"]].append(fb)
+        
+        avg_feedback_per_doc = len(feedbacks) / len(documents) if documents else 0.0
+        
+        # Corrections by field
+        corrections_by_field = defaultdict(int)
+        for fb in feedbacks:
+            corrections_by_field[fb["field_name"]] += 1
+        
+        # Learning Efficiency: Calculate accuracy improvement per feedback
+        if len(documents) >= 2:
+            # Split into batches
+            batch_size = 5
+            batches = [documents[i:i+batch_size] for i in range(0, len(documents), batch_size)]
+            
+            improvements = []
+            for i in range(1, len(batches)):
+                prev_batch = batches[i-1]
+                curr_batch = batches[i]
+                
+                # Calculate accuracy for each batch
+                prev_acc = self._calculate_batch_accuracy(prev_batch, feedbacks)
+                curr_acc = self._calculate_batch_accuracy(curr_batch, feedbacks)
+                
+                if prev_acc > 0:
+                    improvement = curr_acc - prev_acc
+                    improvements.append(improvement)
+            
+            avg_improvement = sum(improvements) / len(improvements) if improvements else 0.0
+            feedback_count = len([fb for fb in feedbacks if fb["document_id"] in [d["id"] for d in documents[:len(batches)*batch_size]]])
+            
+            feedback_to_improvement = (avg_improvement / feedback_count * 100) if feedback_count > 0 else 0.0
+        else:
+            feedback_to_improvement = 0.0
+        
+        return {
+            "feedback_quality": {
+                "avg_feedback_per_document": round(avg_feedback_per_doc, 2),
+                "total_feedback": len(feedbacks),
+                "documents_with_feedback": len(feedback_by_doc),
+                "quality_score": round(min(1.0, 1.0 / (avg_feedback_per_doc + 1)), 2)  # Lower feedback = higher quality
+            },
+            "human_effort": {
+                "total_corrections": len(feedbacks),
+                "avg_corrections_per_document": round(avg_feedback_per_doc, 2),
+                "corrections_by_field": dict(sorted(corrections_by_field.items(), key=lambda x: x[1], reverse=True)[:10])
+            },
+            "learning_efficiency": {
+                "feedback_to_improvement_ratio": round(feedback_to_improvement, 4),
+                "total_batches": len(documents) // 5,
+                "avg_improvement_per_batch": round(avg_improvement if 'avg_improvement' in locals() else 0.0, 4)
+            }
+        }
+    
+    def _calculate_adaptive_learning_status(self, template_id: int) -> Dict[str, Any]:
+        """
+        Calculate adaptive learning mechanism status
+        Tracks pattern learning, auto-training, and confidence adjustment
+        """
+        try:
+            # Get learned patterns with field_name from field_configs
+            patterns_query = """
+                SELECT 
+                    lp.id,
+                    lp.pattern,
+                    lp.pattern_type,
+                    lp.priority,
+                    lp.frequency,
+                    lp.usage_count,
+                    lp.success_count,
+                    lp.is_active,
+                    fc.field_name
+                FROM learned_patterns lp
+                JOIN field_configs fc ON lp.field_config_id = fc.id
+                JOIN template_configs tc ON fc.config_id = tc.id
+                WHERE tc.template_id = ? AND lp.is_active = 1
+            """
+            patterns = self.db.execute_query(patterns_query, (template_id,))
+            
+            # Get learning jobs
+            jobs_query = """
+                SELECT 
+                    id,
+                    field_name,
+                    status,
+                    patterns_discovered,
+                    patterns_applied,
+                    started_at,
+                    completed_at
+                FROM pattern_learning_jobs
+                WHERE template_id = ?
+                ORDER BY started_at DESC
+                LIMIT 10
+            """
+            jobs = self.db.execute_query(jobs_query, (template_id,))
+            
+            # Calculate pattern effectiveness
+            pattern_effectiveness = {}
+            for p in patterns:
+                if p["usage_count"] > 0:
+                    success_rate = p["success_count"] / p["usage_count"]
+                    pattern_effectiveness[p["field_name"]] = round(success_rate, 3)
+            
+            # Calculate training frequency
+            completed_jobs = [j for j in jobs if j["status"] == "completed"]
+            if len(completed_jobs) >= 2:
+                first_job = datetime.fromisoformat(completed_jobs[-1]["completed_at"])
+                last_job = datetime.fromisoformat(completed_jobs[0]["completed_at"])
+                days_diff = (last_job - first_job).days
+                training_frequency = f"Every {days_diff // len(completed_jobs)} days" if days_diff > 0 else "N/A"
+            else:
+                training_frequency = "N/A"
+            
+            return {
+                "pattern_learning": {
+                    "total_patterns": len(patterns),
+                    "active_patterns": len([p for p in patterns if p["is_active"]]),
+                    "patterns_by_type": self._group_by_key(patterns, "pattern_type"),
+                    "pattern_effectiveness": pattern_effectiveness,
+                    "avg_pattern_usage": round(sum(p["usage_count"] for p in patterns) / len(patterns), 2) if patterns else 0.0
+                },
+                "auto_training": {
+                    "total_jobs": len(jobs),
+                    "completed_jobs": len(completed_jobs),
+                    "failed_jobs": len([j for j in jobs if j["status"] == "failed"]),
+                    "training_frequency": training_frequency,
+                    "last_training": jobs[0]["completed_at"] if jobs else None,
+                    "patterns_discovered_total": sum(j["patterns_discovered"] or 0 for j in completed_jobs)
+                },
+                "recent_jobs": [
+                    {
+                        "field_name": j["field_name"],
+                        "status": j["status"],
+                        "patterns_discovered": j["patterns_discovered"],
+                        "patterns_applied": j["patterns_applied"],
+                        "completed_at": j["completed_at"]
+                    }
+                    for j in jobs[:5]
+                ]
+            }
+        except Exception as e:
+            return {
+                "pattern_learning": {"total_patterns": 0, "error": str(e)},
+                "auto_training": {"total_jobs": 0, "error": str(e)},
+                "recent_jobs": []
+            }
+    
+    def _calculate_incremental_learning(self, documents: List, feedbacks: List) -> Dict[str, Any]:
+        """
+        Calculate incremental learning progress
+        Tracks accuracy improvement across batches (5, 10, 15, 20 documents)
+        """
+        if len(documents) < 5:
+            return {
+                "batches": [],
+                "summary": {
+                    "total_batches": 0,
+                    "avg_improvement_per_batch": 0.0,
+                    "optimal_batch_size": 5
+                }
+            }
+        
+        # Sort documents by creation time
+        sorted_docs = sorted(documents, key=lambda x: x["created_at"])
+        
+        batch_size = 5  # As per research document
+        batches_data = []
+        
+        for i in range(0, len(sorted_docs), batch_size):
+            batch_docs = sorted_docs[i:i+batch_size]
+            if len(batch_docs) < batch_size:
+                continue  # Skip incomplete batches
+            
+            batch_number = (i // batch_size) + 1
+            
+            # Calculate cumulative accuracy (all documents up to and including this batch)
+            cumulative_docs = sorted_docs[:i+len(batch_docs)]
+            cumulative_accuracy = self._calculate_batch_accuracy(cumulative_docs, feedbacks)
+            
+            # Calculate accuracy of previous cumulative (for improvement calculation)
+            if i > 0:
+                prev_cumulative_docs = sorted_docs[:i]
+                prev_cumulative_accuracy = self._calculate_batch_accuracy(prev_cumulative_docs, feedbacks)
+            else:
+                prev_cumulative_accuracy = 0.0
+            
+            # Calculate accuracy of just this batch (for reference)
+            batch_accuracy = self._calculate_batch_accuracy(batch_docs, feedbacks)
+            
+            # Count feedback in this batch
+            batch_doc_ids = [d["id"] for d in batch_docs]
+            batch_feedback_count = len([fb for fb in feedbacks if fb["document_id"] in batch_doc_ids])
+            
+            improvement = cumulative_accuracy - prev_cumulative_accuracy
+            
+            # Calculate learning efficiency (improvement per feedback)
+            learning_efficiency = improvement / batch_feedback_count if batch_feedback_count > 0 else 0.0
+            
+            batches_data.append({
+                "batch_number": batch_number,
+                "batch_size": len(batch_docs),
+                "document_range": f"{i+1}-{i+len(batch_docs)}",
+                "accuracy_before": round(prev_cumulative_accuracy, 4),
+                "accuracy_after": round(cumulative_accuracy, 4),
+                "improvement": round(improvement, 4),
+                "feedback_count": batch_feedback_count,
+                "learning_efficiency": round(learning_efficiency, 4),
+                "documents": [d["id"] for d in batch_docs]
+            })
+        
+        # Calculate summary
+        improvements = [b["improvement"] for b in batches_data if b["improvement"] > 0]
+        avg_improvement = sum(improvements) / len(improvements) if improvements else 0.0
+        
+        # Find best batch by learning efficiency (not just raw improvement)
+        best_batch = max(batches_data, key=lambda x: x["learning_efficiency"]) if batches_data else None
+        
+        # Calculate average learning efficiency
+        efficiencies = [b["learning_efficiency"] for b in batches_data if b["learning_efficiency"] > 0]
+        avg_efficiency = sum(efficiencies) / len(efficiencies) if efficiencies else 0.0
+        
+        return {
+            "batches": batches_data,
+            "summary": {
+                "total_batches": len(batches_data),
+                "avg_improvement_per_batch": round(avg_improvement, 4),
+                "total_improvement": round(sum(improvements), 4),
+                "avg_learning_efficiency": round(avg_efficiency, 4),  # New: avg improvement per feedback
+                "best_batch_number": best_batch["batch_number"] if best_batch else None,
+                "best_batch_efficiency": round(best_batch["learning_efficiency"], 4) if best_batch else 0.0,
+                "batch_size_used": batch_size,
+                "optimal_batch_size": batch_size  # Can be calculated based on diminishing returns
+            }
+        }
+    
+    def _calculate_baseline_comparison(self, documents: List, feedbacks: List) -> Dict[str, Any]:
+        """
+        Calculate baseline comparison between different extraction strategies
+        Compares rule-based, CRF, position-based, and hybrid approaches
+        """
+        # Track metrics per strategy
+        strategy_metrics = defaultdict(lambda: {"total": 0, "correct": 0, "time": []})
+        
+        # Track overall hybrid performance (final extraction result)
+        hybrid_total = 0
+        hybrid_correct = 0
+        
+        validated_count = 0
+        skipped_count = 0
+        
+        for doc in documents:
+            # Convert sqlite3.Row to dict for easier access
+            doc_dict = dict(doc) if not isinstance(doc, dict) else doc
+            
+            # Only count validated documents (status='validated')
+            if doc_dict.get("status") != "validated":
+                skipped_count += 1
+                continue
+            
+            validated_count += 1
+                
+            try:
+                # Get extraction result - try different possible field names
+                extraction_result_str = doc_dict.get("extraction_result") or doc_dict.get("result") or "{}"
+                if isinstance(extraction_result_str, str):
+                    result = json.loads(extraction_result_str)
+                else:
+                    result = extraction_result_str
+                
+                extracted_data = result.get("extracted_data", {})
+                
+                # Get metadata and extraction time from extraction_result
+                metadata = result.get("metadata", {})
+                strategies_used = metadata.get("strategies_used", [])
+                extraction_time = result.get("extraction_time_ms", 0)  # From root level, not metadata
+                
+                # For each field, check if it was correct
+                for field_name, value in extracted_data.items():
+                    # Skip empty values
+                    if not value or value == "":
+                        continue
+                    
+                    hybrid_total += 1
+                    
+                    # Check if this field was corrected
+                    was_corrected = any(
+                        fb["field_name"] == field_name and fb["document_id"] == doc_dict["id"]
+                        for fb in feedbacks
+                    )
+                    
+                    if not was_corrected:
+                        hybrid_correct += 1
+                
+                # Track per-strategy metrics
+                # Count strategies used in this document for time distribution
+                strategy_counts = {}
+                for strategy_info in strategies_used:
+                    strategy = strategy_info.get("method", "unknown")
+                    if strategy not in ["none", "unknown"]:
+                        if "_fallback" in strategy:
+                            strategy = strategy.replace("_fallback", "")
+                        strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
+                
+                # Distribute extraction time across strategies
+                time_per_strategy = {}
+                if extraction_time > 0 and strategy_counts:
+                    total_fields = sum(strategy_counts.values())
+                    for strategy, count in strategy_counts.items():
+                        time_per_strategy[strategy] = (extraction_time * count) / total_fields
+                
+                for strategy_info in strategies_used:
+                    strategy = strategy_info.get("method", "unknown")
+                    field_name = strategy_info.get("field_name")
+                    
+                    # Skip 'none' strategy (complete failure)
+                    if strategy in ["none", "unknown"]:
+                        continue
+                    
+                    # Map fallback strategies to original strategy
+                    if "_fallback" in strategy:
+                        strategy = strategy.replace("_fallback", "")
+                    
+                    # Check if this field was corrected
+                    was_correct = not any(
+                        fb["field_name"] == field_name and fb["document_id"] == doc_dict["id"]
+                        for fb in feedbacks
+                    )
+                    
+                    strategy_metrics[strategy]["total"] += 1
+                    if was_correct:
+                        strategy_metrics[strategy]["correct"] += 1
+                    
+                    # Track distributed extraction time
+                    if strategy in time_per_strategy:
+                        strategy_metrics[strategy]["time"].append(time_per_strategy[strategy])
+                        
+            except Exception as e:
+                self.logger.error(f"Error processing document {doc_dict.get('id')}: {str(e)}")
+                continue
+        
+        # Calculate accuracy for each strategy
+        systems = {}
+        for strategy, metrics in strategy_metrics.items():
+            # Skip 'none' and 'unknown' strategies
+            if strategy in ["none", "unknown"]:
+                continue
+                
+            accuracy = metrics["correct"] / metrics["total"] if metrics["total"] > 0 else 0.0
+            avg_time = sum(metrics["time"]) / len(metrics["time"]) if metrics["time"] else 0.0
+            
+            systems[strategy] = {
+                "accuracy": round(accuracy, 4),
+                "precision": round(accuracy, 4),  # Simplified
+                "recall": round(accuracy, 4),  # Simplified
+                "f1_score": round(accuracy, 4),  # Simplified
+                "total_extractions": metrics["total"],
+                "correct_extractions": metrics["correct"],
+                "avg_time_ms": round(avg_time, 2)
+            }
+        
+        # Add hybrid system (overall extraction result)
+        hybrid_acc = hybrid_correct / hybrid_total if hybrid_total > 0 else 0.0
+        
+        # Calculate average time across all strategies
+        all_times = [t for m in strategy_metrics.values() for t in m["time"]]
+        hybrid_avg_time = sum(all_times) / len(all_times) if all_times else 0.0
+        
+        systems["hybrid"] = {
+            "accuracy": round(hybrid_acc, 4),
+            "precision": round(hybrid_acc, 4),
+            "recall": round(hybrid_acc, 4),
+            "f1_score": round(hybrid_acc, 4),
+            "total_extractions": hybrid_total,
+            "correct_extractions": hybrid_correct,
+            "avg_time_ms": round(hybrid_avg_time, 2)
+        }
+        
+        # Calculate improvements
+        rule_acc = systems.get("rule_based", {}).get("accuracy", 0.0)
+        crf_acc = systems.get("crf", {}).get("accuracy", 0.0)
+        
+        return {
+            "systems": systems,
+            "comparison": {
+                "best_strategy": max(systems.items(), key=lambda x: x[1]["accuracy"])[0] if systems else "none",
+                "worst_strategy": min(systems.items(), key=lambda x: x[1]["accuracy"])[0] if systems else "none"
+            },
+            "improvement": {
+                "hybrid_over_rule": round((hybrid_acc - rule_acc) * 100, 2) if rule_acc > 0 else 0.0,
+                "hybrid_over_crf": round((hybrid_acc - crf_acc) * 100, 2) if crf_acc > 0 else 0.0,
+                "hybrid_accuracy": round(hybrid_acc * 100, 2)
+            }
+        }
+    
+    def _calculate_batch_accuracy(self, batch_docs: List, all_feedbacks: List) -> float:
+        """Helper: Calculate accuracy for a batch of documents"""
+        if not batch_docs:
+            return 0.0
+        
+        batch_doc_ids = [d["id"] for d in batch_docs]
+        total_fields = 0
+        correct_fields = 0
+        
+        for doc in batch_docs:
+            try:
+                result = json.loads(doc["extraction_result"])
+                extracted_data = result.get("extracted_data", {})
+                total_fields += len(extracted_data)
+                
+                # Count corrections for this document
+                doc_corrections = len([
+                    fb for fb in all_feedbacks 
+                    if fb["document_id"] == doc["id"]
+                ])
+                
+                correct_fields += max(0, len(extracted_data) - doc_corrections)
+            except:
+                continue
+        
+        return correct_fields / total_fields if total_fields > 0 else 0.0
+    
+    def _group_by_key(self, items: List[Dict], key: str) -> Dict[str, int]:
+        """Helper: Group items by a key and count"""
+        result = defaultdict(int)
+        for item in items:
+            result[item.get(key, "unknown")] += 1
+        return dict(result)

@@ -18,7 +18,7 @@ print("=" * 50)
 
 db_path = 'data/app.db'
 user_repo = UserRepository(db_path)
-user_data = user_repo.find_by_username('admin')
+user_data = user_repo.find_by_username('madulinux')
 
 if user_data:
     print(f"✅ User found: {user_data['username']}")
@@ -35,7 +35,7 @@ print("\n" + "=" * 50)
 print("TEST 2: Verify password")
 print("=" * 50)
 
-password = 'admin123'
+password = 'justice#404'
 password_hash = user_data['password_hash']
 
 print(f"Password: {password}")
@@ -57,7 +57,7 @@ print("TEST 3: Full login flow")
 print("=" * 50)
 
 auth_service = AuthService(user_repo)
-login_request = LoginRequest(username='admin', password='admin123')
+login_request = LoginRequest(username='madulinux', password='justice#404')
 
 try:
     tokens = auth_service.login(login_request)

@@ -113,6 +113,113 @@ def deactivate_low_performing():
     )
 
 
+@pattern_cleanup_bp.route('/auto-cleanup', methods=['POST'])
+@handle_errors
+@require_auth
+def auto_cleanup_patterns():
+    """
+    Automatically cleanup poorly performing patterns
+    
+    POST /api/v1/patterns/auto-cleanup
+    {
+        "template_id": 1,  // Optional
+        "field_name": "kabupaten_daftar",  // Optional
+        "dry_run": false  // Optional: preview without applying
+    }
+    
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "total_evaluated": 20,
+                "deactivated": [...],
+                "deleted": [...],
+                "kept": [...]
+            }
+        }
+    """
+    data = request.get_json(silent=True) or {}
+    template_id = data.get('template_id')
+    field_name = data.get('field_name')
+    dry_run = data.get('dry_run', False)
+    
+    db = DatabaseManager()
+    
+    logger.info(
+        f"🧹 Auto-cleanup patterns: "
+        f"template_id={template_id}, field_name={field_name}, dry_run={dry_run}"
+    )
+    
+    try:
+        from core.learning.pattern_cleaner import get_pattern_cleaner
+        
+        cleaner = get_pattern_cleaner(db)
+        result = cleaner.cleanup_poor_patterns(
+            template_id=template_id,
+            field_name=field_name,
+            dry_run=dry_run
+        )
+        
+        if result.get('success') is False:
+            return APIResponse.error(result.get('error', 'Cleanup failed'), 500)
+        
+        message = f"Evaluated {result['total_evaluated']} patterns"
+        if not dry_run:
+            message += f", deactivated {len(result['deactivated'])}, deleted {len(result['deleted'])}"
+        else:
+            message += " (dry run - no changes made)"
+        
+        return APIResponse.success(result, message)
+        
+    except Exception as e:
+        logger.error(f"Auto-cleanup failed: {e}", exc_info=True)
+        return APIResponse.error(str(e), 500)
+
+
+@pattern_cleanup_bp.route('/cleanup-report', methods=['GET'])
+@handle_errors
+@require_auth
+def get_cleanup_report():
+    """
+    Get report of patterns that need cleanup
+    
+    GET /api/v1/patterns/cleanup-report?template_id=1
+    
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "total_patterns": 20,
+                "needs_deactivation": 3,
+                "needs_deletion": 1,
+                "healthy": 16,
+                "details": [...]
+            }
+        }
+    """
+    template_id = request.args.get('template_id', type=int)
+    
+    db = DatabaseManager()
+    
+    logger.info(f"📊 Getting cleanup report for template_id={template_id}")
+    
+    try:
+        from core.learning.pattern_cleaner import get_pattern_cleaner
+        
+        cleaner = get_pattern_cleaner(db)
+        report = cleaner.get_cleanup_report(template_id=template_id)
+        
+        return APIResponse.success(
+            report,
+            f"Found {report['needs_deactivation']} patterns needing deactivation, "
+            f"{report['needs_deletion']} needing deletion"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get cleanup report: {e}", exc_info=True)
+        return APIResponse.error(str(e), 500)
+
+
 @pattern_cleanup_bp.route('/stats', methods=['GET'])
 @handle_errors
 @require_auth

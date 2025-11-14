@@ -27,10 +27,11 @@ class AdaptiveLearner:
             self.model = self._load_model(model_path)
         else:
             # Initialize new CRF model with optimized hyperparameters for high accuracy
+            # ✅ Default params match grid search best results (c1=0.01, c2=0.01)
             self.model = sklearn_crfsuite.CRF(
                 algorithm='lbfgs',
-                c1=0.05,              # ✅ Lower L1 for less aggressive feature pruning
-                c2=0.1,               # ✅ Lower L2 for more model flexibility
+                c1=0.01,              # ✅ Optimal L1 from grid search (prevents overfitting)
+                c2=0.01,              # ✅ Optimal L2 from grid search (better generalization)
                 max_iterations=500,   # ✅ More iterations for better convergence on complex patterns
                 all_possible_transitions=True,
                 verbose=False
@@ -260,10 +261,25 @@ class AdaptiveLearner:
             corrected_value_normalized = ' '.join(corrected_value.split())
             corrected_tokens = corrected_value_normalized.split()
             
+            # ✅ Get expected Y range for this field from template config
+            field_y_min = None
+            field_y_max = None
+            if field_name in field_contexts and template_config:
+                # Get Y range from template config locations
+                fields = template_config.get('fields', {})
+                if field_name in fields:
+                    locations = fields[field_name].get('locations', [])
+                    if locations:
+                        # Use first location's Y range
+                        loc = locations[0]
+                        field_y_min = loc.get('y0')
+                        field_y_max = loc.get('y1')
+                        print(f"   📏 [Learner] {field_name} expected Y range: {field_y_min:.1f} - {field_y_max:.1f}")
+            
             # Find exact sequence in words
             word_texts = [w['text'] for w in words]
             
-            # ✅ Strategy 1: Exact match
+            # ✅ Strategy 1: Exact match (with Y-position awareness if available)
             found = False
             for i in range(len(word_texts) - len(corrected_tokens) + 1):
                 match = True
@@ -273,12 +289,26 @@ class AdaptiveLearner:
                         break
                 
                 if match:
-                    labels[i] = f'B-{field_name.upper()}'
-                    for j in range(1, len(corrected_tokens)):
-                        labels[i + j] = f'I-{field_name.upper()}'
-                    found = True
-                    print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (exact match at position {i})")
-                    break
+                    # ✅ CRITICAL: Check Y position to avoid labeling wrong field
+                    # If same text appears multiple times, use Y position to disambiguate
+                    word_y = words[i].get('top', 0)
+                    
+                    # Check if this position is within field's Y range
+                    position_ok = True
+                    if field_y_min is not None and field_y_max is not None:
+                        # Add tolerance for slight variations in PDF positioning
+                        tolerance = 10  # pixels
+                        if word_y < (field_y_min - tolerance) or word_y > (field_y_max + tolerance):
+                            position_ok = False
+                            print(f"   ⚠️  [Learner] Skipping match at Y={word_y:.1f} (outside range {field_y_min:.1f}-{field_y_max:.1f}) for {field_name}")
+                    
+                    if position_ok:
+                        labels[i] = f'B-{field_name.upper()}'
+                        for j in range(1, len(corrected_tokens)):
+                            labels[i + j] = f'I-{field_name.upper()}'
+                        found = True
+                        print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (exact match at position {i}, Y={word_y:.1f})")
+                        break
             
             # ✅ Strategy 2: Case-insensitive match
             if not found:
@@ -293,12 +323,23 @@ class AdaptiveLearner:
                             break
                     
                     if match:
-                        labels[i] = f'B-{field_name.upper()}'
-                        for j in range(1, len(corrected_tokens)):
-                            labels[i + j] = f'I-{field_name.upper()}'
-                        found = True
-                        print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (case-insensitive match at position {i})")
-                        break
+                        # ✅ CRITICAL: Also check Y position for case-insensitive match
+                        word_y = words[i].get('top', 0)
+                        position_ok = True
+                        if field_y_min is not None and field_y_max is not None:
+                            tolerance = 10
+                            if word_y < (field_y_min - tolerance) or word_y > (field_y_max + tolerance):
+                                position_ok = False
+                                print(f"   ⚠️  [Learner] Skipping case-insensitive match at Y={word_y:.1f} (outside range {field_y_min:.1f}-{field_y_max:.1f}) for {field_name}")
+                                continue  # Try next position
+                        
+                        if position_ok:
+                            labels[i] = f'B-{field_name.upper()}'
+                            for j in range(1, len(corrected_tokens)):
+                                labels[i + j] = f'I-{field_name.upper()}'
+                            found = True
+                            print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (case-insensitive match at position {i}, Y={word_y:.1f})")
+                            break
             
             # ✅ Strategy 3: Fuzzy match (for spacing/punctuation differences)
             if not found:
@@ -308,10 +349,10 @@ class AdaptiveLearner:
                 corrected_clean = re.sub(r'[^\w\s]', '', corrected_value).lower()
                 corrected_tokens_clean = corrected_clean.split()
                 
-                # ✅ CRITICAL FIX: Filter out punctuation-only tokens from window
-                # This prevents matching "(Ida Setiawan)" when looking for "Ida Setiawan"
+                # ✅ CRITICAL FIX: Handle punctuation attached to words
+                # "Pusat," should match "Pusat", "Jakarta" should match "Jakarta"
                 for i in range(len(word_texts)):
-                    # Collect non-punctuation tokens starting from position i
+                    # Collect tokens starting from position i, cleaning punctuation
                     window_words = []
                     window_indices = []
                     j = i
@@ -324,20 +365,34 @@ class AdaptiveLearner:
                         j += 1
                     
                     if len(window_words) == len(corrected_tokens):
-                        window_clean = re.sub(r'[^\w\s]', '', ' '.join(window_words)).lower()
-                        window_tokens_clean = window_clean.split()
+                        # ✅ NEW: Clean punctuation from EACH word individually
+                        # This handles "Pusat," → "Pusat"
+                        window_tokens_clean = [re.sub(r'[^\w\s]', '', w).lower() for w in window_words]
+                        # Remove empty strings
+                        window_tokens_clean = [w for w in window_tokens_clean if w]
                         
                         # Check if tokens match (ignoring punctuation)
                         if corrected_tokens_clean == window_tokens_clean:
-                            # Label only the actual word tokens, not punctuation
-                            for idx in window_indices:
-                                if idx == window_indices[0]:
-                                    labels[idx] = f'B-{field_name.upper()}'
-                                else:
-                                    labels[idx] = f'I-{field_name.upper()}'
-                            found = True
-                            print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i}, excluding punctuation)")
-                            break
+                            # ✅ CRITICAL: Also check Y position for fuzzy match
+                            word_y = words[i].get('top', 0)
+                            position_ok = True
+                            if field_y_min is not None and field_y_max is not None:
+                                tolerance = 10
+                                if word_y < (field_y_min - tolerance) or word_y > (field_y_max + tolerance):
+                                    position_ok = False
+                                    print(f"   ⚠️  [Learner] Skipping fuzzy match at Y={word_y:.1f} (outside range {field_y_min:.1f}-{field_y_max:.1f}) for {field_name}")
+                                    continue  # Try next position
+                            
+                            if position_ok:
+                                # Label only the actual word tokens, not punctuation
+                                for idx in window_indices:
+                                    if idx == window_indices[0]:
+                                        labels[idx] = f'B-{field_name.upper()}'
+                                    else:
+                                        labels[idx] = f'I-{field_name.upper()}'
+                                found = True
+                                print(f"✅ [Learner] Labeled {field_name}: '{corrected_value}' (fuzzy match at position {i}, Y={word_y:.1f}, excluding punctuation)")
+                                break
             
             if not found:
                 print(f"⚠️ [Learner] Could NOT find '{corrected_value}' for {field_name} in document!")
@@ -833,19 +888,33 @@ class AdaptiveLearner:
         
         return best_context
     
-    def train(self, X_train: List[List[Dict]], y_train: List[List[str]]) -> Dict[str, float]:
+    def train(self, X_train: List[List[Dict]], y_train: List[List[str]], 
+              c1: float = None, c2: float = None) -> Dict[str, float]:
         """
         Train or retrain the CRF model
         
         Args:
             X_train: List of feature sequences
             y_train: List of label sequences
+            c1: L1 regularization parameter (optional, for grid search)
+            c2: L2 regularization parameter (optional, for grid search)
             
         Returns:
             Dictionary of evaluation metrics
         """
         if not X_train or not y_train:
             raise ValueError("Training data cannot be empty")
+        
+        # ✅ Update regularization params if provided (for grid search)
+        if c1 is not None or c2 is not None:
+            self.model = sklearn_crfsuite.CRF(
+                algorithm='lbfgs',
+                c1=c1 if c1 is not None else 0.01,
+                c2=c2 if c2 is not None else 0.01,
+                max_iterations=500,
+                all_possible_transitions=True,
+                verbose=False
+            )
         
         # Train the model
         self.model.fit(X_train, y_train)
@@ -960,16 +1029,20 @@ class AdaptiveLearner:
         labels.remove('O')
         
         # Calculate metrics
+        # ✅ Use zero_division=0 to suppress warnings for missing labels in small datasets
         results = {
             'accuracy': metrics.flat_accuracy_score(y_test, y_pred),
             'precision': metrics.flat_precision_score(y_test, y_pred, 
-                                                     average='weighted', labels=labels),
+                                                     average='weighted', labels=labels,
+                                                     zero_division=0),
             'recall': metrics.flat_recall_score(y_test, y_pred, 
-                                               average='weighted', labels=labels),
+                                               average='weighted', labels=labels,
+                                               zero_division=0),
             'f1': metrics.flat_f1_score(y_test, y_pred, 
-                                       average='weighted', labels=labels),
+                                       average='weighted', labels=labels,
+                                       zero_division=0),
             'classification_report': metrics.flat_classification_report(
-                y_test, y_pred, labels=labels, digits=3
+                y_test, y_pred, labels=labels, digits=3, zero_division=0
             )
         }
         

@@ -170,44 +170,85 @@ class TemplateAnalyzer:
     def _find_bbox_for_text(self, text: str, page_num: int, text_pos: int) -> List[float]:
         """
         Find the bounding box for a text segment on a page.
-        Enhanced to handle exact matching for markers
+        Enhanced to handle duplicate markers on same page using text position
         """
         if page_num >= len(self.words_by_page):
             return [0, 0, 0, 0]
         
         words = self.words_by_page[page_num]
+        page_text = self.pages_text[page_num]
         
-        # STEP 1: Try EXACT match first (most accurate)
+        # ✅ CRITICAL FIX: For duplicate markers on same page, use text_pos to find correct instance
+        # Count how many times this marker appears BEFORE text_pos
+        marker_occurrences_before = page_text[:text_pos].count(text)
+        
+        # STEP 1: Try EXACT match, but find the Nth occurrence (where N = marker_occurrences_before)
+        match_count = 0
         for word in words:
             if word.get('text', '') == text:
-                return [word['x0'], word['top'], word['x1'], word['bottom']]
+                if match_count == marker_occurrences_before:
+                    # This is the correct instance!
+                    return [word['x0'], word['top'], word['x1'], word['bottom']]
+                match_count += 1
         
         # STEP 2: Try finding in words, but check if it's a complete marker
         # This handles cases like "{tempat_lahir}, {tanggal_lahir}" in one word
+        # ✅ CRITICAL: Do NOT reset match_count - continue from STEP 1!
+        # match_count is already set from STEP 1
         for word in words:
             word_text = word.get('text', '')
+            # ✅ CRITICAL: Skip exact matches - already processed in STEP 1!
+            if word_text == text:
+                continue
             if text in word_text:
                 # Check if this is the ONLY marker or if there are multiple
                 # Count how many markers in this word
-                marker_count = word_text.count('{')
+                marker_count_in_word = word_text.count('{')
                 
-                if marker_count == 1:
-                    # Only one marker in word, safe to use
-                    return [word['x0'], word['top'], word['x1'], word['bottom']]
+                if marker_count_in_word == 1:
+                    # Only one marker in word, check if this is the correct instance
+                    if match_count == marker_occurrences_before:
+                        # ✅ FIX: Handle punctuation (e.g., "{date_issued},")
+                        # If word has punctuation, calculate marker bbox without it
+                        if word_text != text:
+                            # Word has extra characters (likely punctuation)
+                            # Estimate marker width based on character ratio
+                            marker_ratio = len(text) / len(word_text)
+                            word_width = word['x1'] - word['x0']
+                            marker_width = word_width * marker_ratio
+                            
+                            # Check if punctuation is at start or end
+                            if word_text.startswith(text):
+                                # Punctuation at end: "{marker},"
+                                return [word['x0'], word['top'], word['x0'] + marker_width, word['bottom']]
+                            elif word_text.endswith(text):
+                                # Punctuation at start: ",{marker}"
+                                return [word['x1'] - marker_width, word['top'], word['x1'], word['bottom']]
+                            else:
+                                # Punctuation in middle (rare): use full bbox
+                                return [word['x0'], word['top'], word['x1'], word['bottom']]
+                        else:
+                            # Exact match, use full bbox
+                            return [word['x0'], word['top'], word['x1'], word['bottom']]
+                    match_count += 1
                 else:
                     # Multiple markers in word - need to find exact position
                     # Try to split by common separators
                     parts = re.split(r'[,\s]+', word_text)
                     for part in parts:
                         if text == part.strip():
-                            # Found exact match in split parts
-                            # Estimate position based on part index
-                            part_index = parts.index(part)
-                            # Simple estimation: divide word width by number of parts
-                            part_width = (word['x1'] - word['x0']) / len(parts)
-                            x0 = word['x0'] + (part_index * part_width)
-                            x1 = x0 + part_width
-                            return [x0, word['top'], x1, word['bottom']]
+                            # Check if this is the correct instance
+                            if match_count == marker_occurrences_before:
+                                # Found exact match in split parts
+                                # Estimate position based on part index
+                                part_index = parts.index(part)
+                                # Simple estimation: divide word width by number of parts
+                                part_width = (word['x1'] - word['x0']) / len(parts)
+                                x0 = word['x0'] + (part_index * part_width)
+                                x1 = x0 + part_width
+                                return [x0, word['top'], x1, word['bottom']]
+                            match_count += 1
+                            break  # Only count once per word
         
         # If not found, return a default bbox
         return [0, 0, 0, 0]

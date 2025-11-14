@@ -109,6 +109,7 @@ def migrate_fresh():
     db = DatabaseManager()
     print("✅ Fresh database created successfully!")
     print(f"📁 Database location: {db.db_path}")
+    seed()
 
 def seed():
     """Seed database with initial data"""
@@ -118,16 +119,18 @@ def seed():
     user_repo = UserRepository(db.db_path)  # Pass db_path string, not db object
     auth_service = AuthService(user_repo)
     
+    username = "madulinux"
+    password = "justice#404"
     # Check if admin exists
-    existing_admin = user_repo.find_by_username('admin')
+    existing_admin = user_repo.find_by_username(username)
     if existing_admin:
         print("ℹ️  Admin user already exists")
     else:
         # Create admin user
         admin_request = RegisterRequest(
-            username='admin',
-            email='admin@example.com',
-            password='admin123',
+            username=username,
+            email='madulinux@gmail.com',
+            password=password,
             full_name='Administrator'
         )
         admin_user = auth_service.register(admin_request)
@@ -137,49 +140,46 @@ def seed():
         cursor.execute('UPDATE users SET role = ? WHERE id = ?', ('admin', admin_user.id))
         conn.commit()
         conn.close()
-        print(f"✅ Admin user created: {admin_user.username} (role: admin)")
     
     # Check if test user exists
-    existing_user = user_repo.find_by_username('user')
-    if existing_user:
-        print("ℹ️  Test user already exists")
-    else:
-        # Create test user
-        user_request = RegisterRequest(
-            username='user',
-            email='user@example.com',
-            password='user123',
-            full_name='Test User'
-        )
-        test_user = auth_service.register(user_request)
-        print(f"✅ Test user created: {test_user.username}")
+    # existing_user = user_repo.find_by_username('user')
+    # if existing_user:
+    #     print("ℹ️  Test user already exists")
+    # else:
+    #     # Create test user
+    #     user_request = RegisterRequest(
+    #         username='user',
+    #         email='user@example.com',
+    #         password='justice#404',
+    #         full_name='Test User'
+    #     )
+    #     test_user = auth_service.register(user_request)
     
     print("\n📊 Seeding completed!")
     print("\n🔑 Default credentials:")
-    print("   Admin: admin / admin123")
-    print("   User:  user / user123")
+    print("   Admin: " + username + " / " + password)
 
 def show_help():
     """Show available commands"""
     print("""
-📚 Database Management Commands
+        📚 Database Management Commands
 
-Usage: python manage.py [command]
+        Usage: python manage.py [command]
 
-Commands:
-  migrate         Run database migrations
-  migrate:fresh   Drop all tables and re-run migrations (⚠️  deletes all data)
-  seed            Seed database with initial data
-  help            Show this help message
+        Commands:
+        migrate         Run database migrations
+        migrate:fresh   Drop all tables and re-run migrations (⚠️  deletes all data)
+        seed            Seed database with initial data
+        help            Show this help message
 
-Examples:
-  python manage.py migrate
-  python manage.py migrate:fresh
-  python manage.py seed
-  
-  # Fresh start with seed data
-  python manage.py migrate:fresh && python manage.py seed
-""")
+        Examples:
+        python manage.py migrate
+        python manage.py migrate:fresh
+        python manage.py seed
+        
+        # Fresh start with seed data
+        python manage.py migrate:fresh && python manage.py seed
+        """)
 
 def main():
     if len(sys.argv) < 2:

@@ -33,7 +33,8 @@ def train_model():
     Request Body:
     {
         "template_id": int,
-        "use_all_feedback": bool (optional)
+        "use_all_feedback": bool (optional, default: True),
+        "is_incremental": bool (optional, default: False)
     }
     
     Returns:
@@ -47,7 +48,11 @@ def train_model():
         return APIResponse.bad_request("template_id is required")
     
     template_id = data['template_id']
-    use_all_feedback = data.get('use_all_feedback', False)
+    # ✅ Default to True for best accuracy and reliable grid search
+    # Using False (only unused feedback) can result in small datasets
+    use_all_feedback = data.get('use_all_feedback', True)
+    # ✅ Incremental training: only use new feedback, faster training
+    is_incremental = data.get('is_incremental', False)
     
     service = get_model_service()
     
@@ -55,7 +60,8 @@ def train_model():
         result = service.retrain_model(
             template_id=template_id,
             use_all_feedback=use_all_feedback,
-            model_folder=current_app.config['MODEL_FOLDER']
+            model_folder=current_app.config['MODEL_FOLDER'],
+            is_incremental=is_incremental
         )
         
         return APIResponse.success(

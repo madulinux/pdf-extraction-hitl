@@ -25,9 +25,9 @@ def create_admin_user():
     url = f"{API_BASE_URL}/auth/register"
     
     data = {
-        'username': 'admin',
-        'email': 'admin@example.com',
-        'password': 'admin123',
+        'username': 'madulinux',
+        'email': 'madulinux@gmail.com',
+        'password': 'justice#404',
         'full_name': 'Admin User'
     }
     
@@ -68,8 +68,8 @@ def test_login():
     url = f"{API_BASE_URL}/auth/login"
     
     data = {
-        'username': 'admin',
-        'password': 'admin123'
+        'username': 'madulinux',
+        'password': 'justice#404'
     }
     
     try:
@@ -117,7 +117,7 @@ def main():
     logger.info("  python automated_seeder.py --template certificate_template --count 5")
     logger.info("\nOr with custom credentials:")
     logger.info("  python automated_seeder.py --template certificate_template --count 5 \\")
-    logger.info("    --username admin --password admin123")
+    logger.info("    --username madulinux --password justice#404")
     logger.info("=" * 70)
 
 

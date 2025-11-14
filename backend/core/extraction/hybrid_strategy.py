@@ -497,24 +497,77 @@ class HybridExtractionStrategy:
             # ✅ ADAPTIVE THRESHOLD based on historical performance (CONFIG-DRIVEN)
             min_confidence = self._get_confidence_threshold(hist_accuracy, hist_attempts)
             
+            # ✅ CRITICAL: Hard minimum threshold to reject extremely low confidence
+            # Even if historical performance is good, reject if confidence < 0.3
+            # This prevents selecting garbage results from poorly trained models
+            # Lowered to 0.3 to allow fallback for marginal results
+            HARD_MIN_CONFIDENCE = 0.3
+            effective_min_confidence = max(min_confidence, HARD_MIN_CONFIDENCE)
+            
             # Accept result if confidence meets adaptive threshold
-            if fv.confidence >= min_confidence:
+            if fv.confidence >= effective_min_confidence:
                 valid_results.append((st, fv))
                 self.logger.debug(
-                    f"  ✅ {st.value}: conf={fv.confidence:.2f} >= threshold={min_confidence:.2f} "
-                    f"(hist_acc={hist_accuracy:.2f}, attempts={hist_attempts})"
+                    f"  ✅ {st.value}: conf={fv.confidence:.2f} >= threshold={effective_min_confidence:.2f} "
+                    f"(adaptive={min_confidence:.2f}, hard_min={HARD_MIN_CONFIDENCE:.2f}, hist_acc={hist_accuracy:.2f})"
                 )
             else:
                 self.logger.debug(
-                    f"  ❌ {st.value}: conf={fv.confidence:.2f} < threshold={min_confidence:.2f} "
-                    f"(rejected due to low confidence)"
+                    f"  ❌ {st.value}: conf={fv.confidence:.2f} < threshold={effective_min_confidence:.2f} "
+                    f"(adaptive={min_confidence:.2f}, hard_min={HARD_MIN_CONFIDENCE:.2f}) - REJECTED"
                 )
         
         if not valid_results:
             self.logger.warning(f"  ⚠️ No strategies met confidence threshold for '{field_name}'")
             
-            # ✅ FIX: Even if no valid results, return metadata for tracking
-            # Create a dummy FieldValue with all_strategies_attempted
+            # Count how many strategies returned results
+            non_none_results = sum(1 for fv in strategy_results.values() if fv is not None)
+            self.logger.info(f"  📊 Strategy results: {non_none_results}/{len(strategy_results)} strategies returned results")
+            
+            # ✅ IMPROVED FALLBACK: Use best available result even if below threshold
+            # Find the best result among all strategies (even if below threshold)
+            best_result = None
+            best_confidence = 0.0
+            best_strategy = None
+            
+            for strategy_type, field_value in strategy_results.items():
+                # ✅ FIX: Check field_value exists and has confidence, don't check if value is truthy
+                # Empty string '' is a valid value that should be considered
+                # Accept ANY result with confidence > 0 (even 0.01)
+                if field_value and field_value.confidence > 0 and field_value.confidence > best_confidence:
+                    best_result = field_value
+                    best_confidence = field_value.confidence
+                    best_strategy = strategy_type
+                    self.logger.debug(f"    🔍 Found candidate: {strategy_type.value} (conf={field_value.confidence:.2f}, value='{field_value.value}')")
+            
+            # If we found any result, use it as fallback
+            if best_result:
+                self.logger.info(f"  🔄 Using fallback: {best_strategy.value} (confidence: {best_confidence:.2f}, value: '{best_result.value}')")
+                from .strategies import FieldValue
+                fallback_result = FieldValue(
+                    field_id=field_name,
+                    field_name=field_name,
+                    value=best_result.value,
+                    confidence=best_confidence,
+                    method=f'{best_strategy.value}_fallback',
+                    metadata={
+                        'all_strategies_attempted': {
+                            st.value: {
+                                'success': fv is not None,
+                                'confidence': fv.confidence if fv else 0.0,
+                                'value': fv.value if fv else None
+                            }
+                            for st, fv in strategy_results.items()
+                        },
+                        'selected_by': 'fallback',
+                        'reason': 'best_below_threshold',
+                        'original_strategy': best_strategy.value
+                    }
+                )
+                return fallback_result
+            
+            # If absolutely no results, return empty
+            self.logger.warning(f"  ⚠️ No fallback available for '{field_name}' - returning method='none'")
             from .strategies import FieldValue
             dummy_result = FieldValue(
                 field_id=field_name,
@@ -532,7 +585,7 @@ class HybridExtractionStrategy:
                         for st, fv in strategy_results.items()
                     },
                     'selected_by': 'none_valid',
-                    'reason': 'all_strategies_below_threshold'
+                    'reason': 'all_strategies_failed'
                 }
             )
             return dummy_result

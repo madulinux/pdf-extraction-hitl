@@ -35,7 +35,7 @@ python main.py generate-documents --count 40
 ```bash
 cd tools/seeder
 
-# Seed certificate template (40 docs) - uses default admin/admin123
+# Seed certificate template (40 docs) - uses default madulinux/justice#404
 python automated_seeder.py --template certificate_template --count 40
 
 # Seed invoice template (30 docs)

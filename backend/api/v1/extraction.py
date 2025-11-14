@@ -151,6 +151,42 @@ def validate_corrections():
             # Don't fail the request if auto-learning fails
             current_app.logger.warning(f"Auto-learning trigger failed: {e}")
             result["learning"] = {"success": False, "error": str(e)}
+        
+        # 🤖 AUTO-TRAINING: Check if model should be retrained automatically
+        try:
+            from core.learning.auto_trainer import get_auto_training_service
+            from database.repositories.document_repository import DocumentRepository
+            from database.db_manager import DatabaseManager
+            
+            # Get template_id from document
+            db = DatabaseManager()
+            doc_repo = DocumentRepository(db)
+            document = doc_repo.find_by_id(data["document_id"])
+            
+            if document:
+                template_id = document.template_id
+                auto_trainer = get_auto_training_service()
+                
+                # Check and trigger auto-training if conditions are met
+                training_result = auto_trainer.check_and_train(
+                    template_id=template_id,
+                    model_folder=current_app.config['MODEL_FOLDER']
+                )
+                
+                if training_result:
+                    result["auto_training"] = {
+                        "triggered": True,
+                        "accuracy": training_result['test_metrics']['accuracy'],
+                        "samples": training_result['training_samples']
+                    }
+                    current_app.logger.info(f"Auto-training triggered for template {template_id}")
+                else:
+                    result["auto_training"] = {"triggered": False}
+                    
+        except Exception as e:
+            # Don't fail the request if auto-training fails
+            current_app.logger.warning(f"Auto-training check failed: {e}")
+            result["auto_training"] = {"triggered": False, "error": str(e)}
 
         return APIResponse.success(result, "Corrections saved successfully")
 

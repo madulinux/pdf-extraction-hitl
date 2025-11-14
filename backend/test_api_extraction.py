@@ -8,7 +8,7 @@ import json
 # Login first
 login_response = requests.post(
     'http://localhost:8000/api/v1/auth/login',
-    json={'username': 'admin', 'password': 'admin123'}
+    json={'username': 'madulinux', 'password': 'justice#404'}
 )
 
 if login_response.status_code != 200:
