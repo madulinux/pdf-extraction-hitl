@@ -18,8 +18,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core.extraction.table_extractor import AdaptiveTableExtractor
 
 def main():
-    # Test with latest document
+    # Test with latest document (document 71)
     pdf_path = "/Users/madulinux/Documents/S2 UNAS/TESIS/Project/backend/uploads/20251114_183553_2025-11-14_183551_592099_0.pdf"
+    
+    print(f"\n🔍 Testing if table extraction works for document 71...")
+    print(f"   This document showed WRONG extraction in database:")
+    print(f"   - area_finding_1: got '899892063' (area code) instead of finding text")
+    print(f"   - area_recomendation_1: got '899892063' (area code) instead of recommendation text")
     
     print(f"\n📄 Testing: {Path(pdf_path).name}")
     print("="*60)
