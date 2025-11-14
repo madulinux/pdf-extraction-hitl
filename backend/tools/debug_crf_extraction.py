@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import sqlite3
 import json
 import pdfplumber
-from core.extraction.strategies import CRFExtractionStrategy
+from core.extraction.crf_strategy import CRFExtractionStrategy
 from core.learning.learner import AdaptiveLearner
 
 def main():

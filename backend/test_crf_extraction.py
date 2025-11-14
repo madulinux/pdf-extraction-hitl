@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from core.extraction.strategies import CRFExtractionStrategy
+from core.extraction.crf_strategy import CRFExtractionStrategy
 from core.pdf.extractor import PDFExtractor
 import json
 

@@ -10,11 +10,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import pdfplumber
 from database.db_manager import DatabaseManager
-from core.extraction.strategies import (
+from core.extraction.crf_strategy import (
     CRFExtractionStrategy,
-    RuleBasedExtractionStrategy,
-    PositionExtractionStrategy
-)
+)   
+from core.extraction.position_based_strategy import PositionExtractionStrategy
+from core.extraction.rule_based_strategy import RuleBasedExtractionStrategy
 
 def trace_extraction(doc_id: int):
     """Trace extraction for a specific document"""

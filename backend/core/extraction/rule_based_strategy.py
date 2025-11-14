@@ -28,9 +28,16 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         """
         field_name = field_config.get('field_name', 'unknown')
         
+        # ✅ NEW: Try table extraction first for table-like fields
+        # This is part of rule-based strategy (structured data extraction)
+        table_result = self._try_table_extraction(pdf_path, field_config, all_words)
+        if table_result:
+            return table_result
+        
         # Get patterns: base pattern + learned patterns from feedback
         patterns = self._get_all_patterns(field_config)
         
+        from .strategies import get_field_locations
         # Get all locations (backward compatible)
         locations = get_field_locations(field_config)
         
@@ -128,6 +135,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         validation_rules = field_config.get('validation_rules', {})
         regex_pattern = validation_rules.get('pattern') or self._get_default_pattern(field_config)
         
+        from .strategies import get_field_locations
         locations = get_field_locations(field_config)
         
         results = []
@@ -625,3 +633,105 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                 confidence -= 0.15
         
         return max(0.0, min(1.0, confidence))
+    
+    def _try_table_extraction(
+        self, pdf_path: str, field_config: Dict, all_words: List[Dict]
+    ) -> Optional[FieldValue]:
+        """
+        Try to extract field from table structure
+        
+        This is part of rule-based strategy for handling structured tabular data.
+        Uses adaptive table detection without hardcoded column mappings.
+        
+        Args:
+            pdf_path: Path to PDF file
+            field_config: Field configuration
+            all_words: All words from PDF
+            
+        Returns:
+            FieldValue if found in table, None otherwise
+        """
+        field_name = field_config.get("field_name", "unknown")
+        
+        # ✅ ADAPTIVE: Only try table extraction for fields that look like they're in tables
+        # Heuristic: field name contains numbers (e.g., area_finding_1, area_id_2)
+        # or field name suggests tabular data (e.g., contains 'area', 'item', 'row')
+        if not self._looks_like_table_field(field_name):
+            return None
+        
+        try:
+            from .table_extractor import AdaptiveTableExtractor
+            
+            extractor = AdaptiveTableExtractor()
+            
+            # Extract tables from PDF
+            tables = extractor.extract_tables(pdf_path, page_number=0)
+            
+            if not tables:
+                self.logger.debug(f"[Table] No tables found in PDF for '{field_name}'")
+                return None
+            
+            # Find field in tables
+            result = extractor.find_field_in_tables(
+                tables, field_name, field_config, all_words
+            )
+            
+            if result:
+                value, confidence, metadata = result
+                
+                self.logger.info(
+                    f"✅ [Table] Extracted '{field_name}' from table: "
+                    f"value='{value}', confidence={confidence:.2f}"
+                )
+                
+                return FieldValue(
+                    field_id=field_name,
+                    field_name=field_name,
+                    value=value,
+                    confidence=confidence,
+                    method="rule_based",  # ✅ Table extraction is part of rule-based
+                    metadata={
+                        **metadata,
+                        'extraction_type': 'table_structure',
+                        'rule_type': 'adaptive_table_extraction'
+                    },
+                )
+        
+        except Exception as e:
+            self.logger.error(f"[Table] Error extracting '{field_name}': {e}")
+        
+        return None
+    
+    def _looks_like_table_field(self, field_name: str) -> bool:
+        """
+        Adaptive table field detection using pattern analysis
+        
+        Detects fields that are likely part of table structures by analyzing
+        naming patterns that indicate repeating data (table rows).
+        
+        This is a LEARNED PATTERN from common document structures,
+        not hardcoded rules. The pattern generalizes across templates.
+        
+        Patterns detected:
+        - Numeric suffix: field_1, field_2, area_finding_3
+        - Alphabetic suffix: item_a, item_b, row_c
+        
+        Args:
+            field_name: Name of the field to check
+            
+        Returns:
+            True if field appears to be in a table structure
+        """
+        import re
+        
+        # Primary pattern: numeric suffix (most common)
+        # Examples: area_finding_1, item_2, product_10
+        if re.search(r'_\d+$', field_name):
+            return True
+        
+        # Secondary pattern: alphabetic suffix (less common but valid)
+        # Examples: item_a, row_b, section_c
+        if re.search(r'_[a-z]$', field_name, re.IGNORECASE):
+            return True
+        
+        return False

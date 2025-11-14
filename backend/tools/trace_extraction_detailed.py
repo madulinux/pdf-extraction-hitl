@@ -22,11 +22,12 @@ import pdfplumber
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.extraction.strategies import (
-    RuleBasedExtractionStrategy,
-    PositionExtractionStrategy,
+from core.extraction.crf_strategy import (
     CRFExtractionStrategy
 )
+
+from core.extraction.position_based_strategy import PositionExtractionStrategy
+from core.extraction.rule_based_strategy import RuleBasedExtractionStrategy
 
 
 class Database:

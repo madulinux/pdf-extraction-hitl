@@ -24,6 +24,7 @@ class PositionExtractionStrategy(ExtractionStrategy):
         """
         field_name = field_config.get("field_name", "unknown")
 
+        from .strategies import get_field_locations
         # Get all locations (backward compatible)
         locations = get_field_locations(field_config)
 
