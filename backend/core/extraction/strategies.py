@@ -988,6 +988,12 @@ class CRFExtractionStrategy(ExtractionStrategy):
         """
         field_name = field_config.get('field_name', 'unknown')
         
+        # ✅ NEW: Try table extraction first for table-like fields
+        # This is adaptive - only tries table extraction if field looks like it's in a table
+        table_result = self._try_table_extraction(pdf_path, field_config, all_words)
+        if table_result:
+            return table_result
+        
         # 🔥 HOT RELOAD: Check if model has been updated
         self.reload_model_if_updated()
         
@@ -1170,6 +1176,13 @@ class CRFExtractionStrategy(ExtractionStrategy):
             target_field: Target field name for field-aware features
         """
         features = []
+        
+        # ✅ NEW: Detect column structure from X-coordinates
+        x_coords = [w.get('x0', 0) for w in words]
+        column_boundaries = self._detect_column_boundaries(x_coords)
+        
+        # ✅ NEW: Detect line groups for text wrapping
+        line_groups = self._detect_line_groups(words)
         
         # Extract context information
         label = context.get('label', '')
@@ -1378,6 +1391,50 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 if abs(w.get('top', 0) - word_y) < 5
             )
             
+            # ✅ NEW: Column-based features for multi-column layout
+            column_idx = self._get_column_index(word_x, column_boundaries)
+            word_features['column_index'] = column_idx
+            word_features['in_first_column'] = column_idx == 0
+            word_features['in_second_column'] = column_idx == 1
+            word_features['in_third_column'] = column_idx == 2
+            word_features['in_fourth_column'] = column_idx == 3
+            
+            # ✅ NEW: Line group features for text wrapping detection
+            line_group_idx = self._get_line_group_index(i, line_groups)
+            word_features['line_group_index'] = line_group_idx
+            word_features['is_first_line_in_group'] = self._is_first_line_in_group(i, line_groups)
+            word_features['is_continuation_line'] = self._is_continuation_line(i, line_groups)
+            
+            # ✅ NEW: Sequence position features (for Finding vs Recommendation)
+            word_features['relative_x_position'] = word_x / max(x_coords) if x_coords else 0
+            word_features['is_left_aligned'] = word_x < 200  # Typically Finding
+            word_features['is_right_aligned'] = word_x > 400  # Typically Recommendation
+            word_features['is_center_aligned'] = 200 <= word_x <= 400
+            
+            # ✅ NEW: Delimiter detection (for Finding/Recommendation separation)
+            word_features['is_delimiter'] = text in ['|', '/', '\\', ':', ';']
+            word_features['after_delimiter'] = False
+            if i > 0 and words[i-1].get('text', '') in ['|', '/', '\\', ':', ';']:
+                word_features['after_delimiter'] = True
+            
+            # ✅ NEW: Number sequence detection (for Area ID, No, etc.)
+            word_features['is_sequence_number'] = text.isdigit() and len(text) <= 2
+            word_features['is_long_number'] = text.isdigit() and len(text) > 5  # Area Code
+            word_features['after_sequence_number'] = False
+            if i > 0 and words[i-1].get('text', '').isdigit() and len(words[i-1].get('text', '')) <= 2:
+                word_features['after_sequence_number'] = True
+            
+            # ✅ NEW: Sentence boundary features (for Finding vs Recommendation)
+            word_features['starts_with_capital'] = text and text[0].isupper()
+            word_features['after_period'] = i > 0 and words[i-1].get('text', '') == '.'
+            word_features['before_period'] = i < len(words) - 1 and words[i+1].get('text', '') == '.'
+            
+            # ✅ NEW: Word density features (for table detection)
+            words_in_same_line = [w for w in words if abs(w.get('top', 0) - word_y) < 5]
+            word_features['words_in_line'] = len(words_in_same_line)
+            word_features['is_dense_line'] = len(words_in_same_line) > 10  # Likely table row
+            word_features['is_sparse_line'] = len(words_in_same_line) < 5
+            
             # ✅ CRITICAL: Add field-aware feature for target field
             # This tells the model which field we're currently extracting
             # During training: all fields in document have this feature set to True
@@ -1391,3 +1448,238 @@ class CRFExtractionStrategy(ExtractionStrategy):
             features.append(word_features)
         
         return features
+    
+    def _detect_column_boundaries(self, x_coords: List[float]) -> List[float]:
+        """
+        Detect column boundaries from X-coordinates using clustering
+        
+        Args:
+            x_coords: List of X-coordinates
+            
+        Returns:
+            List of column boundary X-coordinates
+        """
+        if not x_coords:
+            return []
+        
+        # Use simple histogram-based approach
+        # Group X-coordinates into bins and find peaks
+        import numpy as np
+        
+        x_array = np.array(x_coords)
+        # Create histogram with 20 bins
+        hist, bin_edges = np.histogram(x_array, bins=20)
+        
+        # Find peaks (local maxima) in histogram
+        peaks = []
+        for i in range(1, len(hist) - 1):
+            if hist[i] > hist[i-1] and hist[i] > hist[i+1] and hist[i] > 5:
+                # Peak found, use bin center as column boundary
+                peak_x = (bin_edges[i] + bin_edges[i+1]) / 2
+                peaks.append(peak_x)
+        
+        return sorted(peaks)
+    
+    def _get_column_index(self, x: float, column_boundaries: List[float]) -> int:
+        """
+        Get column index for a given X-coordinate
+        
+        Args:
+            x: X-coordinate
+            column_boundaries: List of column boundaries
+            
+        Returns:
+            Column index (0-based)
+        """
+        if not column_boundaries:
+            return 0
+        
+        for i, boundary in enumerate(column_boundaries):
+            if x < boundary:
+                return i
+        
+        return len(column_boundaries)
+    
+    def _detect_line_groups(self, words: List[Dict]) -> List[List[int]]:
+        """
+        Detect line groups for text wrapping detection
+        Groups consecutive lines that are likely part of the same logical line
+        
+        Args:
+            words: List of word dictionaries
+            
+        Returns:
+            List of line groups, where each group is a list of word indices
+        """
+        if not words:
+            return []
+        
+        # Group words by Y-coordinate (same line)
+        lines = {}
+        for i, word in enumerate(words):
+            y = round(word.get('top', 0), 1)
+            if y not in lines:
+                lines[y] = []
+            lines[y].append(i)
+        
+        # Sort lines by Y-coordinate
+        sorted_y = sorted(lines.keys())
+        
+        # Group consecutive lines that are close together (likely wrapped text)
+        line_groups = []
+        current_group = []
+        prev_y = None
+        
+        for y in sorted_y:
+            if prev_y is None:
+                current_group = lines[y]
+            else:
+                # If lines are close (< 20 pixels apart), they're likely part of same group
+                if y - prev_y < 20:
+                    current_group.extend(lines[y])
+                else:
+                    # Start new group
+                    if current_group:
+                        line_groups.append(current_group)
+                    current_group = lines[y]
+            
+            prev_y = y
+        
+        # Add last group
+        if current_group:
+            line_groups.append(current_group)
+        
+        return line_groups
+    
+    def _get_line_group_index(self, word_idx: int, line_groups: List[List[int]]) -> int:
+        """
+        Get line group index for a given word index
+        
+        Args:
+            word_idx: Word index
+            line_groups: List of line groups
+            
+        Returns:
+            Line group index (0-based), or -1 if not found
+        """
+        for i, group in enumerate(line_groups):
+            if word_idx in group:
+                return i
+        return -1
+    
+    def _is_first_line_in_group(self, word_idx: int, line_groups: List[List[int]]) -> bool:
+        """
+        Check if word is on the first line of its group
+        
+        Args:
+            word_idx: Word index
+            line_groups: List of line groups
+            
+        Returns:
+            True if word is on first line of group
+        """
+        for group in line_groups:
+            if word_idx in group:
+                return word_idx == group[0] or word_idx in group[:5]  # First 5 words
+        return False
+    
+    def _is_continuation_line(self, word_idx: int, line_groups: List[List[int]]) -> bool:
+        """
+        Check if word is on a continuation line (wrapped text)
+        
+        Args:
+            word_idx: Word index
+            line_groups: List of line groups
+            
+        Returns:
+            True if word is on a continuation line
+        """
+        for group in line_groups:
+            if word_idx in group:
+                return word_idx not in group[:5]  # Not in first 5 words
+        return False
+    
+    def _try_table_extraction(
+        self, 
+        pdf_path: str, 
+        field_config: Dict, 
+        all_words: List[Dict]
+    ) -> Optional[FieldValue]:
+        """
+        Try to extract field from table structure
+        
+        This is adaptive - it detects if the field is likely in a table
+        and uses table extraction instead of CRF
+        
+        Args:
+            pdf_path: Path to PDF file
+            field_config: Field configuration
+            all_words: All words from PDF
+            
+        Returns:
+            FieldValue if found in table, None otherwise
+        """
+        field_name = field_config.get('field_name', 'unknown')
+        
+        # ✅ ADAPTIVE: Only try table extraction for fields that look like they're in tables
+        # Heuristic: field name contains numbers (e.g., area_finding_1, area_id_2)
+        # or field name suggests tabular data (e.g., contains 'area', 'item', 'row')
+        if not self._looks_like_table_field(field_name):
+            return None
+        
+        try:
+            from .table_extractor import AdaptiveTableExtractor
+            
+            extractor = AdaptiveTableExtractor()
+            
+            # Extract tables from PDF
+            tables = extractor.extract_tables(pdf_path, page_number=0)
+            
+            if not tables:
+                self.logger.debug(f"[Table] No tables found in PDF for '{field_name}'")
+                return None
+            
+            # Find field in tables
+            result = extractor.find_field_in_tables(tables, field_name, field_config, all_words)
+            
+            if result:
+                value, confidence, metadata = result
+                
+                self.logger.info(
+                    f"✅ [Table] Extracted '{field_name}' from table: "
+                    f"value='{value}', confidence={confidence:.2f}"
+                )
+                
+                return FieldValue(
+                    field_id=field_name,
+                    field_name=field_name,
+                    value=value,
+                    confidence=confidence,
+                    method='table_extraction',
+                    metadata=metadata
+                )
+            
+        except Exception as e:
+            self.logger.error(f"[Table] Error extracting '{field_name}': {e}")
+        
+        return None
+    
+    def _looks_like_table_field(self, field_name: str) -> bool:
+        """
+        Check if field name suggests it's in a table
+        
+        Heuristics:
+        - Contains numbers (e.g., area_finding_1, item_2)
+        - Contains table-related keywords (area, item, row, entry)
+        - Has repeating pattern (field_1, field_2, field_3)
+        """
+        field_lower = field_name.lower()
+        
+        # Check for numbers in field name
+        has_number = any(char.isdigit() for char in field_name)
+        
+        # Check for table-related keywords
+        table_keywords = ['area', 'item', 'row', 'entry', 'line', 'record']
+        has_table_keyword = any(keyword in field_lower for keyword in table_keywords)
+        
+        return has_number or has_table_keyword

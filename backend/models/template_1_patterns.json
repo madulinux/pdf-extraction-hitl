@@ -1,9 +1,7 @@
 {
-  "client_name_2": {
+  "area_recomendation_2": {
     "common_prefixes": [],
-    "common_suffixes": [
-      "team"
-    ],
+    "common_suffixes": [],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
@@ -13,7 +11,7 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 60
+    "sample_count": 38
   },
   "surveyor_id": {
     "common_prefixes": [
@@ -29,51 +27,7 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 12
-  },
-  "project_location_2": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 32
-  },
-  "approver_name": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      ")"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 5,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 6
-  },
-  "area_id_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 16
+    "sample_count": 13
   },
   "area_finding_2": {
     "common_prefixes": [],
@@ -87,11 +41,13 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 60
+    "sample_count": 37
   },
-  "surveyor_name": {
+  "project_location_2": {
     "common_prefixes": [],
-    "common_suffixes": [],
+    "common_suffixes": [
+      "site. based"
+    ],
     "structural_noise": {
       "has_parentheses_both": 0,
       "has_parentheses_start": 0,
@@ -101,49 +57,7 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 3
-  },
-  "area_finding_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 60
-  },
-  "area_recomendation_1": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 60
-  },
-  "area_finding_3": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 60
+    "sample_count": 28
   },
   "approver_id": {
     "common_prefixes": [],
@@ -157,9 +71,56 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 60
+    "sample_count": 38
   },
-  "area_id_3": {
+  "surveyor_name": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 2
+  },
+  "client_name": {
+    "common_prefixes": [
+      "project field survey report pt lorem ipsum dolor",
+      "info@lorem.ipsum, www.lorem.ipsum"
+    ],
+    "common_suffixes": [
+      "ii. executive summary observation/finding recomendation"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 20
+  },
+  "area_id_1": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 13
+  },
+  "area_id_2": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -172,6 +133,111 @@
       "has_trailing_period": 0
     },
     "sample_count": 12
+  },
+  "project_location": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 2
+  },
+  "approver_name": {
+    "common_prefixes": [
+      "approved by, project manager"
+    ],
+    "common_suffixes": [
+      ")"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 2,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 7
+  },
+  "area_finding_1": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 36
+  },
+  "survey_date": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 2
+  },
+  "survey_date_2": {
+    "common_prefixes": [],
+    "common_suffixes": [
+      "at the",
+      "at"
+    ],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 8
+  },
+  "area_recomendation_3": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 38
+  },
+  "project_name": {
+    "common_prefixes": [],
+    "common_suffixes": [],
+    "structural_noise": {
+      "has_parentheses_both": 0,
+      "has_parentheses_start": 0,
+      "has_parentheses_end": 0,
+      "has_quotes": 0,
+      "has_brackets": 0,
+      "has_trailing_comma": 0,
+      "has_trailing_period": 0
+    },
+    "sample_count": 4
   },
   "surveyor_name_sign": {
     "common_prefixes": [],
@@ -189,7 +255,7 @@
     },
     "sample_count": 7
   },
-  "project_location": {
+  "client_name_2": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -201,25 +267,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 10
+    "sample_count": 38
   },
-  "survey_date_2": {
-    "common_prefixes": [],
-    "common_suffixes": [
-      "at"
-    ],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 7
-  },
-  "area_recomendation_3": {
+  "area_recomendation_1": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -231,9 +281,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 60
+    "sample_count": 38
   },
-  "project_name": {
+  "area_id_3": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -245,9 +295,9 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 8
+    "sample_count": 14
   },
-  "area_id_2": {
+  "area_finding_3": {
     "common_prefixes": [],
     "common_suffixes": [],
     "structural_noise": {
@@ -259,34 +309,6 @@
       "has_trailing_comma": 0,
       "has_trailing_period": 0
     },
-    "sample_count": 15
-  },
-  "client_name": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 29
-  },
-  "area_recomendation_2": {
-    "common_prefixes": [],
-    "common_suffixes": [],
-    "structural_noise": {
-      "has_parentheses_both": 0,
-      "has_parentheses_start": 0,
-      "has_parentheses_end": 0,
-      "has_quotes": 0,
-      "has_brackets": 0,
-      "has_trailing_comma": 0,
-      "has_trailing_period": 0
-    },
-    "sample_count": 60
+    "sample_count": 37
   }
 }

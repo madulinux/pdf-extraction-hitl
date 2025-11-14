@@ -841,6 +841,53 @@ class AdaptiveLearner:
             if abs(w.get('top', 0) - word_y) < 5
         )
         
+        # ✅ NEW: Column-based features for multi-column layout
+        x_coords = [w.get('x0', 0) for w in all_words]
+        column_boundaries = self._detect_column_boundaries(x_coords)
+        column_idx = self._get_column_index(word_x, column_boundaries)
+        features['column_index'] = column_idx
+        features['in_first_column'] = column_idx == 0
+        features['in_second_column'] = column_idx == 1
+        features['in_third_column'] = column_idx == 2
+        features['in_fourth_column'] = column_idx == 3
+        
+        # ✅ NEW: Line group features for text wrapping detection
+        line_groups = self._detect_line_groups(all_words)
+        line_group_idx = self._get_line_group_index(index, line_groups)
+        features['line_group_index'] = line_group_idx
+        features['is_first_line_in_group'] = self._is_first_line_in_group(index, line_groups)
+        features['is_continuation_line'] = self._is_continuation_line(index, line_groups)
+        
+        # ✅ NEW: Sequence position features (for Finding vs Recommendation)
+        features['relative_x_position'] = word_x / max(x_coords) if x_coords else 0
+        features['is_left_aligned'] = word_x < 200  # Typically Finding
+        features['is_right_aligned'] = word_x > 400  # Typically Recommendation
+        features['is_center_aligned'] = 200 <= word_x <= 400
+        
+        # ✅ NEW: Delimiter detection (for Finding/Recommendation separation)
+        features['is_delimiter'] = text in ['|', '/', '\\', ':', ';']
+        features['after_delimiter'] = False
+        if index > 0 and all_words[index-1].get('text', '') in ['|', '/', '\\', ':', ';']:
+            features['after_delimiter'] = True
+        
+        # ✅ NEW: Number sequence detection (for Area ID, No, etc.)
+        features['is_sequence_number'] = text.isdigit() and len(text) <= 2
+        features['is_long_number'] = text.isdigit() and len(text) > 5  # Area Code
+        features['after_sequence_number'] = False
+        if index > 0 and all_words[index-1].get('text', '').isdigit() and len(all_words[index-1].get('text', '')) <= 2:
+            features['after_sequence_number'] = True
+        
+        # ✅ NEW: Sentence boundary features (for Finding vs Recommendation)
+        features['starts_with_capital'] = text and text[0].isupper()
+        features['after_period'] = index > 0 and all_words[index-1].get('text', '') == '.'
+        features['before_period'] = index < len(all_words) - 1 and all_words[index+1].get('text', '') == '.'
+        
+        # ✅ NEW: Word density features (for table detection)
+        words_in_same_line = [w for w in all_words if abs(w.get('top', 0) - word_y) < 5]
+        features['words_in_line'] = len(words_in_same_line)
+        features['is_dense_line'] = len(words_in_same_line) > 10  # Likely table row
+        features['is_sparse_line'] = len(words_in_same_line) < 5
+        
         return features
     
     def _get_context_for_word(self, word: Dict, field_contexts: Dict[str, Dict]) -> Dict:
@@ -977,6 +1024,106 @@ class AdaptiveLearner:
         except Exception as e:
             print(f"Error loading model from {model_path}: {e}")
             return None
+    
+    def _detect_column_boundaries(self, x_coords: List[float]) -> List[float]:
+        """
+        Detect column boundaries from X-coordinates using clustering
+        
+        Args:
+            x_coords: List of X-coordinates
+            
+        Returns:
+            List of column boundary X-coordinates
+        """
+        if not x_coords:
+            return []
+        
+        # Use simple histogram-based approach
+        import numpy as np
+        
+        x_array = np.array(x_coords)
+        # Create histogram with 20 bins
+        hist, bin_edges = np.histogram(x_array, bins=20)
+        
+        # Find peaks (local maxima) in histogram
+        peaks = []
+        for i in range(1, len(hist) - 1):
+            if hist[i] > hist[i-1] and hist[i] > hist[i+1] and hist[i] > 5:
+                # Peak found, use bin center as column boundary
+                peak_x = (bin_edges[i] + bin_edges[i+1]) / 2
+                peaks.append(peak_x)
+        
+        return sorted(peaks)
+    
+    def _get_column_index(self, x: float, column_boundaries: List[float]) -> int:
+        """Get column index for a given X-coordinate"""
+        if not column_boundaries:
+            return 0
+        
+        for i, boundary in enumerate(column_boundaries):
+            if x < boundary:
+                return i
+        
+        return len(column_boundaries)
+    
+    def _detect_line_groups(self, words: List[Dict]) -> List[List[int]]:
+        """Detect line groups for text wrapping detection"""
+        if not words:
+            return []
+        
+        # Group words by Y-coordinate (same line)
+        lines = {}
+        for i, word in enumerate(words):
+            y = round(word.get('top', 0), 1)
+            if y not in lines:
+                lines[y] = []
+            lines[y].append(i)
+        
+        # Sort lines by Y-coordinate
+        sorted_y = sorted(lines.keys())
+        
+        # Group consecutive lines that are close together
+        line_groups = []
+        current_group = []
+        prev_y = None
+        
+        for y in sorted_y:
+            if prev_y is None:
+                current_group = lines[y]
+            else:
+                if y - prev_y < 20:
+                    current_group.extend(lines[y])
+                else:
+                    if current_group:
+                        line_groups.append(current_group)
+                    current_group = lines[y]
+            prev_y = y
+        
+        if current_group:
+            line_groups.append(current_group)
+        
+        return line_groups
+    
+    def _get_line_group_index(self, word_idx: int, line_groups: List[List[int]]) -> int:
+        """Get line group index for a given word index"""
+        for i, group in enumerate(line_groups):
+            if word_idx in group:
+                return i
+        return -1
+    
+    def _is_first_line_in_group(self, word_idx: int, line_groups: List[List[int]]) -> bool:
+        """Check if word is on the first line of its group"""
+        for group in line_groups:
+            if word_idx in group:
+                return word_idx == group[0] or word_idx in group[:5]
+        return False
+    
+    def _is_continuation_line(self, word_idx: int, line_groups: List[List[int]]) -> bool:
+        """Check if word is on a continuation line (wrapped text)"""
+        for group in line_groups:
+            if word_idx in group:
+                return word_idx not in group[:5]
+        return False
     
     def get_feature_importance(self) -> Dict[str, float]:
         """
