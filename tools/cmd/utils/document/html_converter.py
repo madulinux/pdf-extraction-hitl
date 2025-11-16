@@ -124,21 +124,21 @@ def _convert_with_mammoth(docx_path: str) -> Optional[str]:
             # Wrap in HTML structure if needed
             if "<html" not in html_content:
                 html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Document</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; }}
-        th {{ background-color: #f2f2f2; }}
-    </style>
-</head>
-<body>
-{html_content}
-</body>
-</html>"""
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Document</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; }}
+                        table {{ border-collapse: collapse; width: 100%; }}
+                        th, td {{ border: 1px solid #ddd; padding: 8px; }}
+                        th {{ background-color: #f2f2f2; }}
+                    </style>
+                </head>
+                <body>
+                {html_content}
+                </body>
+                </html>"""
             
             # logger.info("Successfully converted DOCX to HTML using mammoth")
             return html_content

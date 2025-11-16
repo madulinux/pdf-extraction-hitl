@@ -6,7 +6,7 @@ while using the new hybrid extraction strategy internally.
 """
 from typing import Dict, Any, Optional
 from .hybrid_strategy import HybridExtractionStrategy
-
+import logging
 
 class DataExtractor:
     """
@@ -26,8 +26,7 @@ class DataExtractor:
         """
         self.config = template_config
         self.model_path = model_path
-        
-        print(f"🔍 [DataExtractor] Initialized with model_path: {model_path}")
+        self.logger = logging.getLogger(__name__)
         
         # Initialize database connection
         from database.db_manager import DatabaseManager
@@ -41,13 +40,13 @@ class DataExtractor:
         from core.extraction.post_processor import AdaptivePostProcessor
         
         try:
-            print(f"🔧 [DataExtractor] Initializing PostProcessor for template {template_id}...")
+            # print(f"🔧 [DataExtractor] Initializing PostProcessor for template {template_id}...")
             self.post_processor = AdaptivePostProcessor(template_id, db)
-            print(f"✅ [DataExtractor] PostProcessor initialized successfully")
-            print(f"   Loaded patterns for {len(self.post_processor.learned_patterns)} fields")
+            # print(f"✅ [DataExtractor] PostProcessor initialized successfully")
+            # print(f"   Loaded patterns for {len(self.post_processor.learned_patterns)} fields")
         except Exception as e:
-            print(f"⚠️ Post-processor initialization failed: {e}")
-            print(f"   Continuing without post-processing...")
+            self.logger.error(f"⚠️ Post-processor initialization failed: {e}")
+            # self.logger.error(f"   Continuing without post-processing...")
             import traceback
             traceback.print_exc()
             self.post_processor = None
@@ -70,7 +69,7 @@ class DataExtractor:
             }
         """
         # Use hybrid strategy for extraction
-        print(f"🔍 [DataExtractor] Calling hybrid_strategy.extract_all_fields with model_path: {self.model_path}")
+        # print(f"🔍 [DataExtractor] Calling hybrid_strategy.extract_all_fields with model_path: {self.model_path}")
         results = self.hybrid_strategy.extract_all_fields(
             pdf_path=pdf_path,
             template_config=self.config,
@@ -81,10 +80,11 @@ class DataExtractor:
         if self.post_processor:
             # ✅ CRITICAL: Reload patterns before processing to get latest learned patterns
             self.post_processor.reload_patterns()
-            print(f"🧹 [DataExtractor] Applying adaptive post-processing...")
+            # print(f"🧹 [DataExtractor] Applying adaptive post-processing...")
             results = self.post_processor.process_results(results)
         else:
-            print(f"⚠️ [DataExtractor] Post-processing skipped (not initialized)")
+            self.logger.warning("⚠️ [DataExtractor] Post-processing skipped (not initialized)")
+            # print(f"⚠️ [DataExtractor] Post-processing skipped (not initialized)")
         
         # Ensure backward compatibility with old format
         # Old format used 'extraction_method' (singular)
@@ -122,9 +122,9 @@ class DataExtractor:
                     extraction_results=extraction_results,
                     corrections=corrections
                 )
-                print(f"✅ Post-processor learned from {len(corrections)} corrections")
+                # print(f"✅ Post-processor learned from {len(corrections)} corrections")
             except Exception as e:
-                print(f"⚠️ Post-processor learning failed: {e}")
+                self.logger.error(f"⚠️ Post-processor learning failed: {e}")
     
     def get_performance_metrics(self) -> Dict[str, Any]:
         """

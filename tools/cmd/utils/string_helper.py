@@ -5,6 +5,32 @@ import json
 from typing import List
 
 
+def get_name(gender: str = None, with_title: bool = True):
+    from faker import Faker
+
+    fake = Faker("id_ID")
+
+    if with_title == False:
+        if gender:
+            return (
+                f"{fake.first_name_female()} {fake.last_name()}"
+                if gender == "Perempuan"
+                else f"{fake.first_name_male()} {fake.last_name()}"
+            )
+        else:
+            try:
+                return fake.name_without_title()
+            except:
+                return f"{fake.first_name()} {fake.last_name()}"
+
+    if gender:
+        name = fake.name_female() if gender == "Perempuan" else fake.name_male()
+    else:
+        name = fake.name()
+
+    return name
+
+
 def get_nik(
     gender: str = "Laki-Laki",
     date_of_birth: datetime = None,

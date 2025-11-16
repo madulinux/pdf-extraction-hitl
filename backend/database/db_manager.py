@@ -10,15 +10,39 @@ from typing import Dict, List, Optional, Any
 
 
 class DatabaseManager:
+    # Flag to ensure migrations only run once per process
+    _migrations_applied = False
+
     def __init__(self, db_path: str = "data/app.db"):
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.init_database()
+
+        # Run migrations only once per process to avoid contention and
+        # expensive DDL on every DatabaseManager() construction.
+        if not DatabaseManager._migrations_applied:
+            self.init_database()
+            DatabaseManager._migrations_applied = True
 
     def get_connection(self):
         """Create and return a database connection"""
-        conn = sqlite3.connect(self.db_path)
+        # Configure SQLite for better concurrency:
+        # - timeout: wait for a while if the database is locked
+        # - check_same_thread=False: allow usage from different threads
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=30,
+            check_same_thread=False,
+        )
         conn.row_factory = sqlite3.Row
+
+        # Use WAL mode to improve concurrent reads while a writer is active.
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            # PRAGMA failures should not break normal operation
+            pass
+
         return conn
 
     def init_database(self):

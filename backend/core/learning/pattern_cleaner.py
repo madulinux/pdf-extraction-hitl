@@ -49,7 +49,7 @@ class PatternCleaner:
         Returns:
             Dict with cleanup results
         """
-        self.logger.info(f"🧹 Starting pattern cleanup (dry_run={dry_run})")
+        # self.logger.info(f"🧹 Starting pattern cleanup (dry_run={dry_run})")
         
         results = {
             'deactivated': [],
@@ -63,7 +63,7 @@ class PatternCleaner:
             patterns = self._get_patterns_for_cleanup(template_id, field_name)
             results['total_evaluated'] = len(patterns)
             
-            self.logger.info(f"Found {len(patterns)} patterns to evaluate")
+            # self.logger.info(f"Found {len(patterns)} patterns to evaluate")
             
             for pattern in patterns:
                 action = self._evaluate_pattern(pattern)
@@ -91,12 +91,12 @@ class PatternCleaner:
                 else:
                     results['kept'].append(pattern['id'])
             
-            self.logger.info(
-                f"✅ Cleanup complete: "
-                f"{len(results['deactivated'])} deactivated, "
-                f"{len(results['deleted'])} deleted, "
-                f"{len(results['kept'])} kept"
-            )
+            # self.logger.info(
+            #     f"✅ Cleanup complete: "
+            #     f"{len(results['deactivated'])} deactivated, "
+            #     f"{len(results['deleted'])} deleted, "
+            #     f"{len(results['kept'])} kept"
+            # )
             
             return results
             
@@ -181,16 +181,16 @@ class PatternCleaner:
         
         # Rule 4: Deactivate if very negative confidence
         if confidence_boost < self.negative_confidence_threshold:
-            self.logger.warning(
-                f"⚠️ Pattern {pattern['id']} has negative confidence: {confidence_boost:.3f}"
-            )
+            # self.logger.warning(
+            #     f"⚠️ Pattern {pattern['id']} has negative confidence: {confidence_boost:.3f}"
+            # )
             return 'deactivate'
         
         # Rule 5: Deactivate if low success rate
         if success_rate < self.min_success_rate:
-            self.logger.warning(
-                f"⚠️ Pattern {pattern['id']} has low success rate: {success_rate:.1%}"
-            )
+            # self.logger.warning(
+            #     f"⚠️ Pattern {pattern['id']} has low success rate: {success_rate:.1%}"
+            # )
             return 'deactivate'
         
         return 'keep'
@@ -222,13 +222,13 @@ class PatternCleaner:
             WHERE id = ?
         """
         self.db.execute_update(query, (pattern_id,))
-        self.logger.info(f"🔴 Deactivated pattern {pattern_id}")
+        # self.logger.info(f"🔴 Deactivated pattern {pattern_id}")
     
     def _delete_pattern(self, pattern_id: int):
         """Delete a pattern permanently"""
         query = "DELETE FROM learned_patterns WHERE id = ?"
         self.db.execute_update(query, (pattern_id,))
-        self.logger.info(f"🗑️ Deleted pattern {pattern_id}")
+        # self.logger.info(f"🗑️ Deleted pattern {pattern_id}")
     
     def get_cleanup_report(
         self,

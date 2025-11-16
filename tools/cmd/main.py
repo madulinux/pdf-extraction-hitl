@@ -18,6 +18,7 @@ from utils.string_helper import (
     get_kabupaten,
     get_kecamatan,
     get_kelurahan,
+    get_name,
     get_nik,
     get_provinsi,
     get_random_no_hp,
@@ -269,9 +270,9 @@ def _letter_template_values():
     rw = fake.random_int(min=1, max=99)
 
     return {
-        "kop_kabupaten": kabupaten.get("name").upper(),
-        "kop_kecamatan": kecamatan.get("name").upper(),
-        "kop_desa": desa.get("name").upper(),
+        "kabupaten_kop": kabupaten.get("name").upper(),
+        "kecamatan_kop": kecamatan.get("name").upper(),
+        "desa_kop": desa.get("name").upper(),
         "alamat_kantor_desa": fake.street_address(),
         "telp_kantor_desa": fake.phone_number(),
         "nomor_surat": nomor_surat,
@@ -279,23 +280,24 @@ def _letter_template_values():
         "kecamatan": kecamatan.get("name").title(),
         "kabupaten": kabupaten.get("name").title(),
         "nik": nik,
-        "nama_lengkap": (
-            fake.name_female() if gender == "Perempuan" else fake.name_male()
-        ),
+        "nama_lengkap": get_name(gender=gender, with_title=False),
         "tempat_lahir": tempat_lahir.get("name").title(),
         "tanggal_lahir": date_of_birth.strftime("%d-%m-%Y"),
         "jenis_kelamin": gender,
         "pekerjaan": fake.job(),
         "agama": agama,
         "status_kawin": status_perkawinan,
-        "alamat": fake.street_address(),
-        "keperluan": fake.sentence(nb_words=7),
-        "rt": str(rt).zfill(3),
-        "rw": str(rw).zfill(3),
-        "kabupaten_sign": kabupaten.get("name").title(),
-        "tanggal_sign": tanggal_sign.strftime("%d-%m-%Y"),
-        "desa_sign": desa.get("name").title(),
-        "kepala_desa": fake.name(),
+        "alamat": fake.street_address()
+        + " RT."
+        + str(rt).zfill(3)
+        + " RW."
+        + str(rw).zfill(3),
+        "keperluan": fake.sentence(nb_words=3)
+        .replace(".", "")
+        .replace("!", "")
+        .replace("?", "")
+        .replace(",", ""),
+        "tanggal_surat": tanggal_sign.strftime("%d-%m-%Y"),
     }
 
 
@@ -312,10 +314,10 @@ def _letter_template_values_bk():
         "letter_reference_number": id,
         "id_number": get_nik(),
         "date_issued": event_date.strftime("%B %d, %Y"),
-        "full_name": fake.name(),
+        "full_name": fake.name_nonbinary(),
         "address": fake.address(),
         "occupation": fake.job(),
-        "official_name": fake.name(),
+        "official_name": fake.name_nonbinary(),
     }
 
 
@@ -332,15 +334,12 @@ def _form_template_values():
     desa = get_kelurahan()
     kecamatan = get_kecamatan(id=desa.get("kecamatan_id"))
     kabupaten = get_kabupaten(id=kecamatan.get("kabupaten_id"))
-    provinsi = get_provinsi(id=kabupaten.get("provinsi_id"))
     tempat_lahir = get_kabupaten()
     nik = get_nik(gender, date_of_birth, kabupaten_id=tempat_lahir.get("id"))
 
     return {
         "nik": nik,
-        "nama_lengkap": (
-            fake.name_female() if gender == "Perempuan" else fake.name_male()
-        ),
+        "nama_lengkap": get_name(gender=gender, with_title=False),
         "jenis_kelamin": gender,
         "tempat_lahir": tempat_lahir.get("name").title(),
         "tanggal_lahir": date_of_birth.strftime("%d-%m-%Y"),
@@ -349,7 +348,6 @@ def _form_template_values():
         "usia": str(usia),
         "kecamatan": kecamatan.get("name").title(),
         "kabupaten": kabupaten.get("name").title(),
-        "provinsi": provinsi.get("name").title(),
         "no_hp": get_random_no_hp(),
         "email": fake.email(),
         "kabupaten_daftar": get_kabupaten().get("name").title(),
@@ -368,7 +366,7 @@ def _report_template_values():
     project_name = fake.bs()
     project_location = fake.city()
     survey_date = fake.date_between(start_date="-2y", end_date="-1d")
-    surveyor_name = fake.name()
+    surveyor_name = get_name(with_title=False)
     client_name = fake.company()
 
     return {
@@ -377,7 +375,9 @@ def _report_template_values():
         "survey_date": survey_date.strftime("%B %d, %Y"),
         "surveyor_name": surveyor_name,
         "client_name": client_name,
-        "survey_date_2": survey_date.strftime("%B %d, %Y"),  # ✅ Keep same format as survey_date
+        "survey_date_2": survey_date.strftime(
+            "%B %d, %Y"
+        ),  # ✅ Keep same format as survey_date
         "project_location_2": project_location,  # ✅ Keep full value, same as project_location
         "client_name_2": client_name,  # ✅ Keep full value, same as client_name
         "area_id_1": fake.sbn9(separator=""),
@@ -389,7 +389,7 @@ def _report_template_values():
         "area_id_3": fake.sbn9(separator=""),
         "area_finding_3": fake.sentence(nb_words=4),
         "area_recomendation_3": fake.sentence(nb_words=9),
-        "approver_name": fake.name(),
+        "approver_name": get_name(with_title=False),
         "approver_id": get_nik(),
         "surveyor_name_sign": surveyor_name,
         "surveyor_id": get_nik(),
@@ -513,7 +513,7 @@ def _contract_template_values():
     kabupaten = get_kabupaten()
     return {
         "contract_number": _certificate_number("contract"),
-        "company_representative_name": fake.name(),
+        "company_representative_name": fake.name_nonbinary(),
         "company_representative_position": fake.job(),
         "company_representative_address": fake.street_address(),
         "employee_name": (
@@ -643,7 +643,7 @@ def _invoice_template_values():
     )
 
     return {
-        "nama_pelanggan": fake.name(),
+        "nama_pelanggan": get_name(with_title=False),
         "alamat_pelanggan": fake.street_address(),
         "telp_pelanggan": get_random_no_hp(),
         "nomor_invoice": _certificate_number(
@@ -667,7 +667,7 @@ def _invoice_template_values():
         "diskon": _rupiah_format(diskon),
         "ppn": _rupiah_format(ppn11),
         "total_akhir": _rupiah_format(total),
-        "nama_direktur": fake.name(),
+        "nama_direktur": get_name(with_title=False),
     }
 
 
@@ -778,7 +778,7 @@ def _medical_form_template_values():
         "patient_occupation": fake.job(),
         "insurance_number": _certificate_number("medical_form"),
         "exam_date": exam_date.strftime("%d-%m-%Y"),
-        "doctor_name": fake.name(),
+        "doctor_name": fake.name_nonbinary(),
         "chief_complaint": fake.sentence(nb_words=fake.random_int(min=4, max=13)),
         "medical_history": fake.sentence(nb_words=fake.random_int(min=4, max=13)),
         "blood_pressure": f"{fake.random_int(min=100, max=200)} mmHg",
@@ -801,9 +801,9 @@ def _certificate_template_values():
 
     event_date = fake.date_between(start_date="-20y", end_date="-1d")
 
-    instructor_name = fake.name()
+    instructor_name = get_name(with_title=False)
     return {
-        "recipient_name": fake.name(),
+        "recipient_name": get_name(with_title=False),
         "course_name": _get_course_name(),
         "completed_at": event_date.strftime("%B %d, %Y"),
         "course_hours": fake.random_int(min=24, max=99),

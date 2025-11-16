@@ -479,7 +479,10 @@ class AutomatedSeeder:
             results.append(result)
 
             # Small delay to avoid overwhelming the API
-            time.sleep(1)
+            logger.info(f"⏳ Waiting for 8 seconds...")
+            for i in range(8):
+                logger.info(f"⏳ {i+1}/8")
+                time.sleep(1)
 
         # 5. Calculate summary statistics
         successful = [r for r in results if r.get("success")]

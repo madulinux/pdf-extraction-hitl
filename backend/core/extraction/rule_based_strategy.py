@@ -30,13 +30,13 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         
         # ✅ NEW: Try table extraction first for table-like fields
         # This is part of rule-based strategy (structured data extraction)
-        self.logger.debug(f"🔍 [{field_name}] Checking if table extraction needed...")
+        # self.logger.debug(f"🔍 [{field_name}] Checking if table extraction needed...")
         table_result = self._try_table_extraction(pdf_path, field_config, all_words)
         if table_result:
-            self.logger.info(f"✅ [{field_name}] Table extraction SUCCESS: {table_result.value[:50]}")
+            # self.logger.info(f"✅ [{field_name}] Table extraction SUCCESS: {table_result.value[:50]}")
             return table_result
-        else:
-            self.logger.debug(f"⚠️ [{field_name}] Table extraction returned None - falling back to patterns")
+        # else:
+        #     self.logger.debug(f"⚠️ [{field_name}] Table extraction returned None - falling back to patterns")
         
         # Get patterns: base pattern + learned patterns from feedback
         patterns = self._get_all_patterns(field_config)
@@ -91,7 +91,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         # ✅ CRITICAL: If learned pattern has good confidence, use it immediately
                         # This prevents base pattern from overriding good learned patterns
                         if result.confidence >= 0.7:
-                            self.logger.info(f"✅ [{field_name}] Using learned pattern (priority={pattern_info.get('priority')}, conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
+                            # self.logger.info(f"✅ [{field_name}] Using learned pattern (priority={pattern_info.get('priority')}, conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
                             return best_result
                     else:
                         # ❌ Track failed pattern attempt
@@ -124,7 +124,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                             best_result.metadata['pattern_type'] = pattern_info.get('type', 'manual')
                             best_result.metadata['pattern_id'] = None
                             
-                            self.logger.info(f"⚠️ [{field_name}] Fallback to base pattern (conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
+                            # self.logger.info(f"⚠️ [{field_name}] Fallback to base pattern (conf={result.confidence:.2f}): {pattern_info['pattern'][:50]}")
                                 
                     except Exception as e:
                         self.logger.error(f"Error extracting from location: {e}")
@@ -202,14 +202,14 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         })
         
         # Log base pattern being used
-        self.logger.info(f"📋 [{field_name}] Base pattern: {base_pattern[:50]}... (source: {patterns[0]['source']})")
+        # self.logger.info(f"📋 [{field_name}] Base pattern: {base_pattern[:50]}... (source: {patterns[0]['source']})")
         
         # Try to load learned patterns from database first
         db_patterns = self._load_patterns_from_db(field_config)
         if db_patterns:
-            self.logger.info(f"🎓 [{field_name}] Loaded {len(db_patterns)} learned patterns from database")
-            for idx, p in enumerate(db_patterns[:3]):  # Log top 3
-                self.logger.info(f"   Pattern {idx+1}: {p['type']} - {p['pattern'][:50]}... (priority: {p.get('priority', 0)})")
+            # self.logger.info(f"🎓 [{field_name}] Loaded {len(db_patterns)} learned patterns from database")
+            # for idx, p in enumerate(db_patterns[:3]):  # Log top 3
+                # self.logger.info(f"   Pattern {idx+1}: {p['type']} - {p['pattern'][:50]}... (priority: {p.get('priority', 0)})")
             patterns.extend(db_patterns)
         else:
             # Fallback: Load from JSON config (backward compatibility)
@@ -217,7 +217,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             learned_patterns = rules.get('learned_patterns', [])
             
             if learned_patterns:
-                self.logger.debug(f"Found {len(learned_patterns)} learned patterns in config")
+                # self.logger.debug(f"Found {len(learned_patterns)} learned patterns in config")
                 for lp in learned_patterns:
                     patterns.append({
                         'pattern': lp.get('pattern', r'.+'),
@@ -357,15 +357,15 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             
             # Strategy 1: Try label-based extraction (most accurate)
             if label and label_pos:
-                self.logger.debug(f"Trying label-based extraction for {field_name} with label: {label}")
+                # self.logger.debug(f"Trying label-based extraction for {field_name} with label: {label}")
                 result = self._extract_with_label(
                     label, label_pos, field_name, regex_pattern, all_words, context
                 )
                 if result:
-                    self.logger.info(f"✅ Label-based extraction succeeded for {field_name}")
+                    # self.logger.info(f"✅ Label-based extraction succeeded for {field_name}")
                     return result
-                else:
-                    self.logger.debug(f"Label-based extraction failed, falling back to position-based")
+                # else:
+                #     self.logger.debug(f"Label-based extraction failed, falling back to position-based")
             
             # Strategy 2: Fall back to position-based extraction
             return self._extract_with_position(location, field_name, regex_pattern, all_words)
@@ -692,7 +692,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         # Heuristic: field name contains numbers (e.g., area_finding_1, area_id_2)
         # or field name suggests tabular data (e.g., contains 'area', 'item', 'row')
         is_table_field = self._looks_like_table_field(field_name)
-        self.logger.debug(f"[Table] Field '{field_name}' looks_like_table: {is_table_field}")
+        # self.logger.debug(f"[Table] Field '{field_name}' looks_like_table: {is_table_field}")
         
         if not is_table_field:
             return None
@@ -706,7 +706,7 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             tables = extractor.extract_tables(pdf_path, page_number=0)
             
             if not tables:
-                self.logger.debug(f"[Table] No tables found in PDF for '{field_name}'")
+                # self.logger.debug(f"[Table] No tables found in PDF for '{field_name}'")
                 return None
             
             # Find field in tables
@@ -717,10 +717,10 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             if result:
                 value, confidence, metadata = result
                 
-                self.logger.info(
-                    f"✅ [Table] Extracted '{field_name}' from table: "
-                    f"value='{value}', confidence={confidence:.2f}"
-                )
+                # self.logger.info(
+                #     f"✅ [Table] Extracted '{field_name}' from table: "
+                #     f"value='{value}', confidence={confidence:.2f}"
+                # )
                 
                 return FieldValue(
                     field_id=field_name,

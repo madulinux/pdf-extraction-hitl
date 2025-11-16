@@ -30,9 +30,9 @@ class CRFExtractionStrategy(ExtractionStrategy):
             import os
 
             if not os.path.exists(model_path):
-                print(f"❌ [CRF] Model file not found: {model_path}")
                 self.model = None
                 self.model_mtime = None
+                self.logger.error(f"❌ [CRF] Model file not found: {model_path}")
                 return
 
             # Check if model file has been updated
@@ -46,21 +46,21 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 # Model already loaded and file hasn't changed
                 return
 
-            print(f"🔍 [CRF] Loading model from: {model_path}")
+            # print(f"🔍 [CRF] Loading model from: {model_path}")
             self.model = joblib.load(model_path)
             self.model_mtime = current_mtime
-            print(f"✅ [CRF] Model loaded successfully (mtime: {current_mtime})")
-            print(f"✅ [CRF] Model type: {type(self.model)}")
+            # print(f"✅ [CRF] Model loaded successfully (mtime: {current_mtime})")
+            # print(f"✅ [CRF] Model type: {type(self.model)}")
 
             # ✅ DEBUG: Show what labels the model knows
             if hasattr(self.model, "classes_"):
-                print(f"📋 [CRF] Model knows these labels: {self.model.classes_}")
+                self.logger.info(f"📋 [CRF] Model knows these labels: {self.model.classes_}")
 
         except Exception as e:
-            print(f"❌ [CRF] Error loading model: {e}")
+            self.logger.error(f"❌ [CRF] Error loading model: {e}")
             import traceback
 
-            print(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
             self.model = None
             self.model_mtime = None
 
@@ -89,10 +89,10 @@ class CRFExtractionStrategy(ExtractionStrategy):
         self.reload_model_if_updated()
 
         if not self.model:
-            print(f"❌ [CRF] Model not available for field '{field_name}'")
+            self.logger.error(f"❌ [CRF] Model not available for field '{field_name}'")
             return None
 
-        print(f"🤖 [CRF] Model IS available, extracting '{field_name}'...")
+        self.logger.info(f"🤖 [CRF] Model IS available, extracting '{field_name}'...")
 
         try:
             # Get all locations for context
@@ -117,32 +117,30 @@ class CRFExtractionStrategy(ExtractionStrategy):
             target_label = f"B-{field_name.upper()}"
             inside_label = f"I-{field_name.upper()}"
 
-            print(f"🔍 [CRF] Looking for labels: {target_label}, {inside_label}")
-            print(f"🔍 [CRF] Predictions sample (first 10): {predictions[:10]}")
-            print(f"🔍 [CRF] Unique labels in predictions: {set(predictions)}")
+            # print(f"🔍 [CRF] Looking for labels: {target_label}, {inside_label}")
+            # print(f"🔍 [CRF] Predictions sample (first 10): {predictions[:10]}")
+            # print(f"🔍 [CRF] Unique labels in predictions: {set(predictions)}")
 
             extracted_tokens = []
             confidences = []
 
             # ✅ ADAPTIVE: Get next field boundary (Y and X)
             next_field_y = context.get("next_field_y")
-            print(f"   📏 [Debug] next_field_y from context: {next_field_y}")
+            # print(f"   📏 [Debug] next_field_y from context: {next_field_y}")
 
             # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
             words_after = context.get("words_after", [])
             next_field_x = None
             if words_after and len(words_after) > 0:
                 next_field_x = words_after[0].get("x")
-                print(f"   📏 [Debug] next_field_x from words_after: {next_field_x}")
+                # print(f"   📏 [Debug] next_field_x from words_after: {next_field_x}")
 
             # ✅ ADAPTIVE: Get typical field length (learned from training data)
             typical_length = context.get("typical_length")
             max_length = (
                 int(typical_length * 1.3) if typical_length else None
             )  # 1.3x = 30% tolerance
-            print(
-                f"   📏 [Debug] typical_length: {typical_length}, max_length: {max_length}"
-            )
+            # print(f"   📏 [Debug] typical_length: {typical_length}, max_length: {max_length}")
 
             # ✅ ADAPTIVE: Track parentheses state to skip content inside
             inside_parentheses = False
@@ -162,33 +160,21 @@ class CRFExtractionStrategy(ExtractionStrategy):
                         if next_field_x:
                             # Same-line field: use X-boundary only
                             if word_x0 >= next_field_x:
-                                print(
-                                    f"   🛑 [Adaptive] Stopped at next field X boundary (word_x0={word_x0} >= next_field_x={next_field_x})"
-                                )
-                                print(
-                                    f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before X boundary"
-                                )
+                                # print(f"   🛑 [Adaptive] Stopped at next field X boundary (word_x0={word_x0} >= next_field_x={next_field_x})")
+                                # print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before X boundary")
                                 break
                         else:
                             # Different-line field: use Y-boundary
                             if next_field_y and word_y >= next_field_y:
-                                print(
-                                    f"   🛑 [Adaptive] Stopped at next field Y boundary (word_y={word_y} >= next_field_y={next_field_y})"
-                                )
-                                print(
-                                    f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before boundary"
-                                )
+                                # print(f"   🛑 [Adaptive] Stopped at next field Y boundary (word_y={word_y} >= next_field_y={next_field_y})")
+                                # print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before boundary")
                                 break
 
                         # ✅ ADAPTIVE: Stop if extracted length exceeds typical length (learned from training)
                         current_length = len(" ".join(extracted_tokens + [word_text]))
                         if max_length and current_length > max_length:
-                            print(
-                                f"   🛑 [Adaptive] Stopped at length limit (current={current_length} > max={max_length})"
-                            )
-                            print(
-                                f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before length limit"
-                            )
+                            # print(f"   🛑 [Adaptive] Stopped at length limit (current={current_length} > max={max_length})")
+                            # print(f"   📊 [Adaptive] Extracted {len(extracted_tokens)} tokens before length limit")
                             break
 
                         # ✅ ADAPTIVE: Track and skip ALL content inside parentheses
@@ -220,7 +206,7 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     parts = raw_value.split(label, 1)
                     if len(parts) > 1:
                         raw_value = parts[1].strip()
-                        print(f"   🎯 [Adaptive] Removed text before label '{label}'")
+                        # print(f"   🎯 [Adaptive] Removed text before label '{label}'")
 
                 # ✅ CRITICAL FIX: Apply post-processing like rule-based does
                 # This removes parentheses, trailing commas, etc.
@@ -228,11 +214,9 @@ class CRFExtractionStrategy(ExtractionStrategy):
                     raw_value, field_name, raw_value
                 )
 
-                print(
-                    f"✅ [CRF] Extracted '{field_name}': {cleaned_value[:50]}... (conf: {avg_confidence:.2f})"
-                )
-                if raw_value != cleaned_value:
-                    print(f"   🧹 Cleaned: '{raw_value}' → '{cleaned_value}'")
+                # print(f"✅ [CRF] Extracted '{field_name}': {cleaned_value[:50]}... (conf: {avg_confidence:.2f})")
+                # if raw_value != cleaned_value:
+                    # print(f"   🧹 Cleaned: '{raw_value}' → '{cleaned_value}'")
 
                 return FieldValue(
                     field_id=field_name,
@@ -249,30 +233,26 @@ class CRFExtractionStrategy(ExtractionStrategy):
                 )
 
             # ✅ DETAILED LOGGING: Why CRF returned None
-            print(f"⚠️ [CRF] No tokens found for '{field_name}'")
-            print(f"   Looking for: {target_label}, {inside_label}")
-            print(f"   Total predictions: {len(predictions)}")
-            print(f"   Unique labels predicted: {set(predictions)}")
+            # print(f"⚠️ [CRF] No tokens found for '{field_name}'")
+            # print(f"   Looking for: {target_label}, {inside_label}")
+            # print(f"   Total predictions: {len(predictions)}")
+            # print(f"   Unique labels predicted: {set(predictions)}")
 
             # Count how many times target field was predicted (even if not selected)
-            target_count = sum(1 for p in predictions if field_name.upper() in p)
-            if target_count > 0:
-                print(
-                    f"   ⚠️ Model predicted {target_count} tokens with '{field_name.upper()}' but none matched B-/I- pattern!"
-                )
+            # target_count = sum(1 for p in predictions if field_name.upper() in p)
+            # if target_count > 0:
+                # print(f"   ⚠️ Model predicted {target_count} tokens with '{field_name.upper()}' but none matched B-/I- pattern!")
                 # Show sample predictions with indices
-                related_preds = [
-                    (i, all_words[i]["text"], p)
-                    for i, p in enumerate(predictions)
-                    if field_name.upper() in p and i < len(all_words)
-                ]
-                print(f"   Sample predictions: {related_preds[:5]}")
-            else:
-                print(f"   ℹ️ Model did not predict any tokens for this field")
+                # related_preds = [
+                #     (i, all_words[i]["text"], p)
+                #     for i, p in enumerate(predictions)
+                #     if field_name.upper() in p and i < len(all_words)
+                # ]
+                # print(f"   Sample predictions: {related_preds[:5]}")
+            # else:
+            #     print(f"   ℹ️ Model did not predict any tokens for this field")
 
-            self.logger.debug(
-                f"⚠️ CRF: No tokens found for '{field_name}' (predicted {target_count} related tokens)"
-            )
+            # self.logger.debug(f"⚠️ CRF: No tokens found for '{field_name}' (predicted {target_count} related tokens)")
             return None
 
         except Exception as e:
@@ -618,10 +598,8 @@ class CRFExtractionStrategy(ExtractionStrategy):
             if target_field:
                 word_features[f"target_field_{target_field}"] = True
                 # Debug: Log first word to verify feature is added
-                if i == 0:
-                    print(
-                        f"🔍 [CRF] Added field-aware feature: target_field_{target_field}=True"
-                    )
+                # if i == 0:
+                #     print(f"🔍 [CRF] Added field-aware feature: target_field_{target_field}=True")
 
             features.append(word_features)
 

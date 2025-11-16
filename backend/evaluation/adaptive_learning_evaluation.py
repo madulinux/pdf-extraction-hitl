@@ -12,8 +12,6 @@ This script evaluates:
 import sys
 import os
 
-from backend.core.templates.services import TemplateService
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json

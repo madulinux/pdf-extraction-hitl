@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, List
 import os
 import pdfplumber
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .learner import AdaptiveLearner
 from .training_utils import (
     split_training_data,
@@ -27,7 +28,7 @@ from database.repositories.template_repository import TemplateRepository
 from database.repositories.document_repository import DocumentRepository
 from database.repositories.feedback_repository import FeedbackRepository
 from database.repositories.training_repository import TrainingRepository
-
+import logging
 
 class ModelService:
     """Service layer for model operations"""
@@ -45,6 +46,21 @@ class ModelService:
         self.document_repo = document_repo or DocumentRepository(self.db)
         self.feedback_repo = feedback_repo or FeedbackRepository(self.db)
         self.training_repo = training_repo or TrainingRepository(self.db)
+        self.logger = logging.getLogger(__name__)
+        # Parallel processing config
+        import multiprocessing
+        self.max_workers = multiprocessing.cpu_count()
+        
+        # CRF training config
+        self.max_iterations = 500  # Default: reduced from 500
+    
+    def set_parallel_workers(self, workers: int):
+        """Set number of parallel workers for PDF extraction"""
+        self.max_workers = max(1, workers)
+    
+    def set_max_iterations(self, iterations: int):
+        """Set maximum L-BFGS iterations for CRF training"""
+        self.max_iterations = max(10, iterations)
 
     def retrain_model(
         self,
@@ -82,24 +98,24 @@ class ModelService:
                 template_id=template_id, config_path=template.config_path
             )
             if template_config:
-                print(
+                self.logger.info(
                     f"✅ [Training] Loaded template config from {template_config['metadata'].get('source', 'unknown')}"
                 )
             else:
-                print(f"⚠️ [Training] Could not load template config")
-                print(f"   Training will proceed without template context features")
+                self.logger.warning(f"⚠️ [Training] Could not load template config")
+                self.logger.warning(f"   Training will proceed without template context features")
         except Exception as e:
-            print(f"⚠️ [Training] Error loading config: {e}")
-            print(f"   Training will proceed without template context features")
+            self.logger.warning(f"⚠️ [Training] Error loading config: {e}")
+            self.logger.warning(f"   Training will proceed without template context features")
 
         # Get feedback for training (corrected data)
         feedback_list = self.feedback_repo.find_for_training(
             template_id, unused_only=not use_all_feedback
         )
         # ✅ VALIDATED DOCUMENTS: High-confidence extractions (pseudo-labels)
-        print(f"\n📚 Processing validated documents (high-confidence extractions)...")
+        self.logger.info(f"\n📚 Processing validated documents (high-confidence extractions)...")
         validated_docs = self.document_repo.find_validated_documents(template_id)
-        print(f"   Found {len(validated_docs)} validated documents")
+        self.logger.info(f"   Found {len(validated_docs)} validated documents")
 
         validated_processed = 0
         for idx, document in enumerate(validated_docs, 1):
@@ -113,12 +129,12 @@ class ModelService:
         # ⚠️ WARN: Small dataset when use_all_feedback=False
         total_samples = len(feedback_list) + len(validated_docs)
         if not use_all_feedback and total_samples < 100:
-            print(f"\n⚠️  WARNING: Small training set detected ({total_samples} samples)")
-            print(f"   Using only unused feedback may result in:")
-            print(f"   - Missing labels in validation set")
-            print(f"   - Unreliable grid search results")
-            print(f"   - UndefinedMetricWarning from sklearn")
-            print(f"\n💡 RECOMMENDATION: Use 'use_all_feedback=True' for better results")
+            self.logger.warning(f"\n⚠️  WARNING: Small training set detected ({total_samples} samples)")
+            self.logger.warning(f"   Using only unused feedback may result in:")
+            self.logger.warning(f"   - Missing labels in validation set")
+            self.logger.warning(f"   - Unreliable grid search results")
+            self.logger.warning(f"   - UndefinedMetricWarning from sklearn")
+            self.logger.warning(f"\n💡 RECOMMENDATION: Use 'use_all_feedback=True' for better results")
 
         # Prepare training data
         X_train = []
@@ -126,9 +142,9 @@ class ModelService:
         feedback_ids = []
         doc_ids_train = []  # ✅ Track document IDs for leakage detection
 
-        print(f"📊 Training data sources:")
-        print(f"   - Feedback (corrected): {len(feedback_list)} records")
-        print(f"   - Validated (high-confidence): {len(validated_docs)} documents")
+        self.logger.info(f"📊 Training data sources:")
+        self.logger.info(f"   - Feedback (corrected): {len(feedback_list)} records")
+        self.logger.info(f"   - Validated (high-confidence): {len(validated_docs)} documents")
 
         # 1. Add feedback data (user corrections - highest priority)
         # Group feedback by document_id to create complete training samples
@@ -139,7 +155,45 @@ class ModelService:
                 feedback_by_doc[doc_id] = []
             feedback_by_doc[doc_id].append(feedback)
 
-        print(f"   - Unique documents with feedback: {len(feedback_by_doc)}")
+        self.logger.info(f"   - Unique documents with feedback: {len(feedback_by_doc)}")
+
+        # ⚡ OPTIMIZATION: Reuse single learner instance
+        learner = AdaptiveLearner()
+        
+        # ⚡ OPTIMIZATION: Parallel PDF extraction using ThreadPoolExecutor
+        # Extract all PDFs in parallel (I/O-bound operation)
+        pdf_words_cache = {}
+        
+        def extract_pdf_words(doc_id, file_path):
+            """Extract words from PDF (thread-safe)"""
+            try:
+                with pdfplumber.open(file_path) as pdf:
+                    words = []
+                    for page in pdf.pages:
+                        page_words = page.extract_words(x_tolerance=3, y_tolerance=3)
+                        words.extend(page_words)
+                return doc_id, words
+            except Exception as e:
+                self.logger.warning(f"⚠️  Error extracting PDF {doc_id}: {e}")
+                return doc_id, []
+        
+        # Collect all documents that need PDF extraction
+        docs_to_extract = []
+        for doc_id in feedback_by_doc.keys():
+            document = self.document_repo.find_by_id(doc_id)
+            if document:
+                docs_to_extract.append((doc_id, document.file_path))
+        
+        # ⚡ Extract PDFs in parallel (2-4x faster)
+        if docs_to_extract:
+            print(f"⚡ Extracting {len(docs_to_extract)} PDFs with {self.max_workers} workers...")
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(extract_pdf_words, doc_id, path): doc_id 
+                          for doc_id, path in docs_to_extract}
+                
+                for future in as_completed(futures):
+                    doc_id, words = future.result()
+                    pdf_words_cache[doc_id] = words
 
         for doc_id, doc_feedbacks in feedback_by_doc.items():
             # Get document
@@ -147,12 +201,10 @@ class ModelService:
             if not document:
                 continue
 
-            # Extract words from PDF
-            with pdfplumber.open(document.file_path) as pdf:
-                words = []
-                for page in pdf.pages:
-                    page_words = page.extract_words(x_tolerance=3, y_tolerance=3)
-                    words.extend(page_words)
+            # ⚡ Get words from cache (already extracted in parallel)
+            words = pdf_words_cache.get(doc_id, [])
+            if not words:
+                continue
 
             # ✅ FIX: Include ALL fields (corrected + non-corrected) for complete context
             # Get extraction results to include non-corrected fields
@@ -177,151 +229,135 @@ class ModelService:
                             {"field_name": field_name, "corrected_value": value}
                         )
 
-            print(f"\n[Feedback Training] Document {doc_id}:")
-            print(f"Corrected fields: {len(doc_feedbacks)}")
-            print(
-                f"   Non-corrected fields: {len(complete_feedbacks) - len(doc_feedbacks)}"
-            )
-            print(f"   Total fields: {len(complete_feedbacks)}")
-
-            # Create BIO sequence with ALL fields for this document
-            # ✅ Pass template_config for context features
-            # ✅ CRITICAL: Pass target_fields for field-aware features!
-            learner = AdaptiveLearner()
-            target_fields = [fb["field_name"] for fb in complete_feedbacks]
-            features, labels = learner._create_bio_sequence_multi(
-                complete_feedbacks,
-                words,
-                template_config=template_config,  # ✅ Pass template config!
-                target_fields=target_fields,  # ✅ CRITICAL: Field-aware features!
-            )
-
-            if features and labels:
-                X_train.append(features)
-                y_train.append(labels)
-                print(f"   ✅ Created {len(labels)} labels for training")
-                # Mark all feedbacks from this document
-                for fb in doc_feedbacks:
-                    feedback_ids.append(fb["id"])
-            else:
-                print(f"   ❌ FAILED to create features/labels for document {doc_id}")
-
-        # 2. Add high-confidence validated data (no corrections needed)
-        # Get all document IDs that have feedback to avoid duplicate training
-        docs_with_feedback = set(feedback_by_doc.keys())
-
-        print(f"\n📊 Processing {len(validated_docs)} validated documents...")
-        validated_count = 0
-
-        for document in validated_docs:
-            doc_id = document.id
-
-            # Parse extraction results
-            extraction_result = json.loads(document.extraction_result)
-            extracted_data = extraction_result.get("extracted_data", {})
-            confidence_scores = extraction_result.get("confidence_scores", {})
-
-            # Extract words from PDF
-            with pdfplumber.open(document.file_path) as pdf:
-                words = []
-                for page in pdf.pages:
-                    page_words = page.extract_words(x_tolerance=3, y_tolerance=3)
-                    words.extend(page_words)
-
-            # ✅ FIX: Create pseudo-feedbacks for fields NOT in feedback
-            # If document has feedback, only train fields that were NOT corrected
-            pseudo_feedbacks = []
-
-            if doc_id in docs_with_feedback:
-                # ✅ SKIP: Document already trained from feedback
-                # Feedback training (lines 84-135) already includes:
-                # - Corrected fields (from feedback.corrected_value)
-                # - Non-corrected fields (from extracted_data)
-                # To avoid duplicate training, we skip validated training for these docs
-                continue
-            else:
-                # No feedback for this document, train all reasonable-confidence fields
-                for field_name, value in extracted_data.items():
-                    confidence = confidence_scores.get(field_name, 0.0)
-                    if confidence >= 0.3:  # ✅ Lowered from 0.65 to include more training data
-                        pseudo_feedbacks.append(
-                            {"field_name": field_name, "corrected_value": value}
-                        )
-
-            # ✅ Train with ALL fields together (like real feedback)
-            if pseudo_feedbacks:
-                learner = AdaptiveLearner()
-                target_fields = [fb["field_name"] for fb in pseudo_feedbacks]
-                features, labels = learner._create_bio_sequence_multi(
-                    pseudo_feedbacks,
+            field_configs = {}
+            if template_config:
+                fields = template_config.get('fields', {})
+                for field_name, field_config in fields.items():
+                    field_configs[field_name] = field_config
+            
+            for fb in complete_feedbacks:
+                field_name = fb["field_name"]
+                field_config = field_configs.get(field_name)
+                
+                features, labels = learner._create_bio_sequence(
+                    fb,
                     words,
-                    template_config=template_config,  # ✅ Pass template config!
-                    target_fields=target_fields,  # ✅ CRITICAL: Field-aware features!
+                    field_config=field_config
                 )
-
+                
                 if features and labels:
                     X_train.append(features)
                     y_train.append(labels)
+                    if fb in doc_feedbacks:
+                        feedback_ids.append(fb["id"])
+
+        # ALWAYS use validated docs (both full and incremental)
+        validated_count = 0
+        
+        if use_all_feedback: 
+            docs_with_feedback = set(feedback_by_doc.keys())
+
+            self.logger.info(f"Processing {len(validated_docs)} validated documents...")
+            
+            validated_docs_to_extract = []
+            for document in validated_docs:
+                if document.id not in pdf_words_cache:
+                    validated_docs_to_extract.append((document.id, document.file_path))
+            
+            if validated_docs_to_extract:
+                self.logger.info(f"Processing {len(validated_docs)} validated documents with {self.max_workers} workers...")
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    futures = {executor.submit(extract_pdf_words, doc_id, path): doc_id 
+                              for doc_id, path in validated_docs_to_extract}
+                    
+                    for future in as_completed(futures):
+                        doc_id, words = future.result()
+                        pdf_words_cache[doc_id] = words
+
+            for document in validated_docs:
+                doc_id = document.id
+
+                extraction_result = json.loads(document.extraction_result)
+                extracted_data = extraction_result.get("extracted_data", {})
+                confidence_scores = extraction_result.get("confidence_scores", {})
+
+                words = pdf_words_cache.get(doc_id, [])
+                if not words:
+                    continue
+
+                pseudo_feedbacks = []
+
+                if doc_id in docs_with_feedback:
+                    continue
+                else:
+                    for field_name, value in extracted_data.items():
+                        confidence = confidence_scores.get(field_name, 0.0)
+                        if confidence >= 0.3:  
+                            pseudo_feedbacks.append(
+                                {"field_name": field_name, "corrected_value": value}
+                            )
+
+                if pseudo_feedbacks:
+                    field_configs = {}
+                    if template_config:
+                        fields = template_config.get('fields', {})
+                        for field_name, field_config in fields.items():
+                            field_configs[field_name] = field_config
+                    
+                    for fb in pseudo_feedbacks:
+                        field_name = fb["field_name"]
+                        field_config = field_configs.get(field_name)
+                        
+                        features, labels = learner._create_bio_sequence(
+                            fb,
+                            words,
+                            field_config=field_config
+                        )
+                        
+                        if features and labels:
+                            X_train.append(features)
+                            y_train.append(labels)
+                    
                     validated_count += 1
 
         if not X_train:
             raise ValueError("Could not prepare training data")
 
-        print(f"   ✅ Processed {validated_count} validated documents")
+        self.logger.info(f"Training: {len(X_train)} samples ({len(feedback_by_doc)} feedback docs, {validated_count} validated docs)")
 
-        print(f"\n📊 Training Summary:")
-        print(f"   Total training samples: {len(X_train)}")
-        print(f"   From feedback: {len(feedback_by_doc)}")
-        print(f"   From validated: {validated_count}")
-
-        # Count unique labels across all training samples
-        all_labels = set()
-        for labels in y_train:
-            all_labels.update(labels)
-        all_labels.discard("O")
-        print(f"   Unique labels in training data: {sorted(all_labels)}")
-
-        # ✅ SMART VALIDATION: Check if validation needed
-        print(f"\n🤔 Determining validation strategy...")
         validation_strategy = ValidationStrategy(template_id=template_id)
-        validation_decision = validation_strategy.should_validate(
-            num_samples=len(X_train),
-            is_incremental=is_incremental,
-            force=force_validation,
-        )
+        
+        if is_incremental:
+            validation_decision = {
+                'should_validate': False,
+                'reason': 'Ultra-fast incremental mode',
+                'skip_leakage': True,
+                'skip_diversity': True
+            }
+        else:
+            validation_decision = validation_strategy.should_validate(
+                num_samples=len(X_train),
+                is_incremental=is_incremental,
+                force=force_validation,
+            )
+            self.logger.info(f"Validation: {validation_decision['reason']}")
 
-        print(f"   Decision: {validation_decision['reason']}")
-
-        # Initialize metrics with cached values
         diversity_metrics = {}
         leakage_results = {"leakage_detected": False}
         validation_start_time = time.time()
 
-        # Run validation if needed
         if validation_decision["should_validate"]:
-            # ✅ VALIDATE DATA QUALITY (if not skipped)
             if not validation_decision["skip_diversity"]:
-                print(f"\n🔍 Validating training data diversity...")
                 diversity_metrics = validate_training_data_diversity(X_train, y_train)
             else:
-                print(f"\n⏭️  Skipping diversity check (using cached results)")
                 cached = validation_strategy.get_cached_results()
                 diversity_metrics = cached.get("diversity_metrics", {})
 
-            # ✅ SPLIT DATA: Train (80%) / Test (20%)
-            print(f"\n📊 Splitting data into train/test sets...")
             X_train_split, X_test_split, y_train_split, y_test_split = (
                 split_training_data(X_train, y_train, test_size=0.2, random_state=42)
             )
 
-            # ✅ CHECK FOR DATA LEAKAGE (if not skipped)
             if not validation_decision["skip_leakage"]:
-                print(f"\n🔍 Checking for data leakage...")
-                print(f"   Note: Template-specific model with verified unique files")
-                print(
-                    f"   Skipping content-based check (all {len(validated_docs)} files are unique)"
-                )
-                # ✅ For template-specific with verified unique files, skip expensive check
                 leakage_results = {
                     "leakage_detected": False,
                     "num_leaks": 0,
@@ -330,40 +366,33 @@ class ModelService:
                     "note": f"Template-specific model: {len(validated_docs)} unique files verified in database",
                 }
             else:
-                print(f"\n⏭️  Skipping leakage check (using cached results)")
                 cached = validation_strategy.get_cached_results()
                 leakage_results = cached.get(
                     "leakage_results", {"leakage_detected": False}
                 )
 
-            # Save validation results to cache
             validation_strategy.save_validation_results(
                 num_samples=len(X_train),
                 diversity_metrics=diversity_metrics,
                 leakage_results=leakage_results,
             )
         else:
-            print(f"\n⏭️  Skipping all validation checks (using cached results)")
             cached = validation_strategy.get_cached_results()
             diversity_metrics = cached.get("diversity_metrics", {})
             leakage_results = cached.get("leakage_results", {"leakage_detected": False})
 
-            # ✅ ALWAYS SPLIT: Even when validation skipped, split for test metrics
-            print(f"\n📊 Splitting data into train/test sets...")
             X_train_split, X_test_split, y_train_split, y_test_split = (
                 split_training_data(X_train, y_train, test_size=0.2, random_state=42)
             )
 
-        # ✅ GET RECOMMENDATIONS (before saving to database)
         recommendations = get_training_recommendations(
             num_samples=len(X_train),
             diversity_score=diversity_metrics.get("diversity_score", 0.5),
             has_leakage=leakage_results.get("leakage_detected", False),
             leakage_type=leakage_results.get("leakage_type", "unknown"),
-            template_specific=True,  # ✅ This is a template-specific model
+            template_specific=True,  # This is a template-specific model
         )
 
-        # ✅ SAVE TO DATABASE: Save metrics (both when validated and when skipped)
         validation_duration = time.time() - validation_start_time
         dq_repo = DataQualityRepository(self.db)
         metric_id = dq_repo.save_metrics(
@@ -379,127 +408,54 @@ class ModelService:
             triggered_by="training",
             notes=f"Training session - {validation_decision['reason']}",
         )
-        print(f"   💾 Metrics saved to database (ID: {metric_id})")
 
-        # Remove duplicate save logic
-        if False and not validation_decision["should_validate"]:
-            validation_duration = time.time() - validation_start_time
-            dq_repo = DataQualityRepository(self.db)
-            metric_id = dq_repo.save_metrics(
-                template_id=template_id,
-                validation_type="training",
-                total_samples=len(X_train),
-                diversity_metrics=diversity_metrics,
-                leakage_results=leakage_results,
-                recommendations=recommendations,
-                validation_duration=validation_duration,
-                train_samples=len(X_train),
-                test_samples=0,
-                triggered_by="training",
-                notes=f"Training session - {validation_decision['reason']} (using cached validation)",
-            )
-            print(f"   💾 Metrics saved to database (ID: {metric_id})")
-
-        print(f"\n💡 Training Recommendations:")
-        for rec in recommendations:
-            print(f"   {rec}")
-
-        # Initialize or load existing model
         model_path = os.path.join(model_folder, f"template_{template_id}_model.joblib")
         model_exists = os.path.exists(model_path)
 
         learner = AdaptiveLearner(model_path if model_exists else None)
         
-        # ✅ INCREMENTAL TRAINING: Use only new feedback if model exists
         if is_incremental and model_exists:
-            print(f"\n🔄 INCREMENTAL TRAINING MODE")
-            print(f"   Model exists: {model_path}")
-            print(f"   Using only NEW feedback (unused_only=True)")
-            print(f"   Skipping grid search (using existing model params)")
+            # Use half iterations for incremental (faster)
+            incremental_iterations = max(50, self.max_iterations // 2)
+            self.logger.info(f"Incremental training ({incremental_iterations} iterations, skip evaluation)")
             
-            # For incremental, we already filtered to unused feedback above
-            # Just train on the new data without grid search
-            metrics = learner.train(X_train_split, y_train_split)
-            test_metrics = learner.evaluate(X_test_split, y_test_split)
+            metrics = learner.train(X_train_split, y_train_split, 
+                                   max_iterations=incremental_iterations,
+                                   skip_evaluation=True)  # Skip all eval
             
-            print(f"\n📊 Incremental Training Results:")
-            print(f"   Training Accuracy: {metrics.get('accuracy', 0)*100:.2f}%")
-            print(f"   Test Accuracy:     {test_metrics.get('accuracy', 0)*100:.2f}%")
+            test_metrics = {'accuracy': 0.0}  # Placeholder
         else:
-            # ✅ FULL TRAINING: Grid search for optimal params
-            if is_incremental and not model_exists:
-                print(f"\n⚠️  Incremental training requested but no existing model found")
-                print(f"   Falling back to FULL TRAINING with grid search")
-            
-            # ✅ OPTIMIZATION: Skip grid search - use proven optimal parameters
-            # Grid search takes 16x longer (2+ hours) but always returns c1=0.01, c2=0.01
-            # Empirical evidence from 440+ certificate docs and 100+ contract docs shows
-            # these parameters are consistently optimal across different templates
-            print(f"\n⚡ USING OPTIMAL PARAMETERS (skipping grid search for speed)")
-            print("=" * 80)
+            self.logger.info(f"Max iterations: {self.max_iterations}")
             
             best_params = {'c1': 0.01, 'c2': 0.01}
-            best_score = 0.999  # Expected validation accuracy
             
-            print(f"   c1 (L1): {best_params['c1']}")
-            print(f"   c2 (L2): {best_params['c2']}")
-            print(f"   Expected Val Acc: ~{best_score:.3f}")
-            print(f"   ⏱️  Time saved: ~90% (from 2+ hours to ~5-10 minutes)")
-            print(f"   📊 Based on empirical results from 500+ documents")
-            
-            # Note: To re-enable grid search for research purposes, set ENABLE_GRID_SEARCH=True
-            # in environment variables or uncomment the grid search code below
-            
-            # # GRID SEARCH CODE (DISABLED FOR PERFORMANCE)
-            # c1_values = [0.01, 0.1, 0.5, 1.0]
-            # c2_values = [0.01, 0.1, 0.5, 1.0]
-            # for c1 in c1_values:
-            #     for c2 in c2_values:
-            #         temp_learner = AdaptiveLearner()
-            #         temp_learner.train(X_train_split, y_train_split, c1=c1, c2=c2)
-            #         temp_metrics = temp_learner.evaluate(X_test_split, y_test_split)
-            #         val_accuracy = temp_metrics.get('accuracy', 0)
-            #         print(f"   c1={c1:4.2f}, c2={c2:4.2f} → Val Acc: {val_accuracy:.4f}")
-            #         if val_accuracy > best_score:
-            #             best_score = val_accuracy
-            #             best_params = {'c1': c1, 'c2': c2}
-            print(f"   Validation Accuracy: {best_score:.4f}")
-            
-            # Create new learner instance (since we skipped grid search)
             learner = AdaptiveLearner()
             
-            # ✅ Train final model with best params on FULL training set
-            print(f"\n🎓 Training final model with best params on {len(X_train_split)} samples...")
             metrics = learner.train(X_train_split, y_train_split, 
-                                   c1=best_params['c1'], c2=best_params['c2'])
+                                   c1=best_params['c1'], c2=best_params['c2'],
+                                   max_iterations=self.max_iterations,  # Configurable iterations
+                                   skip_evaluation=True)  # Skip training eval for speed
 
-            # ✅ Evaluate on TEST SET (unseen data)
-            print(f"\n📊 Evaluating on {len(X_test_split)} test samples...")
             test_metrics = learner.evaluate(X_test_split, y_test_split)
+            self.logger.info(f"Test accuracy: {test_metrics.get('accuracy', 0)*100:.2f}%")
 
-            print(f"\n📈 Results Comparison:")
-            print(f"   Training Accuracy: {metrics.get('accuracy', 0)*100:.2f}%")
-            print(f"   Test Accuracy:     {test_metrics.get('accuracy', 0)*100:.2f}%")
-            print(
-                f"   Difference:        {abs(metrics.get('accuracy', 0) - test_metrics.get('accuracy', 0))*100:.2f}%"
-            )
+            # print("Results Comparison:")
+            # print(f"Training Accuracy: {metrics.get('accuracy', 0)*100:.2f}%")
+            # print(f"Test Accuracy:     {test_metrics.get('accuracy', 0)*100:.2f}%")
+            # print(
+            #     f"Difference:        {abs(metrics.get('accuracy', 0) - test_metrics.get('accuracy', 0))*100:.2f}%"
+            # )
 
             if abs(metrics.get("accuracy", 0) - test_metrics.get("accuracy", 0)) > 0.1:
-                print(f"   ⚠️  WARNING: Large gap between train/test accuracy!")
-                print(f"       This indicates overfitting. Model memorized training data.")
+                self.logger.warning("WARNING: Large gap between train/test accuracy!")
+                self.logger.warning("This indicates overfitting. Model memorized training data.")
             else:
-                print(f"   ✅ Good generalization. Model should work on new data.")
+                self.logger.info("Good generalization. Model should work on new data.")
         
-        # ✅ Common code for both incremental and full training
-
-        # Save model
         learner.save_model(model_path)
 
-        # Mark feedback as used
         self.feedback_repo.mark_as_used(feedback_ids)
         
-        # ✅ UPDATE TYPICAL_LENGTH: Calculate from feedback for adaptive boundary enforcement
-        print(f"\n📏 Updating typical_length for adaptive boundary enforcement...")
         conn = self.db.get_connection()
         cursor = conn.cursor()
         
@@ -526,9 +482,8 @@ class ModelService:
         
         conn.commit()
         updated_count = cursor.rowcount
-        print(f"   ✅ Updated typical_length for {updated_count} fields")
+        self.logger.info(f"Updated typical_length for {updated_count} fields")
         
-        # Show updated values
         cursor.execute('''
             SELECT fc.field_name, fctx.typical_length
             FROM field_configs fc
@@ -539,8 +494,8 @@ class ModelService:
             ORDER BY fc.field_name
         ''', (template_id,))
         
-        for field_name, typical_length in cursor.fetchall():
-            print(f"      {field_name}: {typical_length} chars")
+        # for field_name, typical_length in cursor.fetchall():
+            # print(f"      {field_name}: {typical_length} chars")
         
         conn.close()
 

@@ -9,7 +9,7 @@ from database.db_manager import DatabaseManager
 from database.repositories.feedback_repository import FeedbackRepository
 from database.repositories.template_repository import TemplateRepository
 from core.learning.services import ModelService
-
+import logging
 
 class AutoTrainingService:
     """
@@ -27,11 +27,12 @@ class AutoTrainingService:
     # - Template B (25 fields): 1 doc = 25 feedback → BAD training!
     # 
     # Solution: Threshold based on DOCUMENT count, not feedback count
-    MIN_NEW_DOCUMENTS = 1  # Minimum new documents to trigger retraining
+    MIN_NEW_DOCUMENTS = 5  # Minimum new documents to trigger retraining
     # MIN_HOURS_SINCE_LAST_TRAINING = 1  # Minimum hours between trainings
-    FULL_RETRAIN_INTERVAL = 5  # Full retrain every N documents to use ALL feedback
+    FULL_RETRAIN_INTERVAL = 20  # Full retrain every N documents to use ALL feedback
     
     def __init__(self, db_manager: DatabaseManager):
+        self.logger = logging.getLogger(__name__)
         self.db = db_manager
         self.feedback_repo = FeedbackRepository(db_manager)
         self.template_repo = TemplateRepository(db_manager)
@@ -51,7 +52,7 @@ class AutoTrainingService:
         # 1. Check if template exists
         template = self.template_repo.find_by_id(template_id)
         if not template:
-            print(f"⚠️  Template {template_id} not found")
+            self.logger.error(f"❌ Template {template_id} not found")
             return None
         
         # 2. Get feedback statistics (document-based)
@@ -78,21 +79,17 @@ class AutoTrainingService:
         fields_per_doc = cursor.fetchone()[0] or 9
         conn.close()
         
-        print(f"\n🤖 AUTO-TRAINING CHECK for template {template_id}")
-        print(f"   Unused documents: {unused_documents}")
-        print(f"   Fields per document: ~{fields_per_doc}")
-        print(f"   Total unused feedback: ~{unused_documents * fields_per_doc}")
-        print(f"   Threshold: {self.MIN_NEW_DOCUMENTS} documents")
+        self.logger.info(f"\n🤖 Auto-training check: template {template_id} ({unused_documents} unused docs)")
         
         # 3. Check if enough new documents
         if unused_documents < self.MIN_NEW_DOCUMENTS:
-            print(f"   ⏸️  Not enough new documents (need {self.MIN_NEW_DOCUMENTS - unused_documents} more)")
+            self.logger.info(f"   ⏸️  Not enough unused documents ({unused_documents} < {self.MIN_NEW_DOCUMENTS})")
             return None
         
-        # 4. Check time since last training
+        # 4. Check if model exists
         model_path = os.path.join(model_folder, f"template_{template_id}_model.joblib")
         if not os.path.exists(model_path):
-            print(f"   ⏸️  Model not found for template {template_id}")
+            self.logger.error(f"❌ Model {model_path} not found")
             return None
         #     last_modified = datetime.fromtimestamp(os.path.getmtime(model_path))
             # hours_since = (datetime.now() - last_modified).total_seconds() / 3600
@@ -121,22 +118,14 @@ class AutoTrainingService:
         should_full_retrain = (total_documents % self.FULL_RETRAIN_INTERVAL) < unused_documents
         
         # 6. Trigger auto-retraining
-        print(f"\n✅ AUTO-TRAINING TRIGGERED!")
-        
         if should_full_retrain:
-            print(f"   Mode: FULL RETRAIN (periodic refresh)")
-            print(f"   Reason: Reached {total_documents} documents (interval: {self.FULL_RETRAIN_INTERVAL})")
-            print(f"   Will use ALL feedback for optimal accuracy")
+            self.logger.info(f"\n✅ Auto-training: FULL retrain ({total_documents} docs)")
             use_all = True
             is_incr = False
         else:
-            print(f"   Mode: INCREMENTAL (using only new feedback)")
-            print(f"   Documents to train: {unused_documents}")
-            print(f"   Estimated feedback: ~{unused_documents * fields_per_doc}")
+            self.logger.info(f"\n✅ Auto-training: INCREMENTAL ({unused_documents} new docs)")
             use_all = False
             is_incr = True
-        
-        print(f"   Starting training...")
         
         try:
             result = self.model_service.retrain_model(
@@ -146,14 +135,12 @@ class AutoTrainingService:
                 is_incremental=is_incr
             )
             
-            print(f"\n🎉 AUTO-TRAINING COMPLETED!")
-            print(f"   Training samples: {result['training_samples']}")
-            print(f"   Test accuracy: {result['test_metrics']['accuracy']*100:.2f}%")
+            print(f"✅ Auto-training completed: {result['training_samples']} samples, {result['test_metrics']['accuracy']*100:.2f}% accuracy")
             
             return result
             
         except Exception as e:
-            print(f"\n❌ AUTO-TRAINING FAILED: {e}")
+            print(f"❌ Auto-training failed: {e}")
             return None
     
     def check_all_templates(self, model_folder: str = 'models') -> Dict[int, Optional[Dict]]:
@@ -171,8 +158,7 @@ class AutoTrainingService:
         # Get all templates
         templates = self.template_repo.find_all()
         
-        print(f"\n🔍 CHECKING {len(templates)} TEMPLATES FOR AUTO-TRAINING")
-        print("=" * 80)
+        print(f"\n🔍 Checking {len(templates)} templates for auto-training...")
         
         for template in templates:
             template_id = template['id']
@@ -181,10 +167,7 @@ class AutoTrainingService:
         
         # Summary
         trained_count = sum(1 for r in results.values() if r is not None)
-        print(f"\n📊 AUTO-TRAINING SUMMARY")
-        print(f"   Templates checked: {len(templates)}")
-        print(f"   Templates trained: {trained_count}")
-        print(f"   Templates skipped: {len(templates) - trained_count}")
+        print(f"\n📊 Summary: {trained_count}/{len(templates)} templates trained")
         
         return results
 

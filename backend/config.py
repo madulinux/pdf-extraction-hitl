@@ -4,6 +4,10 @@ Centralized configuration management
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 class Config:
     """Base configuration"""
@@ -40,6 +44,10 @@ class Config:
     DEFAULT_PATTERN_LIMIT = 5
     MAX_PATTERN_LIMIT = 20
     
+    # Async Processing (NEW)
+    ASYNC_PATTERN_LEARNING = os.environ.get('ASYNC_PATTERN_LEARNING', 'true').lower() == 'true'
+    ASYNC_AUTO_TRAINING = os.environ.get('ASYNC_AUTO_TRAINING', 'true').lower() == 'true'
+    
     @classmethod
     def init_app(cls, app):
         """Initialize application with configuration"""
@@ -62,6 +70,10 @@ class Config:
         app.config['PREVIEW_FOLDER'] = str(cls.PREVIEW_FOLDER)
         app.config['MAX_CONTENT_LENGTH'] = cls.MAX_CONTENT_LENGTH
         app.config['SECRET_KEY'] = cls.SECRET_KEY
+        
+        # Async processing config
+        app.config['ASYNC_PATTERN_LEARNING'] = cls.ASYNC_PATTERN_LEARNING
+        app.config['ASYNC_AUTO_TRAINING'] = cls.ASYNC_AUTO_TRAINING
 
 class DevelopmentConfig(Config):
     """Development configuration"""

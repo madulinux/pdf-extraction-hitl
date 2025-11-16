@@ -27,7 +27,8 @@ def get_template_service():
     return TemplateService(
         repository=repository,
         upload_folder=current_app.config['UPLOAD_FOLDER'],
-        template_folder=current_app.config['TEMPLATE_FOLDER']
+        template_folder=current_app.config['TEMPLATE_FOLDER'],
+        model_folder=current_app.config['MODEL_FOLDER']
     )
 
 

@@ -20,11 +20,16 @@ class TemplateService:
     """Service layer for template operations"""
 
     def __init__(
-        self, repository: TemplateRepository, upload_folder: str, template_folder: str
+        self,
+        repository: TemplateRepository,
+        upload_folder: str,
+        template_folder: str,
+        model_folder: str,
     ):
         self.repository = repository
         self.upload_folder = upload_folder
         self.template_folder = template_folder
+        self.model_folder = model_folder
         self.analyzer = TemplateAnalyzer()
 
     def analyze_and_create(
@@ -209,9 +214,15 @@ class TemplateService:
 
         # Delete from database
         self.repository.delete(template_id)
+        os.remove(os.path.join(self.upload_folder, template.filename))
+        os.remove(
+            os.path.join(self.model_folder, f"template_{template_id}_model.joblib")
+        )
+        os.remove(
+            os.path.join(self.model_folder, f"template_{template_id}_patterns.json")
+        )
+        os.remove(template.config_path)
 
-        # Optionally delete files (commented out for safety)
-        # os.remove(os.path.join(self.upload_folder, template.filename))
-        # os.remove(template.config_path)
+        # Delete models .joblib
 
         return True

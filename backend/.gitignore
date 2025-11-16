@@ -39,5 +39,4 @@ example-code/
 .DS_Store
 Thumbs.db
 *.models
-
 docs/*

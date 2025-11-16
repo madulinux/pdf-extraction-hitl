@@ -2,7 +2,7 @@
 Extraction Service
 Business logic for document extraction
 """
-
+import logging
 from typing import Dict, Any
 from core.extraction.extractor import DataExtractor
 from database.repositories.document_repository import DocumentRepository
@@ -40,6 +40,7 @@ class ExtractionService:
         model_folder: str,
         feedback_folder: str,
     ):
+        self.logger = logging.getLogger(__name__)
         self.document_repo = document_repo
         self.feedback_repo = feedback_repo
         self.template_repo = template_repo
@@ -112,7 +113,7 @@ class ExtractionService:
             extractor = DataExtractor(config, model_path)
             results = extractor.extract(filepath)
         except Exception as e:
-            print(f"❌ [ExtractionService] Error during extraction: {e}")
+            self.logger.error(f"❌ [ExtractionService] Error during extraction: {e}")
             import traceback
 
             traceback.print_exc()
@@ -161,9 +162,7 @@ class ExtractionService:
         actual_corrections = {}
         for field_name, corrected_value in corrections.items():
             if field_name not in extracted_data:
-                print(
-                    f"❌ [ExtractionService] Field '{field_name}' not found in extracted data"
-                )
+                self.logger.error(f"❌ [ExtractionService] Field '{field_name}' not found in extracted data")
                 continue
 
             original_value = extracted_data.get(field_name, "")
@@ -176,20 +175,16 @@ class ExtractionService:
             if original_normalized != corrected_normalized:
                 actual_corrections[field_name] = corrected_value
                 # Convert to string and safely slice for display
-                orig_display = str(original_value)[:50] if original_value else ""
-                corr_display = str(corrected_value)[:50] if corrected_value else ""
-                print(
-                    f"  📝 Correction for '{field_name}': '{orig_display}' → '{corr_display}'"
-                )
-            else:
-                orig_display = str(original_value)[:50] if original_value else ""
-                print(f"  ⏭️  Skipping '{field_name}': No change ('{orig_display}')")
+                # orig_display = str(original_value)[:50] if original_value else ""
+                # corr_display = str(corrected_value)[:50] if corrected_value else ""
+                # self.logger.info(f"  📝 Correction for '{field_name}': '{orig_display}' → '{corr_display}'")
+            # else:
+                # orig_display = str(original_value)[:50] if original_value else ""
+                # self.logger.info(f"  ⏭️  Skipping '{field_name}': No change ('{orig_display}')")
 
         # If no actual corrections, skip feedback saving
         if not actual_corrections:
-            print(
-                f"⚠️  No actual corrections for document {document_id}. Skipping feedback."
-            )
+            self.logger.warning(f"⚠️  No actual corrections for document {document_id}. Skipping feedback.")
             # Still mark as validated
             self.document_repo.update_status(document_id, "validated")
             return {
@@ -283,7 +278,7 @@ class ExtractionService:
                     extractor.learn_from_feedback(original_results, actual_corrections)
 
         except Exception as e:
-            print(f"⚠️  Adaptive learning failed: {e}")
+            self.logger.error(f"⚠️  Adaptive learning failed: {e}")
 
         # Return result with learning info
         return {
@@ -293,158 +288,6 @@ class ExtractionService:
             "all_fields": extracted_data,  # ✅ All extracted fields
             "corrected_fields": actual_corrections,  # ✅ Only corrected fields
         }
-
-    def _check_and_trigger_retraining(self, template_id: int, db):
-        """
-        Check if automatic retraining should be triggered with safeguards
-
-        Triggers retraining when:
-        1. Unused feedback >= 100 records (batch threshold)
-        2. Model exists (not first training)
-        3. No recent training (< 1 hour ago) - GLOBAL LOCK
-        4. SAFEGUARD: New model must have accuracy >= current model - 5%
-
-        Args:
-            template_id: Template ID
-            db: Database manager instance
-        """
-        global _retrain_lock, _last_retrain_time
-
-        # ✅ CRITICAL: Try to acquire lock (non-blocking)
-        # If another thread is retraining, skip immediately
-        if not _retrain_lock.acquire(blocking=False):
-            print(f"\n🔒 [Auto-Retrain] Another retrain in progress, skipping...")
-            return
-
-        try:
-            # ✅ SAFEGUARD 0: Check cooldown (prevent rapid retraining)
-            MIN_RETRAIN_INTERVAL_SECONDS = 3600  # 1 hour
-            current_time = time.time()
-            last_retrain = _last_retrain_time.get(template_id, 0)
-            time_since_last = current_time - last_retrain
-
-            if time_since_last < MIN_RETRAIN_INTERVAL_SECONDS:
-                remaining = MIN_RETRAIN_INTERVAL_SECONDS - time_since_last
-                print(f"\n⏳ [Auto-Retrain] Cooldown active")
-                print(f"   Last retrain: {time_since_last/60:.1f} min ago")
-                print(f"   Remaining: {remaining/60:.1f} min")
-                return
-
-            # Get unused feedback count
-            unused_feedback = self.feedback_repo.find_for_training(
-                template_id, unused_only=True
-            )
-            unused_count = len(unused_feedback)
-
-            print(f"\n🔍 [Auto-Retrain Check] Template {template_id}:")
-            print(f"   Unused feedback: {unused_count}")
-
-            # ✅ SAFEGUARD 1: Higher threshold (100 instead of 50)
-            RETRAIN_THRESHOLD = 100
-            if unused_count < RETRAIN_THRESHOLD:
-                print(
-                    f"   ⏳ Threshold not reached ({unused_count}/{RETRAIN_THRESHOLD})"
-                )
-                return
-
-            # Check if model exists (skip first training)
-            model_path = os.path.join(
-                self.model_folder, f"template_{template_id}_model.joblib"
-            )
-            if not os.path.exists(model_path):
-                print(
-                    f"   ⏭️  No existing model, skipping auto-retrain (use manual training first)"
-                )
-                return
-
-            # ✅ SAFEGUARD 2: Get current model accuracy
-            training_history = self.training_repo.find_by_template_id(template_id)
-            current_accuracy = 0.0
-            if training_history:
-                current_accuracy = training_history[0].get("accuracy", 0.0)
-                print(f"   📊 Current model accuracy: {current_accuracy*100:.2f}%")
-
-            # ✅ SAFEGUARD 3: Backup current model before retraining
-            import shutil
-
-            backup_path = model_path.replace(".joblib", "_backup.joblib")
-            if os.path.exists(model_path):
-                shutil.copy2(model_path, backup_path)
-                print(f"   💾 Backed up current model to: {backup_path}")
-
-            # Trigger retraining
-            print(f"\n🚀 [Auto-Retrain] Triggering automatic retraining...")
-            print(f"   Reason: {unused_count} unused feedback records")
-
-            from core.learning import ModelService
-
-            model_service = ModelService(db)
-
-            result = model_service.retrain_model(
-                template_id=template_id,
-                use_all_feedback=True,  # ✅ Use ALL feedback for stability
-                model_folder=self.model_folder,
-                is_incremental=False,  # ✅ Full retrain for better quality
-                force_validation=False,
-            )
-
-            new_accuracy = result.get("test_metrics", {}).get("accuracy", 0.0)
-
-            # ✅ SAFEGUARD 4: Validate new model accuracy
-            MIN_ACCURACY_DROP = 0.05  # Allow max 5% drop
-            if new_accuracy < (current_accuracy - MIN_ACCURACY_DROP):
-                print(f"\n⚠️ [Auto-Retrain] REJECTED - Accuracy dropped too much!")
-                print(f"   Current: {current_accuracy*100:.2f}%")
-                print(f"   New: {new_accuracy*100:.2f}%")
-                print(f"   Drop: {(current_accuracy - new_accuracy)*100:.2f}%")
-                print(f"   Threshold: {MIN_ACCURACY_DROP*100:.2f}%")
-
-                # Restore backup
-                if os.path.exists(backup_path):
-                    shutil.copy2(backup_path, model_path)
-                    print(f"   ↩️  Restored backup model")
-
-                return
-
-            print(f"\n✅ [Auto-Retrain] Completed successfully!")
-            print(f"   Training samples: {result['training_samples']}")
-            print(f"   Current accuracy: {current_accuracy*100:.2f}%")
-            print(f"   New accuracy: {new_accuracy*100:.2f}%")
-            print(f"   Change: {(new_accuracy - current_accuracy)*100:+.2f}%")
-            print(f"   Model: {result['model_path']}")
-
-            # ✅ Update last retrain timestamp
-            _last_retrain_time[template_id] = time.time()
-
-            # Clean up backup if successful
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-                print(f"   🗑️  Removed backup (new model accepted)")
-
-        except Exception as e:
-            print(f"⚠️ [Auto-Retrain] Failed: {e}")
-            # Restore backup if exists
-            backup_path = os.path.join(
-                self.model_folder, f"template_{template_id}_model_backup.joblib"
-            )
-            model_path = os.path.join(
-                self.model_folder, f"template_{template_id}_model.joblib"
-            )
-            if os.path.exists(backup_path):
-                import shutil
-
-                shutil.copy2(backup_path, model_path)
-                print(f"   ↩️  Restored backup model due to error")
-
-            # Don't fail the whole operation if auto-retrain fails
-            import traceback
-
-            traceback.print_exc()
-
-        finally:
-            # ✅ CRITICAL: Always release lock
-            _retrain_lock.release()
-            print(f"🔓 [Auto-Retrain] Lock released")
 
     def get_all_documents(
         self, page: int = 1, page_size: int = 10, search: str = None, template_id=None

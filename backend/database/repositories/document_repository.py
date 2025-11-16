@@ -180,15 +180,15 @@ class DocumentRepository:
         """Update document status"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
-
+        validated_at = datetime.now() if status == "validated" else None
         try:
             cursor.execute(
                 """
                 UPDATE documents
-                SET status = ?
+                SET status = ?, validated_at = ?
                 WHERE id = ?
                 """,
-                (status, document_id),
+                (status, validated_at, document_id),
             )
 
             conn.commit()

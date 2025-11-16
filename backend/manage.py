@@ -15,6 +15,10 @@ from database.db_manager import DatabaseManager
 from core.auth.repositories import UserRepository
 from core.auth.services import AuthService
 from core.auth.models import RegisterRequest
+from core.learning.services import ModelService
+from database.repositories.job_repository import JobRepository
+from core.learning.auto_trainer import get_auto_training_service
+import time
 
 def migrate():
     """Run database migrations"""
@@ -23,24 +27,27 @@ def migrate():
     print("✅ Migrations completed successfully!")
     print(f"📁 Database location: {db.db_path}")
 
+
 def migrate_fresh():
     """Drop all tables and re-run migrations"""
     print("⚠️  WARNING: This will delete all data!")
     confirm = input("Are you sure? (yes/no): ")
-    
-    if confirm.lower() != 'yes':
+
+    if confirm.lower() != "yes":
         print("❌ Migration cancelled")
         return
-    
+
     db = DatabaseManager()
-    
+
     # Delete database file
     if os.path.exists(db.db_path):
         os.remove(db.db_path)
         print("🗑️  Database deleted")
 
     # Delete ./templates/ and ./uploads/ and ./previews/ folder and files
-    template_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+    template_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "templates"
+    )
     if os.path.exists(template_folder):
         for root, dirs, files in os.walk(template_folder):
             for file in files:
@@ -51,7 +58,7 @@ def migrate_fresh():
         print("🗑️  Template folder deleted")
 
     # Delete ./uploads/ folder and files
-    upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
     if os.path.exists(upload_folder):
         for root, dirs, files in os.walk(upload_folder):
             for file in files:
@@ -62,7 +69,9 @@ def migrate_fresh():
         print("🗑️  Uploads folder deleted")
 
     # Delete ./previews/ folder and files
-    preview_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'previews')
+    preview_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "previews"
+    )
     if os.path.exists(preview_folder):
         for root, dirs, files in os.walk(preview_folder):
             for file in files:
@@ -73,7 +82,9 @@ def migrate_fresh():
         print("🗑️  Previews folder deleted")
 
     # Delete ./feedback/ folder and files
-    feedback_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'feedback')
+    feedback_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "feedback"
+    )
     if os.path.exists(feedback_folder):
         for root, dirs, files in os.walk(feedback_folder):
             for file in files:
@@ -81,16 +92,18 @@ def migrate_fresh():
             for dir in dirs:
                 os.rmdir(os.path.join(root, dir))
         os.rmdir(feedback_folder)
-        print("🗑️  Feedback folder deleted" )
+        print("🗑️  Feedback folder deleted")
 
     # Delete ./data/strategy_performance.json
-    strategy_performance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'strategy_performance.json')
+    strategy_performance_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "data", "strategy_performance.json"
+    )
     if os.path.exists(strategy_performance_path):
         os.remove(strategy_performance_path)
         print("🗑️  Strategy performance deleted")
 
     # Delete ./models/ folder contents (trained CRF models)
-    models_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+    models_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
     if os.path.exists(models_folder):
         for root, dirs, files in os.walk(models_folder, topdown=False):
             for file in files:
@@ -99,7 +112,7 @@ def migrate_fresh():
         print("🗑️  Models folder cleaned")
 
     # Delete log files
-    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.log')
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.log")
     if os.path.exists(log_file):
         os.remove(log_file)
         print("🗑️  Log file deleted")
@@ -109,16 +122,17 @@ def migrate_fresh():
     db = DatabaseManager()
     print("✅ Fresh database created successfully!")
     print(f"📁 Database location: {db.db_path}")
-    seed()
+    # seed()
+
 
 def seed():
     """Seed database with initial data"""
     print("🌱 Seeding database...")
-    
+
     db = DatabaseManager()
     user_repo = UserRepository(db.db_path)  # Pass db_path string, not db object
     auth_service = AuthService(user_repo)
-    
+
     username = "madulinux"
     password = "justice#404"
     # Check if admin exists
@@ -129,18 +143,20 @@ def seed():
         # Create admin user
         admin_request = RegisterRequest(
             username=username,
-            email='madulinux@gmail.com',
+            email="madulinux@gmail.com",
             password=password,
-            full_name='Administrator'
+            full_name="Administrator",
         )
         admin_user = auth_service.register(admin_request)
         # Update role to admin manually using SQL
         conn = user_repo._get_connection()
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET role = ? WHERE id = ?', ('admin', admin_user.id))
+        cursor.execute(
+            "UPDATE users SET role = ? WHERE id = ?", ("admin", admin_user.id)
+        )
         conn.commit()
         conn.close()
-    
+
     # Check if test user exists
     # existing_user = user_repo.find_by_username('user')
     # if existing_user:
@@ -154,61 +170,280 @@ def seed():
     #         full_name='Test User'
     #     )
     #     test_user = auth_service.register(user_request)
-    
+
     print("\n📊 Seeding completed!")
     print("\n🔑 Default credentials:")
     print("   Admin: " + username + " / " + password)
 
+
+def train():
+    """Train or retrain a model"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Train extraction model')
+    parser.add_argument('--template-id', type=int, required=True,
+                       help='Template ID to train')
+    parser.add_argument('--mode', choices=['full', 'incremental'], default='full',
+                       help='Training mode: full or incremental (default: full)')
+    parser.add_argument('--use-all', action='store_true',
+                       help='Use all feedback (not just unused)')
+    parser.add_argument('--force-validation', action='store_true',
+                       help='Force validation even for incremental')
+    parser.add_argument('--workers', type=int, default=None,
+                       help='Number of parallel workers for PDF extraction (default: CPU count)')
+    parser.add_argument('--no-parallel', action='store_true',
+                       help='Disable parallel processing (slower but less memory)')
+    parser.add_argument('--max-iterations', type=int, default=500,
+                       help='Maximum L-BFGS iterations for CRF training (default: 500)')
+    parser.add_argument('--fast', action='store_true',
+                       help='Fast training mode (50 iterations, ~2x faster)')
+    
+    
+    # Parse only the arguments after 'train'
+    args = parser.parse_args(sys.argv[2:])
+    
+    # Determine workers
+    if args.no_parallel:
+        workers = 1
+    elif args.workers:
+        workers = args.workers
+    else:
+        import multiprocessing
+        workers = multiprocessing.cpu_count()
+    
+    # Determine max iterations
+    if args.fast:
+        max_iterations = 50
+    else:
+        max_iterations = args.max_iterations
+    
+    print(f"\n🎓 Training Model")
+    print(f"   Template ID: {args.template_id}")
+    print(f"   Mode: {args.mode}")
+    print(f"   Use all feedback: {args.use_all}")
+    print(f"   Force validation: {args.force_validation}")
+    print(f"   Parallel workers: {workers} {'(disabled)' if args.no_parallel else ''}")
+    print(f"   Max iterations: {max_iterations} {'(fast mode)' if args.fast else ''}")
+    print()
+    
+    start_time = time.time()
+    try:
+        db = DatabaseManager()
+        service = ModelService(db)
+        
+        is_incremental = (args.mode == 'incremental')
+        
+        # Set parallel workers in service
+        if hasattr(service, 'set_parallel_workers'):
+            service.set_parallel_workers(workers)
+        
+        # Set max iterations in service
+        if hasattr(service, 'set_max_iterations'):
+            service.set_max_iterations(max_iterations)
+        
+        result = service.retrain_model(
+            template_id=args.template_id,
+            use_all_feedback=args.use_all,
+            model_folder='models',
+            is_incremental=is_incremental,
+            force_validation=args.force_validation
+        )
+        
+        print(f"\n✅ Training completed successfully!")
+        print(f"   Training samples: {result.get('training_samples', 0)}")
+        print(f"   Test accuracy: {result.get('test_accuracy', 0):.2%}")
+        print(f"   Model saved to: models/template_{args.template_id}_model.joblib")
+        
+        end_time = time.time()
+        print(f"\nTraining time: {end_time - start_time:.2f} seconds")
+    except Exception as e:
+        end_time = time.time()
+        print(f"\nTraining time: {end_time - start_time:.2f} seconds")
+        print(f"\n❌ Training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def worker():
+    """Background worker to process queued jobs (auto_training)."""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description="Background job worker")
+    parser.add_argument("--sleep", type=int, default=5,
+                        help="Sleep seconds between job polls (default: 5)")
+    args = parser.parse_args(sys.argv[2:])
+
+    print("🔧 Starting worker for auto_training jobs...")
+
+    db = DatabaseManager()
+    job_repo = JobRepository(db)
+
+    try:
+        while True:
+            job = job_repo.fetch_next_pending_auto_training()
+            if not job:
+                # No jobs, sleep then continue
+                time.sleep(args.sleep)
+                continue
+
+            job_id = job["id"] if isinstance(job, dict) else job["id"]
+            template_id = job["template_id"]
+
+            print(f"\n⚙️  Processing job {job_id} for template {template_id}...")
+            job_repo.mark_running(job_id)
+
+            try:
+                payload = json.loads(job["payload"])
+                model_folder = payload.get("model_folder", "models")
+
+                auto_trainer = get_auto_training_service(db)
+                result = auto_trainer.check_and_train(
+                    template_id=template_id,
+                    model_folder=model_folder,
+                )
+
+                if result:
+                    print(
+                        f"✅ Auto-training completed for template {template_id}: "
+                        f"{result['training_samples']} samples, "
+                        f"{result['test_metrics']['accuracy']*100:.2f}% accuracy"
+                    )
+                else:
+                    print(f"ℹ️  Auto-training skipped for template {template_id} (conditions not met)")
+
+                job_repo.mark_completed(job_id)
+            except Exception as e:
+                print(f"❌ Job {job_id} failed: {e}")
+                import traceback
+                traceback.print_exc()
+                job_repo.mark_failed(job_id, str(e))
+
+    except KeyboardInterrupt:
+        print("\n🛑 Worker stopped by user")
+
+
 def show_help():
     """Show available commands"""
-    print("""
-        📚 Database Management Commands
-
-        Usage: python manage.py [command]
-
-        Commands:
+    print(
+        """
+    📚 Available Commands:
+    ==================
         migrate         Run database migrations
         migrate:fresh   Drop all tables and re-run migrations (⚠️  deletes all data)
         seed            Seed database with initial data
-        run             Run the application
+        train           Train or retrain extraction model
+        worker          Run background worker to process jobs (auto_training)
+        runserver       Run the application
         help            Show this help message
 
         Examples:
         python manage.py migrate
         python manage.py migrate:fresh
         python manage.py seed
-        python manage.py run
+        python manage.py train --template-id 1 --mode full --use-all
+        python manage.py train --template-id 1 --mode full --use-all --workers 8
+        python manage.py train --template-id 1 --mode full --use-all --no-parallel
+        python manage.py train --template-id 2 --mode incremental --use-all
+        python manage.py worker --sleep 5
+        python manage.py runserver --background
+        python manage.py stopserver
+        python manage.py restartserver
+        python manage.py logserver
         
         # Fresh start with seed data
         python manage.py migrate:fresh && python manage.py seed
-        """)
+        
+        # Training Performance Options:
+        --workers N          Use N parallel workers for PDF extraction (default: CPU count)
+        --no-parallel        Disable parallel processing (slower but less memory)
+        --max-iterations N   Maximum L-BFGS iterations for CRF (default: 100)
+        --fast               Fast training mode (50 iterations, ~2x faster)
+        
+        # Train model after seeding
+        python manage.py train --template-id 1 --mode full
+        """
+    )
+
+
+def runserver():
+    """Run the application"""
+    print("Running the application...")
+    # run flask app with gunicorn (development server) dengan live reload dan logging debug mode ke console
+    os.system(
+        "gunicorn --timeout 120 --graceful-timeout 300 -w 16 app:app --reload --log-level debug"
+    )
+
 
 def main():
     if len(sys.argv) < 2:
         show_help()
         return
-    
+
     command = sys.argv[1]
-    
+
     commands = {
-        'migrate': migrate,
-        'migrate:fresh': migrate_fresh,
-        'seed': seed,
-        'run': run,
-        'help': show_help,
+        "migrate": migrate,
+        "migrate:fresh": migrate_fresh,
+        "seed": seed,
+        "train": train,
+        "runserver": runserver,
+        "stopserver": stopserver,
+        "restartserver": restartserver,
+        "logserver": logserver,
+        "help": show_help,
+        "worker": worker,
     }
-    
+
     if command in commands:
         commands[command]()
     else:
         print(f"❌ Unknown command: {command}")
         print("Run 'python manage.py help' for available commands")
 
-def run():
+
+def logserver():
+    """Show server log"""
+    print("Showing server log...")
+    os.system("tail -f server.log")
+
+def restartserver():
+    """Restart the application"""
+    print("Restarting the application...")
+    stopserver()
+    runserver()
+
+def stopserver():
+    """Stop the application"""
+    print("Stopping the application...")
+    # stop gunicorn server
+    os.system("pkill -f gunicorn")
+
+def runserver():
     """Run the application"""
     print("Running the application...")
-    # run flask app with gunicorn (development server) dengan live reload dan logging debug mode ke console dan file app.log
-    os.system('gunicorn -w 4 app:app --reload --log-level debug')
+    # run flask app with gunicorn (development server) dengan live reload dan logging debug mode ke console
+    # run on background with nohup log to file
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--background", action="store_true")
+    args = parser.parse_args(sys.argv[2:])
 
-if __name__ == '__main__':
+    try:
+        if args.background:
+            os.system(
+                "nohup gunicorn --timeout 240 --graceful-timeout 600 -w 8 app:app > server.log 2>&1 &"
+            )
+        else:
+            os.system(
+                "gunicorn --timeout 120 --graceful-timeout 300 -w 8 app:app --reload --log-level debug"
+            )
+    except Exception as e:
+        print(f"❌ Failed to run server: {e}")
+    
+    print("✅ Server started successfully!")
+
+
+if __name__ == "__main__":
     main()
