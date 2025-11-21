@@ -555,8 +555,8 @@ class RulePatternOptimizer:
         
         Examples:
             "Aa+" -> r"[A-Z][a-z]+"
-            "9+" -> r"\d+"
-            "A+-9+" -> r"[A-Z]+-\d+"
+            "9+" -> r"\\d+"
+            "A+-9+" -> r"[A-Z]+-\\d+"
         """
         regex_parts = []
         i = 0
