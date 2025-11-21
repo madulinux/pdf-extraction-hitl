@@ -36,7 +36,7 @@ class AdaptiveLearner:
                 max_iterations=100,   # ⚡ Reduced from 100 (faster training, still good accuracy)
                 all_possible_transitions=True,
                 verbose=False,
-                num_memories=10       # ⚡ L-BFGS memory size (lower = faster, less memory)
+                num_memories=12       # ⚡ L-BFGS memory size (lower = faster, less memory)
             )
     
     def prepare_training_data(self, feedback_list: List[Dict[str, Any]], 
@@ -632,7 +632,7 @@ class AdaptiveLearner:
                 max_iterations=max_iterations,
                 all_possible_transitions=True,
                 verbose=False,
-                num_memories=10,
+                num_memories=12,
             )
         
         # ⚡ Train the model (this is the bottleneck)

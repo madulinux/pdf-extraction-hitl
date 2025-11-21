@@ -45,8 +45,9 @@ class Config:
     MAX_PATTERN_LIMIT = 20
     
     # Async Processing (NEW)
-    ASYNC_PATTERN_LEARNING = os.environ.get('ASYNC_PATTERN_LEARNING', 'true').lower() == 'true'
-    ASYNC_AUTO_TRAINING = os.environ.get('ASYNC_AUTO_TRAINING', 'true').lower() == 'true'
+    ASYNC_PATTERN_LEARNING = os.environ.get('ASYNC_PATTERN_LEARNING', 'false').lower() == 'true'
+    ASYNC_AUTO_TRAINING = os.environ.get('ASYNC_AUTO_TRAINING', 'false').lower() == 'true'
+    AUTO_TRAINING = os.environ.get('AUTO_TRAINING', 'false').lower() == 'true'
     
     @classmethod
     def init_app(cls, app):
@@ -71,6 +72,9 @@ class Config:
         app.config['MAX_CONTENT_LENGTH'] = cls.MAX_CONTENT_LENGTH
         app.config['SECRET_KEY'] = cls.SECRET_KEY
         
+        # Enable AUTO_TRAINING
+        app.config['AUTO_TRAINING'] = cls.AUTO_TRAINING
+
         # Async processing config
         app.config['ASYNC_PATTERN_LEARNING'] = cls.ASYNC_PATTERN_LEARNING
         app.config['ASYNC_AUTO_TRAINING'] = cls.ASYNC_AUTO_TRAINING

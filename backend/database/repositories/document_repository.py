@@ -19,7 +19,7 @@ class DocumentRepository:
         """
         self.db = db_manager
 
-    def create(self, template_id: int, filename: str, file_path: str) -> int:
+    def create(self, template_id: int, filename: str, file_path: str, experiment_phase: str) -> int:
         """Create a new document"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
@@ -27,10 +27,10 @@ class DocumentRepository:
         try:
             cursor.execute(
                 """
-                INSERT INTO documents (template_id, filename, file_path, status)
-                VALUES (?, ?, ?, 'pending')
+                INSERT INTO documents (template_id, filename, file_path, status, experiment_phase)
+                VALUES (?, ?, ?, 'pending', ?)
                 """,
-                (template_id, filename, file_path),
+                (template_id, filename, file_path, experiment_phase),
             )
 
             document_id = cursor.lastrowid
@@ -113,6 +113,63 @@ class DocumentRepository:
             """,
             (template_id,),
         )
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return rows
+
+    def find_by_template_and_phase(self, template_id: int, experiment_phase: str = None) -> List[Dict]:
+        """
+        Find documents for a specific template and optional experiment phase
+        
+        Args:
+            template_id: Template ID
+            experiment_phase: Experiment phase filter
+                - None: Production documents only (experiment_phase IS NULL)
+                - 'baseline': Baseline experiment documents
+                - 'adaptive': Adaptive learning documents
+                - 'all': All documents regardless of phase
+        
+        Returns:
+            List of document dictionaries
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        if experiment_phase == 'all':
+            # Get all documents regardless of phase
+            cursor.execute(
+                """
+                SELECT documents.*
+                FROM documents
+                WHERE documents.template_id = ?
+                ORDER BY documents.created_at ASC
+                """,
+                (template_id,),
+            )
+        elif experiment_phase:
+            # Get specific phase
+            cursor.execute(
+                """
+                SELECT documents.*
+                FROM documents
+                WHERE documents.template_id = ? AND documents.experiment_phase = ?
+                ORDER BY documents.created_at ASC
+                """,
+                (template_id, experiment_phase),
+            )
+        else:
+            # Default: production only (NULL)
+            cursor.execute(
+                """
+                SELECT documents.*
+                FROM documents
+                WHERE documents.template_id = ? AND documents.experiment_phase IS NULL
+                ORDER BY documents.created_at ASC
+                """,
+                (template_id,),
+            )
 
         rows = cursor.fetchall()
         conn.close()

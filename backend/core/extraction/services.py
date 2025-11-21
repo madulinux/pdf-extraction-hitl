@@ -2,6 +2,7 @@
 Extraction Service
 Business logic for document extraction
 """
+
 import logging
 from typing import Dict, Any
 from core.extraction.extractor import DataExtractor
@@ -55,6 +56,7 @@ class ExtractionService:
         file: FileStorage,
         template_id: int,
         template_config_path: str = None,  # Now optional, will use DB
+        experiment_phase: str = None,  # NEW: For experiment tracking
     ) -> Dict[str, Any]:
         """
         Extract data from filled PDF document
@@ -63,6 +65,7 @@ class ExtractionService:
             file: Uploaded PDF file
             template_id: Template ID to use
             template_config_path: Path to template configuration (optional, for backward compatibility)
+            experiment_phase: Experiment phase ('baseline', 'adaptive', or None for production)
 
         Returns:
             Extraction results with document info
@@ -92,18 +95,26 @@ class ExtractionService:
 
         # Create document record
         document_id = self.document_repo.create(
-            template_id=template_id, filename=filename, file_path=filepath
+            template_id=template_id,
+            filename=filename,
+            file_path=filepath,
+            experiment_phase=experiment_phase,  # NEW: Track experiment phase
         )
 
         # Check if model exists for this template
-        model_path = os.path.join(
-            self.model_folder, f"template_{template_id}_model.joblib"
-        )
-        # print(f"🔍 [ExtractionService] Checking model: {model_path}")
-        if not os.path.exists(model_path):
-            # print(f"❌ [ExtractionService] Model NOT found: {model_path}")
+        # For baseline experiment, force rule-based only (no model)
+        if experiment_phase == "baseline":
             model_path = None
-        # else:
+            # print(f"🔍 [ExtractionService] Baseline phase: forcing rule-based extraction")
+        else:
+            model_path = os.path.join(
+                self.model_folder, f"template_{template_id}_model.joblib"
+            )
+            # print(f"🔍 [ExtractionService] Checking model: {model_path}")
+            if not os.path.exists(model_path):
+                # print(f"❌ [ExtractionService] Model NOT found: {model_path}")
+                model_path = None
+            # else:
 
         # print(f"✅ [ExtractionService] Model found: {model_path}")
 
@@ -134,7 +145,70 @@ class ExtractionService:
             "document_id": document_id,
             "results": results,
             "template_id": template_id,
-            "filename": filename,
+        }
+
+    def re_extract_document(self, document_id: int) -> Dict[str, Any]:
+        """
+        Re-extract an existing document (for experiment re-evaluation with updated model)
+
+        Args:
+            document_id: Document ID to re-extract
+
+        Returns:
+            Extraction results
+        """
+        # Get document
+        document = self.document_repo.find_by_id(document_id)
+        if not document:
+            raise ValidationError(f"Document {document_id} not found")
+
+        # Get file path
+        filepath = document.file_path
+        if not os.path.exists(filepath):
+            raise ValidationError(f"File not found: {filepath}")
+
+        # Load template config
+        from core.templates.config_loader import get_config_loader
+
+        config_loader = get_config_loader(db_manager=self.db)
+        config = config_loader.load_config(document.template_id)
+        if not config:
+            raise ValidationError(
+                f"Failed to load configuration for template {document.template_id}"
+            )
+
+        # Check if model exists for this template
+        model_path = os.path.join(
+            self.model_folder, f"template_{document.template_id}_model.joblib"
+        )
+        if not os.path.exists(model_path):
+            model_path = None
+
+        # Extract data
+        try:
+            extractor = DataExtractor(config, model_path)
+            results = extractor.extract(filepath)
+        except Exception as e:
+            self.logger.error(f"❌ [ExtractionService] Error during re-extraction: {e}")
+            raise
+
+        # Update document with new results
+        # Keep status as "validated" if it was already validated
+        # This preserves the validation state for training purposes
+        new_status = document.status if document.status == "validated" else "extracted"
+        
+        extraction_time_ms = results.get("extraction_time_ms", 0)
+        self.document_repo.update_extraction(
+            document_id=document_id,
+            extraction_result=json.dumps(results),
+            status=new_status,  # Preserve validated status
+            extraction_time_ms=extraction_time_ms,
+        )
+
+        return {
+            "document_id": document_id,
+            "results": results,
+            "template_id": document.template_id,
         }
 
     def save_corrections(self, document_id: int, corrections: Dict) -> Dict[str, Any]:
@@ -162,7 +236,9 @@ class ExtractionService:
         actual_corrections = {}
         for field_name, corrected_value in corrections.items():
             if field_name not in extracted_data:
-                self.logger.error(f"❌ [ExtractionService] Field '{field_name}' not found in extracted data")
+                self.logger.error(
+                    f"❌ [ExtractionService] Field '{field_name}' not found in extracted data"
+                )
                 continue
 
             original_value = extracted_data.get(field_name, "")
@@ -179,21 +255,21 @@ class ExtractionService:
                 # corr_display = str(corrected_value)[:50] if corrected_value else ""
                 # self.logger.info(f"  📝 Correction for '{field_name}': '{orig_display}' → '{corr_display}'")
             # else:
-                # orig_display = str(original_value)[:50] if original_value else ""
-                # self.logger.info(f"  ⏭️  Skipping '{field_name}': No change ('{orig_display}')")
+            # orig_display = str(original_value)[:50] if original_value else ""
+            # self.logger.info(f"  ⏭️  Skipping '{field_name}': No change ('{orig_display}')")
 
         # If no actual corrections, skip feedback saving
-        if not actual_corrections:
-            self.logger.warning(f"⚠️  No actual corrections for document {document_id}. Skipping feedback.")
-            # Still mark as validated
-            self.document_repo.update_status(document_id, "validated")
-            return {
-                "feedback_ids": [],
-                "document_id": document_id,
-                "corrections_count": 0,
-                "skipped": True,
-                "reason": "No actual changes detected",
-            }
+        # if not actual_corrections:
+        #     self.logger.warning(f"⚠️  No actual corrections for document {document_id}. Skipping feedback.")
+        #     # Still mark as validated
+        #     self.document_repo.update_status(document_id, "validated")
+        #     return {
+        #         "feedback_ids": [],
+        #         "document_id": document_id,
+        #         "corrections_count": 0,
+        #         "skipped": True,
+        #         "reason": "No actual changes detected",
+        #     }
 
         # Save feedback (only actual corrections)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -247,47 +323,73 @@ class ExtractionService:
         # Update document status
         self.document_repo.update_status(document_id, "validated")
 
-        # 🎯 ADAPTIVE LEARNING: Learn from feedback
-        # This improves future extractions for this template
+        # 🤖 AUTO-TRAINING: Trigger training if enabled
+        # This ensures experiment scripts also trigger training
+        auto_training_result = None
         try:
-            # Load template config from database or JSON
-            from core.templates.config_loader import get_config_loader
-            from database.db_manager import DatabaseManager
+            # Check if AUTO_TRAINING is enabled (from environment or config)
+            auto_training_enabled = os.getenv("AUTO_TRAINING", "True").lower() == "true"
 
-            db = DatabaseManager()
-            template = self.template_repo.find_by_id(document.template_id)
+            if auto_training_enabled:
+                from core.learning.services import ModelService
 
-            if template:
-                config_loader = get_config_loader(db_manager=db)
-                config = config_loader.load_config(
-                    template_id=document.template_id,
-                    config_path=template.config_path,
+                model_service = ModelService(self.db)
+
+                model_service.trigger_adaptive_learning(
+                    document_id, extracted_data, actual_corrections
                 )
 
-                if config:
-                    # Check if model exists
-                    model_path = os.path.join(
-                        self.model_folder,
-                        f"template_{document.template_id}_model.joblib",
+                from core.learning.auto_trainer import get_auto_training_service
+
+                auto_trainer = get_auto_training_service(self.db)
+                template_id = document.template_id
+
+                # Check if model exists (for first training)
+                model_path = os.path.join(
+                    self.model_folder, f"template_{template_id}_model.joblib"
+                )
+                is_first_training = not os.path.exists(model_path)
+
+                # Try to trigger training (will check thresholds internally)
+                training_result = auto_trainer.check_and_train(
+                    template_id=template_id,
+                    model_folder=self.model_folder,
+                    force_first_training=is_first_training,  # Allow first training
+                )
+
+                if training_result:
+                    auto_training_result = {
+                        "status": "completed",
+                        "training_samples": training_result.get("training_samples", 0),
+                        "accuracy": training_result.get("test_metrics", {}).get(
+                            "accuracy", 0
+                        ),
+                    }
+                    self.logger.info(
+                        f"✅ Auto-training triggered for template {template_id}"
                     )
-                    if not os.path.exists(model_path):
-                        model_path = None
-
-                    # Create extractor and learn from feedback (only actual corrections)
-                    extractor = DataExtractor(config, model_path)
-                    extractor.learn_from_feedback(original_results, actual_corrections)
-
+                else:
+                    auto_training_result = {
+                        "status": "skipped",
+                        "message": "Training conditions not met",
+                    }
         except Exception as e:
-            self.logger.error(f"⚠️  Adaptive learning failed: {e}")
+            self.logger.warning(f"⚠️  Auto-training failed: {e}")
+            auto_training_result = {"status": "failed", "error": str(e)}
 
         # Return result with learning info
-        return {
+        result = {
             "feedback_ids": feedback_ids,
             "document_id": document_id,
             "corrections_count": len(actual_corrections),
             "all_fields": extracted_data,  # ✅ All extracted fields
             "corrected_fields": actual_corrections,  # ✅ Only corrected fields
         }
+
+        if auto_training_result:
+            result["auto_training"] = auto_training_result
+
+        return result
 
     def get_all_documents(
         self, page: int = 1, page_size: int = 10, search: str = None, template_id=None

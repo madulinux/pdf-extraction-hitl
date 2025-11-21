@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     validated_at TIMESTAMP,
+    experiment_phase TEXT DEFAULT NULL,
     FOREIGN KEY (template_id) REFERENCES templates (id)
 );
 

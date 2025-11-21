@@ -1,0 +1,271 @@
+{
+  "phase": "adaptive",
+  "template_id": 1,
+  "template_name": "form_template",
+  "total_documents": 35,
+  "batch_size": 5,
+  "total_batches": 7,
+  "total_corrections": 32,
+  "initial_accuracy": 0.7676190476190476,
+  "final_accuracy": 1.0,
+  "improvement": 0.23238095238095235,
+  "improvement_percentage": 30.272952853598014,
+  "strategy": "hybrid",
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "avg_confidence": 0.9826982331228655,
+    "true_positives": 525,
+    "false_positives": 0,
+    "false_negatives": 0
+  },
+  "field_accuracy": {
+    "nik": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9924999474345357
+    },
+    "kabupaten": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9120903697546705
+    },
+    "usia": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.992486385950406
+    },
+    "tanggal_daftar": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9924822279951525
+    },
+    "kabupaten_daftar": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9469149365863329
+    },
+    "tanggal_lahir": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9923122011951816
+    },
+    "status_kawin": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9923721436025019
+    },
+    "no_hp": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9925227761850999
+    },
+    "tempat_lahir": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.992429769756893
+    },
+    "kecamatan": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9912805051974082
+    },
+    "desa": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9655987595756703
+    },
+    "jenis_kelamin": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9924939213878265
+    },
+    "alamat": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.992486849539748
+    },
+    "nama_lengkap": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 1.0
+    },
+    "email": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9925027026815428
+    }
+  },
+  "learning_curve": [
+    {
+      "batch": 0,
+      "documents_with_feedback": 0,
+      "accuracy": 0.7676190476190476,
+      "timestamp": "2025-11-18T08:32:39.670272"
+    },
+    {
+      "batch": 1,
+      "documents_with_feedback": 5,
+      "total_corrections": 22,
+      "accuracy": 0.8857142857142857,
+      "improvement": 0.11809523809523803,
+      "timestamp": "2025-11-18T08:33:01.352077"
+    },
+    {
+      "batch": 2,
+      "documents_with_feedback": 10,
+      "total_corrections": 28,
+      "accuracy": 0.9828571428571429,
+      "improvement": 0.21523809523809523,
+      "timestamp": "2025-11-18T08:34:00.924750"
+    },
+    {
+      "batch": 3,
+      "documents_with_feedback": 15,
+      "total_corrections": 30,
+      "accuracy": 0.9942857142857143,
+      "improvement": 0.22666666666666668,
+      "timestamp": "2025-11-18T08:35:16.916672"
+    },
+    {
+      "batch": 4,
+      "documents_with_feedback": 20,
+      "total_corrections": 30,
+      "accuracy": 0.9942857142857143,
+      "improvement": 0.22666666666666668,
+      "timestamp": "2025-11-18T08:36:18.930615"
+    },
+    {
+      "batch": 5,
+      "documents_with_feedback": 25,
+      "total_corrections": 32,
+      "accuracy": 0.9980952380952381,
+      "improvement": 0.2304761904761905,
+      "timestamp": "2025-11-18T08:37:48.246341"
+    },
+    {
+      "batch": 6,
+      "documents_with_feedback": 30,
+      "total_corrections": 32,
+      "accuracy": 1.0,
+      "improvement": 0.23238095238095235,
+      "timestamp": "2025-11-18T08:39:52.065464"
+    },
+    {
+      "batch": 7,
+      "documents_with_feedback": 35,
+      "total_corrections": 32,
+      "accuracy": 1.0,
+      "improvement": 0.23238095238095235,
+      "timestamp": "2025-11-18T08:42:01.870753"
+    }
+  ],
+  "timestamp": "2025-11-18T08:42:01.872380"
+}

@@ -1,0 +1,64 @@
+[
+  {
+    "batch": 0,
+    "documents_with_feedback": 0,
+    "accuracy": 0.6952380952380952,
+    "timestamp": "2025-11-17T19:43:40.358211"
+  },
+  {
+    "batch": 1,
+    "documents_with_feedback": 5,
+    "total_corrections": 31,
+    "accuracy": 0.8653061224489796,
+    "improvement": 0.17006802721088443,
+    "timestamp": "2025-11-17T19:48:12.661291"
+  },
+  {
+    "batch": 2,
+    "documents_with_feedback": 10,
+    "total_corrections": 46,
+    "accuracy": 0.9605442176870749,
+    "improvement": 0.26530612244897966,
+    "timestamp": "2025-11-17T19:54:47.254673"
+  },
+  {
+    "batch": 3,
+    "documents_with_feedback": 15,
+    "total_corrections": 51,
+    "accuracy": 0.9904761904761905,
+    "improvement": 0.2952380952380953,
+    "timestamp": "2025-11-17T20:01:40.082165"
+  },
+  {
+    "batch": 4,
+    "documents_with_feedback": 20,
+    "total_corrections": 51,
+    "accuracy": 0.9959183673469387,
+    "improvement": 0.3006802721088435,
+    "timestamp": "2025-11-17T20:09:38.276872"
+  },
+  {
+    "batch": 5,
+    "documents_with_feedback": 25,
+    "total_corrections": 51,
+    "accuracy": 0.9959183673469387,
+    "improvement": 0.3006802721088435,
+    "timestamp": "2025-11-17T20:21:23.169673"
+  },
+  {
+    "batch": 6,
+    "documents_with_feedback": 30,
+    "total_corrections": 51,
+    "accuracy": 0.9904761904761905,
+    "improvement": 0.2952380952380953,
+    "timestamp": "2025-11-17T20:37:05.559284"
+  },
+  {
+    "batch": 7,
+    "documents_with_feedback": 35,
+    "total_corrections": 54,
+    "accuracy": 0.9959183673469387,
+    "improvement": 0.3006802721088435,
+    "timestamp": "2025-11-17T20:53:33.112640"
+  }
+]

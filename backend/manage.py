@@ -111,6 +111,15 @@ def migrate_fresh():
                 print(f"   🗑️  Deleted model: {file}")
         print("🗑️  Models folder cleaned")
 
+    # Delete ./data/* files
+    data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    if os.path.exists(data_folder):
+        for root, dirs, files in os.walk(data_folder, topdown=False):
+            for file in files:
+                os.remove(os.path.join(root, file))
+                print(f"   🗑️  Deleted data file: {file}")
+        print("🗑️  Data folder cleaned")
+
     # Delete log files
     log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.log")
     if os.path.exists(log_file):

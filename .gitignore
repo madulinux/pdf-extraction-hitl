@@ -1,5 +1,8 @@
 evaluation/results/*
 data/*
 .windsurf
+.vscode
 *.md 
 !README.md
+!CONTRIBUTING.md
+documents/*

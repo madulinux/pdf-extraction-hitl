@@ -52,7 +52,7 @@ class ModelService:
         self.max_workers = multiprocessing.cpu_count()
         
         # CRF training config
-        self.max_iterations = 500  # Default: reduced from 500
+        self.max_iterations = 1000  # Default: reduced from 500
     
     def set_parallel_workers(self, workers: int):
         """Set number of parallel workers for PDF extraction"""
@@ -608,24 +608,21 @@ class ModelService:
 
         # Handle both dict and object return types
         template_id = doc.get("template_id") if isinstance(doc, dict) else doc.template_id
+
+        # 1) PATTERN LEARNING (regex / pattern-based) via auto_pattern_learner
         auto_learner = get_auto_learner(self.db)
 
-        # Track learning triggers
         triggered_fields = []
         skipped_fields = []
         errors = []
 
-        # Learn from ALL fields (both corrected and non-corrected)
         for field_name in all_fields.keys():
             try:
-                # Check if learning should be triggered
                 if auto_learner.should_trigger_learning(template_id, field_name):
-                    # Trigger learning in background
                     auto_learner.trigger_learning(
                         template_id=template_id, field_name=field_name, async_mode=True
                     )
 
-                    # Mark whether this field was corrected or validated
                     is_corrected = field_name in corrected_fields
                     triggered_fields.append(
                         {
@@ -638,6 +635,47 @@ class ModelService:
 
             except Exception as e:
                 errors.append({"field_name": field_name, "error": str(e)})
+
+        # 2) HYBRID STRATEGY + POST-PROCESSOR LEARNING via DataExtractor
+        try:
+            # Load original extraction results from document
+            import json
+
+            extraction_json = doc.get("extraction_result") if isinstance(doc, dict) else doc.extraction_result
+            if extraction_json:
+                extraction_results = json.loads(extraction_json)
+
+                # Load template config (for DataExtractor)
+                from core.templates.config_loader import get_config_loader
+                from core.extraction.extractor import DataExtractor
+
+                config_loader = get_config_loader(db_manager=self.db, template_folder=None)
+                template = self.template_repo.find_by_id(template_id)
+
+                if template:
+                    template_config = config_loader.load_config(
+                        template_id=template_id, config_path=template.config_path
+                    )
+                else:
+                    template_config = None
+
+                if template_config:
+                    import os
+
+                    model_folder = os.getenv("MODEL_FOLDER", "models")
+                    model_path = os.path.join(
+                        model_folder, f"template_{template_id}_model.joblib"
+                    )
+                    if not os.path.exists(model_path):
+                        model_path = None
+
+                    extractor = DataExtractor(template_config, model_path)
+                    extractor.learn_from_feedback(
+                        extraction_results=extraction_results,
+                        corrections=corrected_fields,
+                    )
+        except Exception as e:  # pragma: no cover - defensive logging
+            self.logger.warning(f"⚠️ Adaptive extractor learning failed for document {document_id}: {e}")
 
         return {
             "success": True,

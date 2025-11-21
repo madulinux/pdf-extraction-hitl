@@ -1,0 +1,21 @@
+{
+  "template_id": 2,
+  "baseline": {
+    "accuracy": 0.7478260869565218,
+    "strategy": "rule_based",
+    "total_documents": 35
+  },
+  "adaptive": {
+    "initial_accuracy": 0.7478260869565218,
+    "final_accuracy": 1.0,
+    "strategy": "hybrid",
+    "total_documents": 35,
+    "total_batches": 7,
+    "total_corrections": 29
+  },
+  "improvement": {
+    "absolute": 0.25217391304347825,
+    "percentage": 33.72093023255814
+  },
+  "timestamp": "2025-11-17T22:00:38.825883"
+}

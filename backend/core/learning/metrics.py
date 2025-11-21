@@ -26,9 +26,17 @@ class PerformanceMetrics:
         self.strategy_performance_repository = StrategyPerformanceRepository(db_manager)
         self.logger = logging.getLogger(__name__)
 
-    def get_template_metrics(self, template_id: int) -> Dict[str, Any]:
+    def get_template_metrics(self, template_id: int, experiment_phase: str = None) -> Dict[str, Any]:
         """
         Get comprehensive metrics for a template
+
+        Args:
+            template_id: Template ID
+            experiment_phase: Filter by experiment phase
+                - None: Production documents only (experiment_phase IS NULL)
+                - 'all': All documents (no filter)
+                - 'baseline': Baseline experiment documents
+                - 'adaptive': Adaptive learning documents
 
         Returns:
             Dictionary with metrics including:
@@ -37,27 +45,14 @@ class PerformanceMetrics:
             - Strategy distribution
             - Improvement over time
         """
-        # conn = self.db.get_connection()
-        # cursor = conn.cursor()
+        # Get documents with phase filter
+        documents = self.document_repository.find_by_template_and_phase(
+            template_id, experiment_phase
+        )
 
-        # Get all documents for this template
-
-        documents = self.document_repository.find_by_template_id(template_id)
-
-        # cursor.execute('''
-        #     SELECT
-        #         id,
-        #         extraction_result,
-        #         status,
-        #         created_at
-        #     FROM documents
-        #     WHERE template_id = ?
-        #     ORDER BY created_at ASC
-        # ''', (template_id,))
-
-        # documents = cursor.fetchall()
-
-        feedbacks = self.feedback_repository.find_by_template_id(template_id)
+        # Get feedbacks for these documents only
+        doc_ids = [d['id'] for d in documents]
+        feedbacks = self.feedback_repository.find_by_document_ids(doc_ids) if doc_ids else []
 
         # Get all feedback for this template
         # cursor.execute('''
@@ -110,6 +105,14 @@ class PerformanceMetrics:
             "adaptive_learning_status": self._calculate_adaptive_learning_status(template_id),  # Pattern learning
             "incremental_learning": self._calculate_incremental_learning(documents, feedbacks),  # Batch progress
             "baseline_comparison": self._calculate_baseline_comparison(documents, feedbacks),  # vs Baseline
+        }
+
+        # Add experiment info
+        metrics["experiment_info"] = {
+            "phase": experiment_phase or "production",
+            "total_documents": len(documents),
+            "total_feedbacks": len(feedbacks),
+            "document_ids_sample": doc_ids[:10] if doc_ids else []  # Sample for debugging
         }
 
         return metrics

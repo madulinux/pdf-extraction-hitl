@@ -21,6 +21,7 @@ class Document:
     created_at: datetime
     updated_at: Optional[datetime] = None
     validated_at: Optional[datetime] = None
+    experiment_phase: Optional[str] = None  # For experiment tracking
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""
@@ -35,6 +36,7 @@ class Document:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "validated_at": self.validated_at,
+            "experiment_phase": self.experiment_phase,
         }
 
 

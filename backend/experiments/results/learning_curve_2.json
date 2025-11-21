@@ -1,0 +1,64 @@
+[
+  {
+    "batch": 0,
+    "documents_with_feedback": 0,
+    "accuracy": 0.7478260869565218,
+    "timestamp": "2025-11-17T21:40:57.792014"
+  },
+  {
+    "batch": 1,
+    "documents_with_feedback": 5,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:42:35.158639"
+  },
+  {
+    "batch": 2,
+    "documents_with_feedback": 10,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:44:03.014446"
+  },
+  {
+    "batch": 3,
+    "documents_with_feedback": 15,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:46:24.495219"
+  },
+  {
+    "batch": 4,
+    "documents_with_feedback": 20,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:49:30.752643"
+  },
+  {
+    "batch": 5,
+    "documents_with_feedback": 25,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:52:52.178835"
+  },
+  {
+    "batch": 6,
+    "documents_with_feedback": 30,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T21:56:45.632330"
+  },
+  {
+    "batch": 7,
+    "documents_with_feedback": 35,
+    "total_corrections": 29,
+    "accuracy": 1.0,
+    "improvement": 0.25217391304347825,
+    "timestamp": "2025-11-17T22:00:38.621771"
+  }
+]

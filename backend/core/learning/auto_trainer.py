@@ -38,7 +38,7 @@ class AutoTrainingService:
         self.template_repo = TemplateRepository(db_manager)
         self.model_service = ModelService(db_manager)
     
-    def check_and_train(self, template_id: int, model_folder: str = 'models') -> Optional[Dict]:
+    def check_and_train(self, template_id: int, model_folder: str = 'models', force_first_training: bool = False) -> Optional[Dict]:
         """
         Check if auto-retraining should be triggered and execute if conditions are met
         
@@ -88,9 +88,15 @@ class AutoTrainingService:
         
         # 4. Check if model exists
         model_path = os.path.join(model_folder, f"template_{template_id}_model.joblib")
-        if not os.path.exists(model_path):
-            self.logger.error(f"❌ Model {model_path} not found")
+        model_exists = os.path.exists(model_path)
+        
+        if not model_exists and not force_first_training:
+            self.logger.error(f"❌ Model {model_path} not found (use force_first_training=True for initial training)")
             return None
+        
+        # For first training, proceed even if model doesn't exist
+        if not model_exists:
+            self.logger.info(f"🆕 First training - model will be created at {model_path}")
         #     last_modified = datetime.fromtimestamp(os.path.getmtime(model_path))
             # hours_since = (datetime.now() - last_modified).total_seconds() / 3600
             

@@ -324,3 +324,37 @@ class FeedbackRepository:
 
         conn.commit()
         conn.close()
+
+    def find_by_document_ids(self, document_ids: List[int]) -> List[dict]:
+        """
+        Get all feedback for a list of document IDs
+        Used for filtering feedback by experiment phase
+        
+        Args:
+            document_ids: List of document IDs
+        
+        Returns:
+            List of feedback records
+        """
+        if not document_ids:
+            return []
+        
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        placeholders = ",".join("?" * len(document_ids))
+        cursor.execute(
+            f"""
+            SELECT 
+                f.*
+            FROM feedback f
+            WHERE f.document_id IN ({placeholders})
+            ORDER BY f.created_at ASC
+            """,
+            document_ids,
+        )
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return rows

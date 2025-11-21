@@ -476,21 +476,21 @@ class HybridExtractionStrategy:
             results[StrategyType.RULE_BASED] = None
 
         # Try position-based for structured templates (increased threshold)
-        if (
-            context.template_complexity < 0.85
-        ):  # Increased from 0.7 to enable for more templates
-            try:
-                pos_result = self.position_strategy.extract(
-                    pdf_path, field_config, all_words
-                )
-                results[StrategyType.POSITION_BASED] = pos_result
-                if pos_result:
-                    self.logger.debug(
-                        f"  ✅ Position-based: {pos_result.value[:50]}... (conf: {pos_result.confidence})"
-                    )
-            except Exception as e:
-                self.logger.error(f"Position-based extraction failed: {e}")
-                results[StrategyType.POSITION_BASED] = None
+        # if (
+        #     context.template_complexity < 0.85
+        # ):  # Increased from 0.7 to enable for more templates
+        #     try:
+        #         pos_result = self.position_strategy.extract(
+        #             pdf_path, field_config, all_words
+        #         )
+        #         results[StrategyType.POSITION_BASED] = pos_result
+        #         if pos_result:
+        #             self.logger.debug(
+        #                 f"  ✅ Position-based: {pos_result.value[:50]}... (conf: {pos_result.confidence})"
+        #             )
+        #     except Exception as e:
+        #         self.logger.error(f"Position-based extraction failed: {e}")
+        #         results[StrategyType.POSITION_BASED] = None
 
         # ✅ CRITICAL: Always try CRF if model available (for performance tracking)
         if self.crf_strategy:

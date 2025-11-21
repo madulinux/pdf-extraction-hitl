@@ -1,0 +1,343 @@
+{
+  "phase": "adaptive",
+  "template_id": 3,
+  "template_name": "letter_template",
+  "total_documents": 35,
+  "batch_size": 5,
+  "total_batches": 7,
+  "total_corrections": 81,
+  "initial_accuracy": 0.6952380952380952,
+  "final_accuracy": 0.9482993197278912,
+  "improvement": 0.25306122448979596,
+  "improvement_percentage": 36.39921722113504,
+  "strategy": "hybrid",
+  "metrics": {
+    "accuracy": 0.9482993197278912,
+    "precision": 0.9495912806539509,
+    "recall": 0.998567335243553,
+    "f1_score": 0.973463687150838,
+    "avg_confidence": 0.9573395538423367,
+    "true_positives": 697,
+    "false_positives": 37,
+    "false_negatives": 1
+  },
+  "field_accuracy": {
+    "kabupaten_kop": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9896432531573213
+    },
+    "kecamatan_kop": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.8824763865750995
+    },
+    "nama_lengkap": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9899889876576834
+    },
+    "nik": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9899424290037983
+    },
+    "kabupaten": {
+      "accuracy": 0.42857142857142855,
+      "total": 35,
+      "correct": 15,
+      "tp": 15,
+      "fp": 20,
+      "fn": 0,
+      "precision": 0.42857142857142855,
+      "recall": 1.0,
+      "f1_score": 0.6,
+      "avg_confidence": 0.9799999999999999
+    },
+    "tanggal_surat": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9893238033368955
+    },
+    "jenis_kelamin": {
+      "accuracy": 0.9428571428571428,
+      "total": 35,
+      "correct": 33,
+      "tp": 33,
+      "fp": 2,
+      "fn": 0,
+      "precision": 0.9428571428571428,
+      "recall": 1.0,
+      "f1_score": 0.9705882352941176,
+      "avg_confidence": 0.8819162152749961
+    },
+    "kepala_desa": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9961765180648824
+    },
+    "desa_kop": {
+      "accuracy": 0.9714285714285714,
+      "total": 35,
+      "correct": 34,
+      "tp": 34,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1.0,
+      "recall": 0.9714285714285714,
+      "f1_score": 0.9855072463768115,
+      "avg_confidence": 0.986902550288527
+    },
+    "tempat_lahir": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9364828787908638
+    },
+    "kecamatan": {
+      "accuracy": 0.6,
+      "total": 35,
+      "correct": 21,
+      "tp": 21,
+      "fp": 14,
+      "fn": 0,
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1_score": 0.7499999999999999,
+      "avg_confidence": 0.6495714285714282
+    },
+    "nomor_surat": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.989945710597313
+    },
+    "status_kawin": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9899019220161709
+    },
+    "desa": {
+      "accuracy": 0.9714285714285714,
+      "total": 35,
+      "correct": 34,
+      "tp": 34,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.9714285714285714,
+      "recall": 1.0,
+      "f1_score": 0.9855072463768115,
+      "avg_confidence": 0.94865306122449
+    },
+    "keperluan": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9899904681618695
+    },
+    "telp_kantor_desa": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.963206221548963
+    },
+    "tanggal_lahir": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9900285334358697
+    },
+    "agama": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.989984326929841
+    },
+    "alamat": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9900456109258914
+    },
+    "pekerjaan": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9899204189177614
+    },
+    "alamat_kantor_desa": {
+      "accuracy": 1.0,
+      "total": 35,
+      "correct": 35,
+      "tp": 35,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "avg_confidence": 0.9900299062094257
+    }
+  },
+  "learning_curve": [
+    {
+      "batch": 0,
+      "documents_with_feedback": 0,
+      "accuracy": 0.6952380952380952,
+      "timestamp": "2025-11-17T20:55:53.221363"
+    },
+    {
+      "batch": 1,
+      "documents_with_feedback": 5,
+      "total_corrections": 27,
+      "accuracy": 0.8299319727891157,
+      "improvement": 0.13469387755102047,
+      "timestamp": "2025-11-17T20:58:42.931447"
+    },
+    {
+      "batch": 2,
+      "documents_with_feedback": 10,
+      "total_corrections": 48,
+      "accuracy": 0.9156462585034013,
+      "improvement": 0.2204081632653061,
+      "timestamp": "2025-11-17T21:02:24.523060"
+    },
+    {
+      "batch": 3,
+      "documents_with_feedback": 15,
+      "total_corrections": 57,
+      "accuracy": 0.9333333333333333,
+      "improvement": 0.23809523809523814,
+      "timestamp": "2025-11-17T21:06:49.959899"
+    },
+    {
+      "batch": 4,
+      "documents_with_feedback": 20,
+      "total_corrections": 63,
+      "accuracy": 0.9387755102040817,
+      "improvement": 0.24353741496598647,
+      "timestamp": "2025-11-17T21:12:44.607332"
+    },
+    {
+      "batch": 5,
+      "documents_with_feedback": 25,
+      "total_corrections": 68,
+      "accuracy": 0.9428571428571428,
+      "improvement": 0.24761904761904763,
+      "timestamp": "2025-11-17T21:21:02.123584"
+    },
+    {
+      "batch": 6,
+      "documents_with_feedback": 30,
+      "total_corrections": 76,
+      "accuracy": 0.9428571428571428,
+      "improvement": 0.24761904761904763,
+      "timestamp": "2025-11-17T21:30:23.316553"
+    },
+    {
+      "batch": 7,
+      "documents_with_feedback": 35,
+      "total_corrections": 81,
+      "accuracy": 0.9482993197278912,
+      "improvement": 0.25306122448979596,
+      "timestamp": "2025-11-17T21:40:17.469551"
+    }
+  ],
+  "timestamp": "2025-11-17T21:40:17.471985"
+}

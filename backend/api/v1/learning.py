@@ -148,6 +148,13 @@ def get_performance_metrics(template_id):
     """
     Get comprehensive performance metrics for a template
     
+    Query Parameters:
+        - phase: Filter by experiment phase
+            - 'baseline': Baseline experiment only
+            - 'adaptive': Adaptive learning only
+            - 'all': All documents (baseline + adaptive + production)
+            - None (default): Production documents only
+    
     Returns:
         200: Performance metrics including:
             - Overall accuracy
@@ -157,16 +164,27 @@ def get_performance_metrics(template_id):
             - Feedback statistics
         401: Unauthorized
     """
+    from flask import request
     from database.db_manager import DatabaseManager
     from core.learning.metrics import PerformanceMetrics
     
+    # Get optional phase filter
+    experiment_phase = request.args.get('phase', None)
+    
+    # Validate phase value
+    valid_phases = [None, 'baseline', 'adaptive', 'all']
+    if experiment_phase not in valid_phases:
+        return APIResponse.bad_request(
+            f"Invalid phase. Must be one of: baseline, adaptive, all, or omit for production"
+        )
+    
     db = DatabaseManager()
     metrics_service = PerformanceMetrics(db)
-    metrics = metrics_service.get_template_metrics(template_id)
+    metrics = metrics_service.get_template_metrics(template_id, experiment_phase)
     
     return APIResponse.success(
         metrics,
-        "Performance metrics retrieved successfully"
+        f"Performance metrics retrieved successfully (phase: {experiment_phase or 'production'})"
     )
 
 
