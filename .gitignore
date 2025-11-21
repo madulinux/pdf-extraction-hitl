@@ -6,3 +6,5 @@ data/*
 !README.md
 !CONTRIBUTING.md
 documents/*
+!documents/jurnal/main.pdf
+*.txt

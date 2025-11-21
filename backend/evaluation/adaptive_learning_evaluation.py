@@ -41,8 +41,8 @@ class AdaptiveLearningEvaluator:
         )
         self.db = DatabaseManager(db_path)
         self.model_service = ModelService()
-        self.document_repo = DocumentRepository(db)
-        self.feedback_repo = FeedbackRepository(db)
+        self.document_repo = DocumentRepository(self.db)
+        self.feedback_repo = FeedbackRepository(self.db)
 
     def simulate_incremental_learning(self, step_size: int = 5) -> pd.DataFrame:
         """

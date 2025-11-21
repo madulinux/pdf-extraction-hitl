@@ -47,8 +47,8 @@ class BaselineEvaluator:
             "app.db",
         )
         self.db = DatabaseManager(db_path)
-        self.document_repo = DocumentRepository(db)
-        self.feedback_repo = FeedbackRepository(db)
+        self.document_repo = DocumentRepository(self.db)
+        self.feedback_repo = FeedbackRepository(self.db)
 
     def string_similarity(self, a: str, b: str) -> float:
         """

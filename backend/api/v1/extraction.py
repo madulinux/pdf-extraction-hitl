@@ -242,7 +242,7 @@ def validate_corrections():
                     else:
                         # 🔄 SYNC MODE: Run immediately (blocking)
                         auto_trainer = get_auto_training_service(db)
-                        model_path = os.path.join(self.model_folder, f"template_{template_id}_model.joblib")
+                        model_path = os.path.join(model_folder, f"template_{template_id}_model.joblib")
                         is_first_training = not os.path.exists(model_path)
                         training_result = auto_trainer.check_and_train(
                             template_id=template_id,

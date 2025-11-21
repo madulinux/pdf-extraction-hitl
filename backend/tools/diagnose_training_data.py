@@ -7,6 +7,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from database.db_manager import DatabaseManager
+from database.repositories.feedback_repository import FeedbackRepository
 from core.learning.data_preparation import prepare_training_data_from_feedback
 from core.extraction.template_config_loader import TemplateConfigLoader
 import json

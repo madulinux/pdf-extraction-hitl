@@ -819,12 +819,12 @@ SOFTWARE.
 
 ## 📞 Contact
 
-**Author**: [Your Name]  
-**Email**: [your.email@example.com]  
+**Author**: [madulinux](https://github.com/madulinux)  
+**Email**: [madulinux@gmail.com]  
 **Institution**: Universitas Nasional  
-**GitHub**: [@yourusername](https://github.com/yourusername)
+**GitHub**: [@madulinux](https://github.com/madulinux)
 
-**Project Link**: [https://github.com/yourusername/pdf-extraction-hitl](https://github.com/yourusername/pdf-extraction-hitl)
+**Project Link**: [https://github.com/madulinux/pdf-extraction-hitl](https://github.com/madulinux/pdf-extraction-hitl)
 
 ---
 
