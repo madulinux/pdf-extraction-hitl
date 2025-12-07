@@ -8,3 +8,11 @@ data/*
 documents/*
 !documents/jurnal/main.pdf
 *.txt
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Keep example env file
+!.env.example

@@ -151,10 +151,16 @@ def register_error_handlers(app):
 # Create app instance
 app = create_app()
 
-# Health check endpoint
+# Health check endpoints
+@app.route('/health', methods=['GET'])
+def health_check_simple():
+    """Simple health check endpoint for Docker"""
+    from flask import jsonify
+    return jsonify({'status': 'healthy'}), 200
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Detailed health check endpoint"""
     return APIResponse.success(
         data={
             'status': 'healthy',
