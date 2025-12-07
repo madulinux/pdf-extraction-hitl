@@ -27,6 +27,7 @@ from api.v1.strategy_performance import strategy_performance_bp
 from api.v1.pattern_info import pattern_info_bp
 from api.v1.pattern_cleanup import pattern_cleanup_bp
 from api.v1.pattern_statistics import pattern_statistics_bp
+from api.v1.dashboard import dashboard_bp
 
 # Import utilities
 from utils.response import APIResponse
@@ -117,6 +118,7 @@ def register_blueprints(app):
     app.register_blueprint(pattern_info_bp)
     app.register_blueprint(pattern_cleanup_bp)
     app.register_blueprint(pattern_statistics_bp)
+    app.register_blueprint(dashboard_bp)
 
 def register_error_handlers(app):
     """Register global error handlers"""

@@ -1,122 +1,224 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Database, Brain, TrendingUp } from 'lucide-react';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { useEffect, useState, useCallback } from "react";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import {
+  dashboardAPI,
+  SystemOverview,
+  LearningCurve,
+  BaselineComparison,
+} from "@/lib/api/dashboard.api";
+import { SystemStatsCard } from "./components/SystemStatsCard";
+import { TemplateCard } from "./components/TemplateCard";
+import { HITLMetricsCard } from "./components/HITLMetricsCard";
+import { LearningCurvesChart } from "./components/LearningCurvesChart";
+import { BaselineComparisonTable } from "./components/BaselineComparisonTable";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  FileText,
+  MessageSquare,
+  TrendingUp,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const phases = [
+  { value: "adaptive", label: "Adaptive" },
+  { value: "baseline", label: "Baseline" },
+  { value: "all", label: "All Data" },
+];
 
 function HomeContent() {
+  const [phase, setPhase] = useState<string>("adaptive");
+  const [overview, setOverview] = useState<SystemOverview | null>(null);
+  const [learningCurves, setLearningCurves] = useState<LearningCurve[]>([]);
+  const [baselineComparison, setBaselineComparison] = useState<{
+    comparison: BaselineComparison[];
+    summary: {
+      documents: number;
+      baseline_accuracy: number;
+      adaptive_accuracy: number;
+      improvement: number;
+      batches: number;
+    } | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadOverview = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await dashboardAPI.getSystemOverview(phase);
+      setOverview(data);
+
+      // Load learning curves (only for adaptive phase)
+      if (phase === "adaptive") {
+        try {
+          const curvesData = await dashboardAPI.getLearningCurves(phase);
+          setLearningCurves(curvesData.learning_curves);
+        } catch (error) {
+          console.error("Failed to load learning curves:", error);
+        }
+
+        // Load baseline comparison
+        try {
+          const comparisonData = await dashboardAPI.getBaselineComparison();
+          setBaselineComparison(comparisonData);
+        } catch (error) {
+          console.error("Failed to load baseline comparison:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load overview:", error);
+      toast.error("Failed to load system overview");
+    } finally {
+      setLoading(false);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading system overview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!overview) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">No Data Available</h2>
+          <p className="text-muted-foreground mb-4">
+            Unable to load system overview
+          </p>
+          <Button onClick={loadOverview}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const { system_stats, template_summaries, hitl_learning_metrics } = overview;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Selamat datang di Sistem Ekstraksi Data Adaptif PDF dengan Human-in-the-Loop
-        </p>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">System Overview</h1>
+          <p className="text-muted-foreground mt-1">
+            HITL-based adaptive learning system performance
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={phase} onValueChange={setPhase}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select phase" />
+            </SelectTrigger>
+            <SelectContent>
+              {phases.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={loadOverview} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
+      {/* System Stats - Enhanced with HITL metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Template</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Template PDF tersedia</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dokumen Diekstraksi</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Total dokumen diproses</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Feedback Tersedia</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Siap untuk pelatihan</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Model Terlatih</CardTitle>
-            <Brain className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Model CRF aktif</p>
-          </CardContent>
-        </Card>
+        <SystemStatsCard
+          title="Total Documents"
+          value={system_stats.total_documents}
+          description={`${system_stats.total_validated} validated`}
+          icon={FileText}
+          tooltip="Total number of documents processed across all templates. All documents have been validated by users, ensuring data quality for the HITL learning system."
+        />
+        <SystemStatsCard
+          title="Overall Accuracy"
+          value={`${(system_stats.overall_accuracy * 100).toFixed(1)}%`}
+          description="Field-level accuracy"
+          icon={TrendingUp}
+          tooltip="Field-level extraction accuracy calculated across all 2,800 fields (140 documents × 20 avg fields). This metric reflects the system's ability to correctly extract individual data fields from documents."
+        />
+        <SystemStatsCard
+          title="Avg Feedback/Doc"
+          value={system_stats.avg_feedback_per_doc.toFixed(2)}
+          description="Minimal feedback needed"
+          icon={MessageSquare}
+          tooltip="Average number of user corrections required per document. Lower values indicate better initial extraction quality and reduced user burden, demonstrating the efficiency of the HITL learning approach."
+        />
+        <SystemStatsCard
+          title="Learning Efficiency"
+          value={`${(system_stats.learning_efficiency * 100).toFixed(2)}%`}
+          description="Improvement per feedback"
+          icon={TrendingUp}
+          tooltip="Average accuracy improvement achieved per user feedback. This metric demonstrates how effectively the system learns from each correction, showing the incremental learning capability of the hybrid architecture."
+        />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Tentang Sistem</CardTitle>
-            <CardDescription>
-              Sistem Ekstraksi Data Adaptif dari Template PDF berbasis Human-in-the-Loop
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h3 className="font-semibold mb-2">Fitur Utama:</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Analisis Template PDF untuk identifikasi field otomatis</li>
-                <li>Ekstraksi Data Hybrid (Rule-based + Machine Learning CRF)</li>
-                <li>Validasi & Koreksi dengan Human-in-the-Loop</li>
-                <li>Pembelajaran Adaptif dari feedback pengguna</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-2">Cara Penggunaan:</h3>
-              <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Upload template PDF di menu &apos;Kelola Template&apos;</li>
-                <li>Ekstraksi dokumen yang sudah diisi di menu &apos;Ekstraksi Data&apos;</li>
-                <li>Validasi dan koreksi hasil ekstraksi</li>
-                <li>Latih model dengan feedback di menu &apos;Pelatihan Model&apos;</li>
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Teknologi</CardTitle>
-            <CardDescription>Stack yang digunakan</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-1">Backend</h4>
-              <p className="text-xs text-muted-foreground">
-                Python 3.12, Flask, pdfplumber, sklearn-crfsuite, SQLite
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-1">Frontend</h4>
-              <p className="text-xs text-muted-foreground">
-                Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm mb-1">Machine Learning</h4>
-              <p className="text-xs text-muted-foreground">
-                Conditional Random Fields (CRF) dengan BIO tagging
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* HITL Learning Metrics */}
+      <div className="grid gap-4">
+        <HITLMetricsCard metrics={hitl_learning_metrics} />
       </div>
+
+      {/* Template Cards */}
+      <div>
+        <h2 className="text-2xl font-bold mb-4">Templates</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {template_summaries.map((template) => (
+            <TemplateCard key={template.id} template={template} />
+          ))}
+        </div>
+      </div>
+
+      {/* Thesis Visualizations - Only show for adaptive phase */}
+      {phase === "adaptive" && learningCurves.length > 0 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Thesis Visualizations</h2>
+            <p className="text-muted-foreground mb-4">
+              Comprehensive analysis for thesis documentation
+            </p>
+          </div>
+
+          {/* Learning Curves */}
+          <LearningCurvesChart learningCurves={learningCurves} />
+
+          {/* Baseline vs Adaptive Comparison */}
+          {baselineComparison && (
+            <BaselineComparisonTable
+              comparison={baselineComparison.comparison}
+              summary={baselineComparison.summary}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Recent Activity */}
     </div>
   );
 }
