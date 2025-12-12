@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
 import type { FeedbackItem } from "@/lib/types/dashboard.types";
-
+import { ScrollArea } from "@/components/ui/scroll-area";
 interface RecentFeedbackProps {
   data: FeedbackItem[];
 }
@@ -20,6 +20,7 @@ export function RecentFeedback({ data }: RecentFeedbackProps) {
 
   return (
     <div className="space-y-3">
+      <ScrollArea className="max-h-[400px] overflow-y-auto">
       {data.map((item, index) => (
         <div key={index} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
           <div className="flex items-start justify-between mb-2">
@@ -42,6 +43,7 @@ export function RecentFeedback({ data }: RecentFeedbackProps) {
           </div>
         </div>
       ))}
+      </ScrollArea>
     </div>
   );
 }

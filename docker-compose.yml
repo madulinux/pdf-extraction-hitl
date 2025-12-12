@@ -20,11 +20,15 @@ services:
     env_file:
       - .env
     volumes:
-      # Mount data directories
-      - ./backend/data:/app/data
-      - ./backend/experiments:/app/experiments
-      - ./backend/models:/app/models
-      - ./backend/uploads:/app/uploads
+      # Use named volumes for data isolation
+      - backend-data:/app/data
+      - backend-experiments:/app/experiments
+      - backend-models:/app/models
+      - backend-uploads:/app/uploads
+      # Mount ground truth (read-only) - needed for experiments
+      - ./backend/data/ground_truth:/app/data/ground_truth:ro
+      # Mount experiment results (read-only) - needed for dashboard
+      - ./backend/experiments/results:/app/experiments/results:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -40,6 +44,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: pdf-extraction-frontend
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
@@ -67,4 +73,10 @@ networks:
 
 volumes:
   backend-data:
+    driver: local
+  backend-experiments:
+    driver: local
   backend-models:
+    driver: local
+  backend-uploads:
+    driver: local

@@ -47,7 +47,7 @@ export function ErrorPatternsCard({ data }: ErrorPatternsCardProps) {
       </div>
 
       {/* Problematic Fields */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {data.most_problematic_fields.slice(0, 5).map((field) => {
           const isOpen = openFields.has(field.field_name);
           const errorRate = field.error_count;
@@ -59,8 +59,8 @@ export function ErrorPatternsCard({ data }: ErrorPatternsCardProps) {
               onOpenChange={() => toggleField(field.field_name)}
             >
               <Card className="border-l-4 border-l-destructive">
-                <CollapsibleTrigger className="w-full">
-                  <CardContent className="p-4">
+                <CollapsibleTrigger className="w-full h-8">
+                  <CardContent className="p-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <ChevronRight

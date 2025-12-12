@@ -19,6 +19,39 @@ from core.learning.services import ModelService
 from database.repositories.job_repository import JobRepository
 from core.learning.auto_trainer import get_auto_training_service
 import time
+import shutil
+
+def safe_remove_folder(folder_path, folder_name="folder"):
+    """
+    Safely remove a folder and its contents.
+    Handles Docker volume mounts gracefully.
+    """
+    if not os.path.exists(folder_path):
+        return
+    
+    try:
+        # Delete all files and subdirectories
+        for root, dirs, files in os.walk(folder_path, topdown=False):
+            for file in files:
+                try:
+                    os.remove(os.path.join(root, file))
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not delete file {file}: {e}")
+            
+            for dir in dirs:
+                try:
+                    os.rmdir(os.path.join(root, dir))
+                except OSError:
+                    pass  # Skip if directory is not empty or is a mount point
+        
+        # Try to remove the folder itself (will fail if it's a Docker volume mount)
+        try:
+            os.rmdir(folder_path)
+            print(f"🗑️  {folder_name} deleted")
+        except OSError:
+            print(f"🗑️  {folder_name} contents cleared (folder is a volume mount)")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not fully clean {folder_name}: {e}")
 
 def migrate():
     """Run database migrations"""
@@ -44,55 +77,28 @@ def migrate_fresh():
         os.remove(db.db_path)
         print("🗑️  Database deleted")
 
-    # Delete ./templates/ and ./uploads/ and ./previews/ folder and files
-    template_folder = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "templates"
+    # Delete folders using safe removal (handles Docker volume mounts)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    safe_remove_folder(
+        os.path.join(base_dir, "templates"),
+        "Templates folder"
     )
-    if os.path.exists(template_folder):
-        for root, dirs, files in os.walk(template_folder):
-            for file in files:
-                os.remove(os.path.join(root, file))
-            for dir in dirs:
-                os.rmdir(os.path.join(root, dir))
-        os.rmdir(template_folder)
-        print("🗑️  Template folder deleted")
-
-    # Delete ./uploads/ folder and files
-    upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
-    if os.path.exists(upload_folder):
-        for root, dirs, files in os.walk(upload_folder):
-            for file in files:
-                os.remove(os.path.join(root, file))
-            for dir in dirs:
-                os.rmdir(os.path.join(root, dir))
-        os.rmdir(upload_folder)
-        print("🗑️  Uploads folder deleted")
-
-    # Delete ./previews/ folder and files
-    preview_folder = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "previews"
+    
+    safe_remove_folder(
+        os.path.join(base_dir, "uploads"),
+        "Uploads folder"
     )
-    if os.path.exists(preview_folder):
-        for root, dirs, files in os.walk(preview_folder):
-            for file in files:
-                os.remove(os.path.join(root, file))
-            for dir in dirs:
-                os.rmdir(os.path.join(root, dir))
-        os.rmdir(preview_folder)
-        print("🗑️  Previews folder deleted")
-
-    # Delete ./feedback/ folder and files
-    feedback_folder = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "feedback"
+    
+    safe_remove_folder(
+        os.path.join(base_dir, "previews"),
+        "Previews folder"
     )
-    if os.path.exists(feedback_folder):
-        for root, dirs, files in os.walk(feedback_folder):
-            for file in files:
-                os.remove(os.path.join(root, file))
-            for dir in dirs:
-                os.rmdir(os.path.join(root, dir))
-        os.rmdir(feedback_folder)
-        print("🗑️  Feedback folder deleted")
+    
+    safe_remove_folder(
+        os.path.join(base_dir, "feedback"),
+        "Feedback folder"
+    )
 
     # Delete ./data/strategy_performance.json
     strategy_performance_path = os.path.join(
@@ -102,23 +108,39 @@ def migrate_fresh():
         os.remove(strategy_performance_path)
         print("🗑️  Strategy performance deleted")
 
-    # Delete ./models/ folder contents (trained CRF models)
-    models_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+    # Delete ./models/ folder contents (trained CRF models) - may be volume mount
+    models_folder = os.path.join(base_dir, "models")
     if os.path.exists(models_folder):
-        for root, dirs, files in os.walk(models_folder, topdown=False):
-            for file in files:
-                os.remove(os.path.join(root, file))
-                print(f"   🗑️  Deleted model: {file}")
-        print("🗑️  Models folder cleaned")
+        try:
+            for root, dirs, files in os.walk(models_folder, topdown=False):
+                for file in files:
+                    try:
+                        os.remove(os.path.join(root, file))
+                        print(f"   🗑️  Deleted model: {file}")
+                    except Exception as e:
+                        print(f"   ⚠️  Could not delete {file}: {e}")
+            print("🗑️  Models folder cleaned")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not fully clean models folder: {e}")
 
-    # Delete ./data/* files
-    data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    # Delete ./data/* files (but preserve ground_truth if it's read-only mount)
+    data_folder = os.path.join(base_dir, "data")
     if os.path.exists(data_folder):
-        for root, dirs, files in os.walk(data_folder, topdown=False):
-            for file in files:
-                os.remove(os.path.join(root, file))
-                print(f"   🗑️  Deleted data file: {file}")
-        print("🗑️  Data folder cleaned")
+        try:
+            for root, dirs, files in os.walk(data_folder, topdown=False):
+                # Skip ground_truth folder (read-only mount)
+                if 'ground_truth' in root:
+                    continue
+                    
+                for file in files:
+                    try:
+                        os.remove(os.path.join(root, file))
+                        print(f"   🗑️  Deleted data file: {file}")
+                    except Exception as e:
+                        print(f"   ⚠️  Could not delete {file}: {e}")
+            print("🗑️  Data folder cleaned (preserved ground_truth)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not fully clean data folder: {e}")
 
     # Delete log files
     log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.log")

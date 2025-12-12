@@ -19,8 +19,6 @@ import {
   Activity,
   RefreshCw,
 } from "lucide-react";
-import { PerformanceMetrics } from "./components/PerformanceMetrics";
-import { AccuracyChart } from "./components/AccuracyChart";
 import { FieldPerformanceTable } from "./components/FieldPerformanceTable";
 import { StrategyDistribution } from "./components/StrategyDistribution";
 import { RecentFeedback } from "./components/RecentFeedback";
@@ -28,7 +26,7 @@ import { LearningProgressChart } from "./components/LearningProgressChart"; // �
 import { StrategyPerformanceTable } from "./components/StrategyPerformanceTable"; // ✅ NEW
 import { ErrorPatternsCard } from "./components/ErrorPatternsCard"; // ✅ NEW
 import { ConfidenceTrendsCard } from "./components/ConfidenceTrendsCard"; // ✅ NEW
-import { StrategyLearningComparison } from "./components/StrategyLearningComparison"; // ✅ NEW
+// import { StrategyLearningComparison } from "./components/StrategyLearningComparison"; // ✅ NEW
 import { FieldMetricsDetailedTable } from "./components/FieldMetricsDetailedTable"; // ✅ NEW
 import { ExtractionTimeStats } from "./components/ExtractionTimeStats"; // ✅ NEW
 import { AblationStudyCard } from "./components/AblationStudyCard"; // ✅ NEW
@@ -141,7 +139,7 @@ export default function DashboardPage() {
     field_metrics_detailed, // ✅ NEW: Precision, Recall, F1
     strategy_distribution,
     strategy_performance, // ✅ NEW
-    accuracy_over_time,
+    // accuracy_over_time, // Removed: redundant with learning_progress
     feedback_stats,
     learning_progress, // ✅ NEW
     confidence_trends, // ✅ NEW
@@ -295,19 +293,7 @@ export default function DashboardPage() {
             Learning Progress
           </TabsTrigger>
           <TabsTrigger value="fields" onClick={() => setSelectedTab("fields")}>
-            Field Performance
-          </TabsTrigger>
-          <TabsTrigger
-            value="evaluation"
-            onClick={() => setSelectedTab("evaluation")}
-          >
-            Evaluation Metrics
-          </TabsTrigger>
-          <TabsTrigger
-            value="performance"
-            onClick={() => setSelectedTab("performance")}
-          >
-            Performance
+            Field Analysis
           </TabsTrigger>
           <TabsTrigger
             value="strategies"
@@ -315,14 +301,14 @@ export default function DashboardPage() {
           >
             Strategies
           </TabsTrigger>
+          <TabsTrigger
+            value="performance"
+            onClick={() => setSelectedTab("performance")}
+          >
+            Performance
+          </TabsTrigger>
           <TabsTrigger value="errors" onClick={() => setSelectedTab("errors")}>
             Error Patterns
-          </TabsTrigger>
-          <TabsTrigger
-            value="feedback"
-            onClick={() => setSelectedTab("feedback")}
-          >
-            Feedback
           </TabsTrigger>
           <TabsTrigger
             value="research"
@@ -336,42 +322,55 @@ export default function DashboardPage() {
         <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Accuracy Over Time</CardTitle>
+              <CardTitle>Quick Overview</CardTitle>
               <CardDescription>
-                Track how extraction accuracy improves with adaptive learning
+                Key insights and system status at a glance
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AccuracyChart data={accuracy_over_time} />
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="p-4 border rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Current Phase
+                    </p>
+                    <p className="text-2xl font-bold capitalize">{phase}</p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Avg Confidence
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {confidence_trends
+                        ? (confidence_trends.avg_confidence * 100).toFixed(1)
+                        : "0"}
+                      %
+                    </p>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Learning Status
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {learning_progress ? learning_progress.total_batches : 0}{" "}
+                      Batches
+                    </p>
+                  </div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <p className="text-sm font-medium mb-2">System Status</p>
+                  <p className="text-sm text-muted-foreground">
+                    Dashboard showing {phase} phase metrics for{" "}
+                    {selectedTemplate?.name || "selected template"}. Use tabs
+                    above to explore detailed analytics.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Strategy Distribution</CardTitle>
-                <CardDescription>
-                  Which extraction strategies are being used
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <StrategyDistribution data={strategy_distribution} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance Metrics</CardTitle>
-                <CardDescription>Key performance indicators</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PerformanceMetrics overview={overview} />
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
-        {/* Learning Progress Tab - NEW */}
+        {/* Learning Progress Tab - SIMPLIFIED */}
         <TabsContent value="learning" className="space-y-4">
           <Card>
             <CardHeader>
@@ -385,85 +384,55 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Confidence Trends</CardTitle>
-                <CardDescription>
-                  Model confidence scores by strategy
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ConfidenceTrendsCard data={confidence_trends} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Insights</CardTitle>
-                <CardDescription>Performance highlights</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <span className="text-sm font-medium">
-                      Improvement Rate
-                    </span>
-                    <Badge variant="default" className="text-base">
-                      +{learning_progress.improvement_rate.toFixed(1)}%
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <span className="text-sm font-medium">Total Batches</span>
-                    <span className="text-lg font-bold">
-                      {learning_progress.total_batches}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <span className="text-sm font-medium">Avg Confidence</span>
-                    <span className="text-lg font-bold">
-                      {(confidence_trends.avg_confidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Strategy Learning Comparison - NEW */}
           <Card>
             <CardHeader>
-              <CardTitle>Strategy Performance Comparison</CardTitle>
+              <CardTitle>Key Insights</CardTitle>
               <CardDescription>
-                Compare learning effectiveness across extraction strategies
+                Performance highlights and learning metrics
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <StrategyLearningComparison
-                strategyPerformance={strategy_performance}
-                accuracyOverTime={accuracy_over_time}
-              />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Improvement Rate</span>
+                  <Badge variant="default" className="text-base">
+                    +{learning_progress.improvement_rate.toFixed(1)}%
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Total Batches</span>
+                  <span className="text-lg font-bold">
+                    {learning_progress.total_batches}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Avg Confidence</span>
+                  <span className="text-lg font-bold">
+                    {confidence_trends
+                      ? (confidence_trends.avg_confidence * 100).toFixed(1)
+                      : "0"}
+                    %
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Field Performance Tab */}
+        {/* Field Analysis Tab - MERGED */}
         <TabsContent value="fields" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Field-Level Performance</CardTitle>
+              <CardTitle>Field-Level Accuracy</CardTitle>
               <CardDescription>
-                Detailed accuracy metrics for each field
+                Basic accuracy metrics for each field
               </CardDescription>
             </CardHeader>
             <CardContent>
               <FieldPerformanceTable data={field_performance} />
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Evaluation Metrics Tab - NEW */}
-        <TabsContent value="evaluation" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Detailed Evaluation Metrics</CardTitle>
@@ -478,16 +447,7 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
 
-        {/* Performance Tab - NEW */}
-        <TabsContent value="performance" className="space-y-4">
-          <ExtractionTimeStats stats={performance_stats} />
-
-          <TimeTrendsChart data={time_trends} />
-
-          <AblationStudyCard data={ablation_study} />
-        </TabsContent>
-
-        {/* Strategies Tab */}
+        {/* Strategies Tab - ENHANCED */}
         <TabsContent value="strategies" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
@@ -514,9 +474,29 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Confidence Trends</CardTitle>
+              <CardDescription>
+                Model confidence scores by strategy
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ConfidenceTrendsCard data={confidence_trends} />
+            </CardContent>
+          </Card>
+
+          <AblationStudyCard data={ablation_study} />
         </TabsContent>
 
-        {/* Error Patterns Tab - NEW */}
+        {/* Performance Tab - MERGED */}
+        <TabsContent value="performance" className="space-y-4">
+          <ExtractionTimeStats stats={performance_stats} />
+
+          <TimeTrendsChart data={time_trends} />
+        </TabsContent>
+        {/* errors Tab - MERGED */}
         <TabsContent value="errors" className="space-y-4">
           <Card>
             <CardHeader>
@@ -529,47 +509,46 @@ export default function DashboardPage() {
               <ErrorPatternsCard data={error_patterns} />
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Feedback Tab */}
-        <TabsContent value="feedback" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Feedback</CardTitle>
-              <CardDescription>
-                Latest user corrections and improvements
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RecentFeedback data={feedback_stats.recent_feedback} />
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Feedback</CardTitle>
+                <CardDescription>
+                  Latest user corrections and improvements
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RecentFeedback data={feedback_stats.recent_feedback} />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Feedback by Field</CardTitle>
-              <CardDescription>
-                Which fields receive the most corrections
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(feedback_stats.feedback_by_field)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([field, count]) => (
-                    <div
-                      key={field}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-sm font-medium capitalize">
-                        {field.replace(/_/g, " ")}
-                      </span>
-                      <Badge variant="secondary">{count} corrections</Badge>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Feedback by Field</CardTitle>
+                <CardDescription>
+                  Which fields receive the most corrections
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries(feedback_stats.feedback_by_field)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([field, count]) => (
+                      <div
+                        key={field}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-sm font-medium capitalize">
+                          {field.replace(/_/g, " ")}
+                        </span>
+                        <Badge variant="secondary">{count} corrections</Badge>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Research Metrics Tab - PHASE 1 */}

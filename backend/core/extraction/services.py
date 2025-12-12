@@ -437,3 +437,98 @@ class ExtractionService:
         result["feedback_history"] = feedback_history
 
         return result
+
+    def extract_documents_bulk(
+        self,
+        files: list,
+        template_id: int,
+        template_config_path: str = None,
+        experiment_phase: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Extract data from multiple PDF documents in bulk
+
+        Args:
+            files: List of uploaded PDF files
+            template_id: Template ID to use
+            template_config_path: Path to template configuration (optional)
+            experiment_phase: Experiment phase ('baseline', 'adaptive', or None)
+
+        Returns:
+            Bulk extraction results with success/failure counts
+        """
+        from core.templates.config_loader import get_config_loader
+
+        config_loader = get_config_loader(
+            db_manager=self.db,
+            template_folder=(
+                os.path.dirname(template_config_path) if template_config_path else None
+            ),
+        )
+
+        config = config_loader.load_config(template_id, template_config_path)
+        if not config:
+            raise ValidationError(
+                f"Failed to load configuration for template {template_id}"
+            )
+
+        results = {
+            "total": len(files),
+            "successful": 0,
+            "failed": 0,
+            "documents": [],
+            "errors": [],
+        }
+
+        for file in files:
+            try:
+                filename = secure_filename(file.filename)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}_{filename}"
+                filepath = os.path.join(self.upload_folder, filename)
+                file.save(filepath)
+
+                document_id = self.document_repo.create(
+                    template_id=template_id,
+                    filename=filename,
+                    file_path=filepath,
+                    experiment_phase=experiment_phase,
+                )
+
+                if experiment_phase == "baseline":
+                    model_path = None
+                else:
+                    model_path = os.path.join(
+                        self.model_folder, f"template_{template_id}_model.joblib"
+                    )
+                    if not os.path.exists(model_path):
+                        model_path = None
+
+                extractor = DataExtractor(config, model_path)
+                extraction_results = extractor.extract(filepath)
+
+                extraction_time_ms = extraction_results.get("extraction_time_ms", 0)
+                self.document_repo.update_extraction(
+                    document_id=document_id,
+                    extraction_result=json.dumps(extraction_results),
+                    status="extracted",
+                    extraction_time_ms=extraction_time_ms,
+                )
+
+                results["successful"] += 1
+                results["documents"].append({
+                    "document_id": document_id,
+                    "filename": file.filename,
+                    "status": "success",
+                    "results": extraction_results,
+                })
+
+            except Exception as e:
+                self.logger.error(f"Failed to extract {file.filename}: {str(e)}")
+                results["failed"] += 1
+                results["errors"].append({
+                    "filename": file.filename,
+                    "error": str(e),
+                })
+
+        return results

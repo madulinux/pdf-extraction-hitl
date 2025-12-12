@@ -6,7 +6,6 @@ import { apiClient } from "./client";
 import {
   Document,
   ExtractionResult,
-  Correction,
   ExtractResponse,
   ValidationResponse,
 } from "../types/extraction.types";
@@ -84,5 +83,59 @@ export const extractionAPI = {
       document: Document & { results: ExtractionResult };
     }>(`/v1/extraction/documents/${documentId}`);
     return response.data.data!;
+  },
+
+  /**
+   * Extract data from multiple documents in bulk
+   */
+  async extractBulk(
+    files: File[],
+    templateId: number
+  ): Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    documents: Array<{
+      document_id: number;
+      filename: string;
+      status: string;
+      results: ExtractionResult;
+    }>;
+    errors: Array<{
+      filename: string;
+      error: string;
+    }>;
+  }> {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    formData.append("template_id", templateId.toString());
+
+    const response = await apiClient.post(
+      "/v1/extraction/extract/bulk",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        } as unknown as AxiosRequestHeaders,
+      }
+    );
+
+    return response.data.data as {
+      total: number;
+      successful: number;
+      failed: number;
+      documents: Array<{
+        document_id: number;
+        filename: string;
+        status: string;
+        results: ExtractionResult;
+      }>;
+      errors: Array<{
+        filename: string;
+        error: string;
+      }>;
+    };
   },
 };

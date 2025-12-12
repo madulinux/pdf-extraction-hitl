@@ -105,9 +105,9 @@ export function LearningProgressChart({ data }: LearningProgressChartProps) {
           <Line
             type="monotone"
             dataKey="accuracy"
-            stroke="hsl(var(--primary))"
+            stroke="#3b82f6"
             strokeWidth={3}
-            dot={{ r: 5, fill: "hsl(var(--primary))" }}
+            dot={{ r: 5 }}
             activeDot={{ r: 7 }}
             name="Accuracy (%)"
           />

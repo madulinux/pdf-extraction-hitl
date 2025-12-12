@@ -11,6 +11,13 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Build argument for API URL (passed from docker-compose)
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+# Debug: Print the API URL being used
+RUN echo "Building with NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"
+
 # Copy source code
 COPY . .
 

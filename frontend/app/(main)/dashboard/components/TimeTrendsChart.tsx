@@ -154,16 +154,17 @@ export function TimeTrendsChart({ data }: TimeTrendsChartProps) {
               <Line
                 type="monotone"
                 dataKey="time"
-                stroke="hsl(var(--primary))"
+                
+                stroke="#0b3f94ff"
                 strokeWidth={1}
                 dot={{ r: 2 }}
                 name="Extraction Time"
                 opacity={0.5}
-              />
+                />
               <Line
                 type="monotone"
                 dataKey="movingAvg"
-                stroke="hsl(var(--chart-2))"
+                stroke="#e2aa0eff"
                 strokeWidth={2}
                 dot={false}
                 name="Moving Average (5 docs)"
