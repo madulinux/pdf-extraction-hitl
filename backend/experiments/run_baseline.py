@@ -172,8 +172,9 @@ def evaluate_baseline(template_id: int, ground_truth_dir: str = "data/ground_tru
             # TN: Both empty (not counted in extraction metrics)
             
             if extracted_value and gt_value:
-                extracted_value = re.sub(r"\s+", " ", str(extracted_value).strip())
-                gt_value = re.sub(r"\s+", " ", str(gt_value).strip())
+                # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+                extracted_value = str(extracted_value).strip()
+                gt_value = str(gt_value).strip()
                 # Both have values
                 if extracted_value == gt_value:
                     # True Positive: Correct extraction

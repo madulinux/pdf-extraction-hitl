@@ -10,7 +10,6 @@ import { extractionAPI } from '@/lib/api/extraction.api';
 import { Document, ExtractionResult } from '@/lib/types/extraction.types';
 import { ArrowLeft, FileText } from 'lucide-react';
 import ValidationForm from '@/components/ValidationForm';
-import FeedbackHistory from '@/components/FeedbackHistory';
 
 function ValidationPageContent() {
   const params = useParams();
@@ -157,18 +156,14 @@ function ValidationPageContent() {
           </CardContent>
         </Card>
 
-        {/* Right: Validation Form + Feedback History */}
+        {/* Right: Validation Form with Integrated History */}
         <div className="space-y-6">
           <ValidationForm
             documentId={documentId}
             extractionResults={extractionResults}
+            feedbackHistory={document.feedback_history || []}
             onValidationComplete={handleValidationComplete}
           />
-          
-          {/* Feedback History */}
-          {document.feedback_history && document.feedback_history.length > 0 && (
-            <FeedbackHistory feedbackHistory={document.feedback_history} />
-          )}
         </div>
       </div>
     </div>

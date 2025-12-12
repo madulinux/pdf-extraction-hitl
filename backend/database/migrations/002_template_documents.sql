@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     validated_at TIMESTAMP,
-    experiment_phase TEXT DEFAULT NULL,
+    used_for_training INTEGER DEFAULT 0,
+    experiment_phase TEXT DEFAULT 'adaptive',
     FOREIGN KEY (template_id) REFERENCES templates (id)
 );
 

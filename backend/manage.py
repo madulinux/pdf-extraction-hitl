@@ -7,6 +7,10 @@ import sys
 import os
 import sqlite3
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file FIRST before any other imports
+load_dotenv()
 
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -328,27 +332,40 @@ def worker():
             try:
                 payload = json.loads(job["payload"])
                 model_folder = payload.get("model_folder", "models")
+                is_first_training = payload.get("is_first_training", False)
 
                 auto_trainer = get_auto_training_service(db)
                 result = auto_trainer.check_and_train(
                     template_id=template_id,
                     model_folder=model_folder,
+                    force_first_training=is_first_training,
                 )
 
                 if result:
-                    print(
-                        f"✅ Auto-training completed for template {template_id}: "
-                        f"{result['training_samples']} samples, "
-                        f"{result['test_metrics']['accuracy']*100:.2f}% accuracy"
-                    )
+                    accuracy = result['test_metrics'].get('accuracy')
+                    if accuracy is not None:
+                        print(
+                            f"✅ Auto-training completed for template {template_id}: "
+                            f"{result['training_samples']} samples, "
+                            f"{accuracy*100:.2f}% accuracy"
+                        )
+                    else:
+                        print(
+                            f"✅ Auto-training completed for template {template_id}: "
+                            f"{result['training_samples']} samples (metrics not evaluated)"
+                        )
+                    job_repo.mark_completed(job_id)
                 else:
                     print(f"ℹ️  Auto-training skipped for template {template_id} (conditions not met)")
+                    # Mark as completed even if skipped (not an error, just conditions not met)
+                    job_repo.mark_completed(job_id)
 
-                job_repo.mark_completed(job_id)
             except Exception as e:
                 print(f"❌ Job {job_id} failed: {e}")
                 import traceback
                 traceback.print_exc()
+                
+                # Mark job as failed and log to failed_jobs table
                 job_repo.mark_failed(job_id, str(e))
 
     except KeyboardInterrupt:

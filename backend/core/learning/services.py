@@ -113,9 +113,12 @@ class ModelService:
             template_id, unused_only=not use_all_feedback
         )
         # ✅ VALIDATED DOCUMENTS: High-confidence extractions (pseudo-labels)
+        # Filter based on use_all_feedback to match feedback filtering
         self.logger.info(f"\n📚 Processing validated documents (high-confidence extractions)...")
-        validated_docs = self.document_repo.find_validated_documents(template_id)
-        self.logger.info(f"   Found {len(validated_docs)} validated documents")
+        validated_docs = self.document_repo.find_validated_documents(
+            template_id, unused_only=not use_all_feedback
+        )
+        self.logger.info(f"   Found {len(validated_docs)} validated documents (unused_only={not use_all_feedback})")
 
         validated_processed = 0
         for idx, document in enumerate(validated_docs, 1):
@@ -251,77 +254,77 @@ class ModelService:
                     if fb in doc_feedbacks:
                         feedback_ids.append(fb["id"])
 
-        # ALWAYS use validated docs (both full and incremental)
+        # ✅ ALWAYS process validated docs (both full and incremental)
+        # Filter based on use_all_feedback to include only unused or all
         validated_count = 0
+        docs_with_feedback = set(feedback_by_doc.keys())
+
+        self.logger.info(f"Processing {len(validated_docs)} validated documents...")
         
-        if use_all_feedback: 
-            docs_with_feedback = set(feedback_by_doc.keys())
+        validated_docs_to_extract = []
+        for document in validated_docs:
+            if document.id not in pdf_words_cache:
+                validated_docs_to_extract.append((document.id, document.file_path))
+        
+        if validated_docs_to_extract:
+            self.logger.info(f"Extracting {len(validated_docs_to_extract)} validated documents with {self.max_workers} workers...")
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(extract_pdf_words, doc_id, path): doc_id 
+                          for doc_id, path in validated_docs_to_extract}
+                
+                for future in as_completed(futures):
+                    doc_id, words = future.result()
+                    pdf_words_cache[doc_id] = words
 
-            self.logger.info(f"Processing {len(validated_docs)} validated documents...")
-            
-            validated_docs_to_extract = []
-            for document in validated_docs:
-                if document.id not in pdf_words_cache:
-                    validated_docs_to_extract.append((document.id, document.file_path))
-            
-            if validated_docs_to_extract:
-                self.logger.info(f"Processing {len(validated_docs)} validated documents with {self.max_workers} workers...")
-                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                    futures = {executor.submit(extract_pdf_words, doc_id, path): doc_id 
-                              for doc_id, path in validated_docs_to_extract}
+        for document in validated_docs:
+            doc_id = document.id
+
+            # Skip documents that already have feedback (to avoid duplication)
+            if doc_id in docs_with_feedback:
+                continue
+
+            extraction_result = json.loads(document.extraction_result)
+            extracted_data = extraction_result.get("extracted_data", {})
+            confidence_scores = extraction_result.get("confidence_scores", {})
+
+            words = pdf_words_cache.get(doc_id, [])
+            if not words:
+                continue
+
+            # Create pseudo-feedback from high-confidence extractions
+            pseudo_feedbacks = []
+            for field_name, value in extracted_data.items():
+                confidence = confidence_scores.get(field_name, 0.0)
+                if confidence >= 0.3:  
+                    pseudo_feedbacks.append(
+                        {"field_name": field_name, "corrected_value": value}
+                    )
+
+            if pseudo_feedbacks:
+                field_configs = {}
+                if template_config:
+                    fields = template_config.get('fields', {})
+                    for field_name, field_config in fields.items():
+                        field_configs[field_name] = field_config
+                
+                for fb in pseudo_feedbacks:
+                    field_name = fb["field_name"]
+                    field_config = field_configs.get(field_name)
                     
-                    for future in as_completed(futures):
-                        doc_id, words = future.result()
-                        pdf_words_cache[doc_id] = words
-
-            for document in validated_docs:
-                doc_id = document.id
-
-                extraction_result = json.loads(document.extraction_result)
-                extracted_data = extraction_result.get("extracted_data", {})
-                confidence_scores = extraction_result.get("confidence_scores", {})
-
-                words = pdf_words_cache.get(doc_id, [])
-                if not words:
-                    continue
-
-                pseudo_feedbacks = []
-
-                if doc_id in docs_with_feedback:
-                    continue
-                else:
-                    for field_name, value in extracted_data.items():
-                        confidence = confidence_scores.get(field_name, 0.0)
-                        if confidence >= 0.3:  
-                            pseudo_feedbacks.append(
-                                {"field_name": field_name, "corrected_value": value}
-                            )
-
-                if pseudo_feedbacks:
-                    field_configs = {}
-                    if template_config:
-                        fields = template_config.get('fields', {})
-                        for field_name, field_config in fields.items():
-                            field_configs[field_name] = field_config
+                    features, labels = learner._create_bio_sequence(
+                        fb,
+                        words,
+                        field_config=field_config
+                    )
                     
-                    for fb in pseudo_feedbacks:
-                        field_name = fb["field_name"]
-                        field_config = field_configs.get(field_name)
-                        
-                        features, labels = learner._create_bio_sequence(
-                            fb,
-                            words,
-                            field_config=field_config
-                        )
-                        
-                        if features and labels:
-                            X_train.append(features)
-                            y_train.append(labels)
-                    
-                    validated_count += 1
+                    if features and labels:
+                        X_train.append(features)
+                        y_train.append(labels)
+                
+                validated_count += 1
 
         if not X_train:
-            raise ValueError("Could not prepare training data")
+            raise ValueError("Could not prepare training data - no feedback or validated documents available")
 
         self.logger.info(f"Training: {len(X_train)} samples ({len(feedback_by_doc)} feedback docs, {validated_count} validated docs)")
 
@@ -417,13 +420,38 @@ class ModelService:
         if is_incremental and model_exists:
             # Use half iterations for incremental (faster)
             incremental_iterations = max(50, self.max_iterations // 2)
-            self.logger.info(f"Incremental training ({incremental_iterations} iterations, skip evaluation)")
+            
+            # Check if evaluation is enabled for incremental training
+            # Use app.config if available (from Flask context), otherwise fallback to os.getenv
+            try:
+                from flask import current_app
+                evaluate_incremental = current_app.config.get('INCREMENTAL_TRAINING_EVALUATE', False)
+            except (ImportError, RuntimeError):
+                # Not in Flask context (e.g., CLI), read from env directly
+                evaluate_incremental = os.getenv('INCREMENTAL_TRAINING_EVALUATE', 'false').lower() == 'true'
+            
+            if evaluate_incremental:
+                self.logger.info(f"Incremental training ({incremental_iterations} iterations, with evaluation)")
+            else:
+                self.logger.info(f"Incremental training ({incremental_iterations} iterations, skip evaluation)")
             
             metrics = learner.train(X_train_split, y_train_split, 
                                    max_iterations=incremental_iterations,
-                                   skip_evaluation=True)  # Skip all eval
+                                   skip_evaluation=True)  # Skip training eval
             
-            test_metrics = {'accuracy': 0.0}  # Placeholder
+            # ✅ Conditionally evaluate on test set based on config
+            if evaluate_incremental:
+                test_metrics = learner.evaluate(X_test_split, y_test_split)
+                self.logger.info(f"Test accuracy: {test_metrics.get('accuracy', 0)*100:.2f}%")
+            else:
+                # Use placeholder metrics for faster training
+                test_metrics = {
+                    'accuracy': None,
+                    'precision': None,
+                    'recall': None,
+                    'f1': None
+                }
+                self.logger.info("Evaluation skipped for speed (metrics will be NULL)")
         else:
             self.logger.info(f"Max iterations: {self.max_iterations}")
             

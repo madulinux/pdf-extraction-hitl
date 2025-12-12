@@ -243,9 +243,11 @@ class ExtractionService:
 
             original_value = extracted_data.get(field_name, "")
 
-            # Normalize for comparison (strip whitespace, normalize internal spaces)
-            original_normalized = re.sub(r"\s+", " ", str(original_value).strip())
-            corrected_normalized = re.sub(r"\s+", " ", str(corrected_value).strip())
+            # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+            # Do NOT normalize internal spaces - missing spaces are real errors!
+            # Example: "someonelevel" ≠ "someone level" (should be corrected)
+            original_normalized = str(original_value).strip()
+            corrected_normalized = str(corrected_value).strip()
 
             # Only save if values are different
             if original_normalized != corrected_normalized:
@@ -258,18 +260,49 @@ class ExtractionService:
             # orig_display = str(original_value)[:50] if original_value else ""
             # self.logger.info(f"  ⏭️  Skipping '{field_name}': No change ('{orig_display}')")
 
-        # If no actual corrections, skip feedback saving
-        # if not actual_corrections:
-        #     self.logger.warning(f"⚠️  No actual corrections for document {document_id}. Skipping feedback.")
-        #     # Still mark as validated
-        #     self.document_repo.update_status(document_id, "validated")
-        #     return {
-        #         "feedback_ids": [],
-        #         "document_id": document_id,
-        #         "corrections_count": 0,
-        #         "skipped": True,
-        #         "reason": "No actual changes detected",
-        #     }
+        # ✅ Handle "all correct" validation (empty corrections)
+        # Don't save to feedback table to avoid UI confusion (showing all fields as corrections)
+        # Auto-training will count validated documents instead
+        if not actual_corrections:
+            self.logger.info(f"✅ All data correct for document {document_id}. Marking as validated.")
+            
+            # Save to feedback folder for training (with all_correct flag)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            feedback_filename = f"feedback_{document_id}_{timestamp}.json"
+            feedback_path = os.path.join(self.feedback_folder, feedback_filename)
+            
+            feedback_data = {
+                "document_id": document_id,
+                "template_id": document.template_id,
+                "original_results": original_results,
+                "corrections": {},  # Empty - all correct
+                "all_correct": True,  # Flag for training
+                "timestamp": timestamp,
+            }
+            
+            with open(feedback_path, "w", encoding="utf-8") as f:
+                json.dump(feedback_data, f, indent=2)
+            
+            # Update metadata and mark as validated
+            updated_results = original_results.copy()
+            if "metadata" not in updated_results:
+                updated_results["metadata"] = {}
+            updated_results["metadata"]["validated"] = True
+            updated_results["metadata"]["validated_at"] = timestamp
+            updated_results["metadata"]["corrections_count"] = 0
+            updated_results["metadata"]["all_correct"] = True
+            
+            self.document_repo.update_extraction_result(document_id, updated_results)
+            self.document_repo.update_status(document_id, "validated")
+            
+            return {
+                "feedback_ids": [],  # No feedback records saved
+                "document_id": document_id,
+                "corrections_count": 0,
+                "all_correct": True,
+                "all_fields": extracted_data,
+                "corrected_fields": {},
+            }
 
         # Save feedback (only actual corrections)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -324,10 +357,13 @@ class ExtractionService:
         self.document_repo.update_status(document_id, "validated")
 
         # 🤖 AUTO-TRAINING: Trigger training if enabled
-        # This ensures experiment scripts also trigger training
+        # ⚠️ AUTO-TRAINING REMOVED FROM SERVICE LAYER
+        # Training is now handled in the API endpoint (/api/v1/extraction/validate)
+        # via async job queue to avoid blocking the API request.
+        # This ensures better performance and scalability.
         auto_training_result = None
         try:
-            # Check if AUTO_TRAINING is enabled (from environment or config)
+            # Pattern learning still runs here (lightweight operation)
             auto_training_enabled = os.getenv("AUTO_TRAINING", "True").lower() == "true"
 
             if auto_training_enabled:
@@ -335,44 +371,15 @@ class ExtractionService:
 
                 model_service = ModelService(self.db)
 
+                # Only trigger pattern learning (no training)
                 model_service.trigger_adaptive_learning(
                     document_id, extracted_data, actual_corrections
                 )
-
-                from core.learning.auto_trainer import get_auto_training_service
-
-                auto_trainer = get_auto_training_service(self.db)
-                template_id = document.template_id
-
-                # Check if model exists (for first training)
-                model_path = os.path.join(
-                    self.model_folder, f"template_{template_id}_model.joblib"
-                )
-                is_first_training = not os.path.exists(model_path)
-
-                # Try to trigger training (will check thresholds internally)
-                training_result = auto_trainer.check_and_train(
-                    template_id=template_id,
-                    model_folder=self.model_folder,
-                    force_first_training=is_first_training,  # Allow first training
-                )
-
-                if training_result:
-                    auto_training_result = {
-                        "status": "completed",
-                        "training_samples": training_result.get("training_samples", 0),
-                        "accuracy": training_result.get("test_metrics", {}).get(
-                            "accuracy", 0
-                        ),
-                    }
-                    self.logger.info(
-                        f"✅ Auto-training triggered for template {template_id}"
-                    )
-                else:
-                    auto_training_result = {
-                        "status": "skipped",
-                        "message": "Training conditions not met",
-                    }
+                
+                auto_training_result = {
+                    "status": "deferred",
+                    "message": "Training will be handled by endpoint via job queue",
+                }
         except Exception as e:
             self.logger.warning(f"⚠️  Auto-training failed: {e}")
             auto_training_result = {"status": "failed", "error": str(e)}

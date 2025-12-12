@@ -79,6 +79,58 @@ def create_template():
         return APIResponse.bad_request(str(e))
 
 
+@templates_bp.route('/bulk', methods=['POST'])
+@handle_errors
+@require_auth
+@require_role('admin', 'user')
+def create_templates_bulk():
+    """Analyze and create multiple templates in bulk.
+
+    Request: multipart/form-data
+    - files: Multiple PDF files
+    - name_mode: (Optional) currently supports 'filename'
+    - name_prefix: (Optional) prefix for generated template names
+
+    Returns:
+        201: Bulk template creation results
+        400: Validation error
+        401: Unauthorized
+    """
+    if 'files' not in request.files:
+        return APIResponse.bad_request("No files provided")
+
+    files = request.files.getlist('files')
+    if not files or len(files) == 0:
+        return APIResponse.bad_request("No files selected")
+
+    # Validate all files are PDFs
+    for file in files:
+        if file.filename == '':
+            return APIResponse.bad_request("Empty filename detected")
+        if not file.filename.lower().endswith('.pdf'):
+            return APIResponse.bad_request(f"File {file.filename} is not a PDF")
+
+    name_mode = request.form.get('name_mode', 'filename')
+    name_prefix = request.form.get('name_prefix', '')
+
+    service = get_template_service()
+
+    try:
+        result = service.analyze_and_create_bulk(
+            files=files,
+            name_mode=name_mode,
+            name_prefix=name_prefix,
+        )
+
+        return APIResponse.created(
+            result,
+            f"Bulk template upload completed: {result['successful']} successful, {result['failed']} failed"
+        )
+
+    except ValidationError as e:
+        return APIResponse.bad_request(str(e))
+
+
 @templates_bp.route('', methods=['GET'])
 @handle_errors
 @require_auth
@@ -145,6 +197,81 @@ def get_template(template_id):
         data={'template': template},
         message="Template retrieved successfully"
     )
+
+
+@templates_bp.route('/<int:template_id>/fields/<field_name>/pattern', methods=['PATCH'])
+@handle_errors
+@require_auth
+@require_role('admin', 'user')
+def update_field_pattern(template_id, field_name):
+    """
+    Update base_pattern for a specific field
+    
+    Request JSON:
+        {
+            "base_pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        }
+    
+    Returns:
+        200: Pattern updated successfully
+        400: Invalid pattern or validation error
+        404: Template or field not found
+        401: Unauthorized
+    """
+    data = request.get_json()
+    
+    if not data or 'base_pattern' not in data:
+        return APIResponse.error("base_pattern is required", 400)
+    
+    base_pattern = data['base_pattern']
+    
+    # Allow NULL/empty to enable pure adaptive learning
+    if base_pattern:
+        # Validate and sanitize regex pattern
+        is_valid, error_msg, sanitized = Validator.validate_regex_pattern(base_pattern, sanitize=True)
+        
+        if not is_valid:
+            return APIResponse.error(error_msg, 400)
+        
+        base_pattern = sanitized
+    else:
+        # NULL pattern for pure adaptive learning
+        base_pattern = None
+    
+    # Update field config in database
+    from database.repositories.config_repository import ConfigRepository
+    db = DatabaseManager()
+    config_repo = ConfigRepository(db)
+    
+    try:
+        # Get active config
+        config = config_repo.get_active_config(template_id)
+        if not config:
+            return APIResponse.not_found(f"No active config found for template {template_id}")
+        
+        # Get field config
+        field_cfg = config_repo.get_field_config_by_name(config['id'], field_name)
+        if not field_cfg:
+            return APIResponse.not_found(f"Field '{field_name}' not found in template {template_id}")
+        
+        # Update base_pattern
+        config_repo.update_field_config(
+            field_config_id=field_cfg['id'],
+            base_pattern=base_pattern
+        )
+        
+        return APIResponse.success(
+            data={
+                'template_id': template_id,
+                'field_name': field_name,
+                'base_pattern': base_pattern,
+                'sanitized': base_pattern != data.get('base_pattern') if base_pattern else False
+            },
+            message="Field pattern updated successfully"
+        )
+    
+    except Exception as e:
+        return APIResponse.error(f"Failed to update pattern: {str(e)}", 500)
 
 
 @templates_bp.route('/<int:template_id>', methods=['DELETE'])

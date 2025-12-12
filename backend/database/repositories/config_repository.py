@@ -221,6 +221,66 @@ class ConfigRepository:
         finally:
             conn.close()
     
+    def update_field_config(
+        self,
+        field_config_id: int,
+        **kwargs
+    ) -> bool:
+        """
+        Update field configuration
+        
+        Args:
+            field_config_id: Field config ID
+            **kwargs: Fields to update (base_pattern, confidence_threshold, is_required)
+                     Use None value to set field to NULL in database
+            
+        Returns:
+            True if updated successfully
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Build dynamic UPDATE query based on provided parameters
+            updates = []
+            params = []
+            
+            # Only update fields that are explicitly provided in kwargs
+            if 'base_pattern' in kwargs:
+                updates.append("base_pattern = ?")
+                params.append(kwargs['base_pattern'])  # Can be None (NULL), empty string, or pattern
+            
+            if 'confidence_threshold' in kwargs:
+                updates.append("confidence_threshold = ?")
+                params.append(kwargs['confidence_threshold'])
+            
+            if 'is_required' in kwargs:
+                updates.append("is_required = ?")
+                params.append(kwargs['is_required'])
+            
+            if not updates:
+                self.logger.warning(f"No fields to update for field_config_id={field_config_id}")
+                return False  # Nothing to update
+            
+            # Add field_config_id to params
+            params.append(field_config_id)
+            
+            # Execute update
+            query = f"""
+                UPDATE field_configs
+                SET {', '.join(updates)}
+                WHERE id = ?
+            """
+            
+            self.logger.debug(f"Updating field_config_id={field_config_id}: {updates}, params={params}")
+            cursor.execute(query, params)
+            conn.commit()
+            
+            return cursor.rowcount > 0
+            
+        finally:
+            conn.close()
+    
     # ========================================================================
     # Field Location Operations
     # ========================================================================

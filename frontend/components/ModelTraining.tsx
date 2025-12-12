@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Brain, TrendingUp, Loader2, BarChart3 } from "lucide-react";
+import { Brain, TrendingUp, Loader2, BarChart3, Clock } from "lucide-react";
 import { learningAPI } from "@/lib/api/learning.api";
 import { Template } from "@/lib/types/template.types";
+import { useJobStatus } from "@/hooks/useJobStatus";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import TrainingHistory from "@/components/TrainingHistory";
 
 interface ModelTrainingProps {
   selectedTemplate: Template | null;
@@ -47,12 +49,12 @@ export default function ModelTraining({
   );
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
 
-  useEffect(() => {
-    if (selectedTemplate) {
-      loadStats();
-      loadMetrics();
-    }
-  }, [selectedTemplate]);
+  // Monitor job status for real-time updates
+  const { hasRunningJob, hasPendingJob, activeJob } = useJobStatus({
+    templateId: selectedTemplate?.id,
+    pollInterval: 3000,
+    enabled: !!selectedTemplate,
+  });
 
   const loadStats = async () => {
     if (!selectedTemplate) return;
@@ -79,6 +81,27 @@ export default function ModelTraining({
       setModelMetrics(null);
     }
   };
+
+  useEffect(() => {
+    if (selectedTemplate) {
+      loadStats();
+      loadMetrics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate]);
+
+  // Reload stats when job completes
+  useEffect(() => {
+    if (!hasRunningJob && !hasPendingJob && selectedTemplate) {
+      // Job just completed, reload stats
+      const timer = setTimeout(() => {
+        loadStats();
+        loadMetrics();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRunningJob, hasPendingJob, selectedTemplate]);
 
   const handleIncrementalTrain = async () => {
     if (!selectedTemplate) {
@@ -197,16 +220,46 @@ export default function ModelTraining({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="w-6 h-6" />
-          Pelatihan Model Adaptif
-        </CardTitle>
-        <CardDescription>
-          Latih model CRF menggunakan feedback dari validasi untuk meningkatkan
-          akurasi ekstraksi
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="w-6 h-6" />
+              Pelatihan Model Adaptif
+            </CardTitle>
+            <CardDescription>
+              Latih model CRF menggunakan feedback dari validasi untuk meningkatkan
+              akurasi ekstraksi
+            </CardDescription>
+          </div>
+          {selectedTemplate && (
+            <TrainingHistory
+              templateId={selectedTemplate.id}
+              templateName={selectedTemplate.name}
+            />
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Running Job Status */}
+        {(hasRunningJob || hasPendingJob) && activeJob && (
+          <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <AlertDescription className="text-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <strong className="text-blue-600">
+                    {hasRunningJob ? "Training sedang berjalan..." : "Training dalam antrian..."}
+                  </strong>
+                  <p className="text-muted-foreground mt-1">
+                    Job #{activeJob.id} • Status: {activeJob.status}
+                  </p>
+                </div>
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Training Strategy Info */}
         <Alert>
           <Brain className="w-4 h-4" />
@@ -215,7 +268,7 @@ export default function ModelTraining({
             <ul className="mt-2 space-y-1 list-disc list-inside">
               <li>
                 <strong>Auto-Training:</strong> Model otomatis belajar dari
-                feedback baru (≥20 feedback) di background
+                feedback baru (≥5 dokumen) di background
               </li>
               <li>
                 <strong>Manual Training:</strong> Tombol di bawah untuk full
@@ -327,7 +380,7 @@ export default function ModelTraining({
           <div className="flex flex-row gap-2">
             <Button
               onClick={handleRetrain}
-              disabled={loading || feedbackStats?.unused_feedback === 0}
+              disabled={loading || feedbackStats?.unused_feedback === 0 || hasRunningJob || hasPendingJob}
               className="w-1/2"
               size="lg"
             >
@@ -345,7 +398,7 @@ export default function ModelTraining({
             </Button>
             <Button
               onClick={handleIncrementalTrain}
-              disabled={loading || feedbackStats?.unused_feedback === 0}
+              disabled={loading || feedbackStats?.unused_feedback === 0 || hasRunningJob || hasPendingJob}
               className="w-1/2 bg-blue-500 hover:bg-blue-600"
               size="lg"
             >

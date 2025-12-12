@@ -70,6 +70,9 @@ class DocumentRepository:
                     status=row["status"],
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
+                    validated_at=row["validated_at"] if "validated_at" in row.keys() else None,
+                    used_for_training=row["used_for_training"] if "used_for_training" in row.keys() else 0,
+                    experiment_phase=row["experiment_phase"] if "experiment_phase" in row.keys() else None,
                 )
             return None
         except Exception as e:
@@ -77,21 +80,39 @@ class DocumentRepository:
         finally:
             conn.close()
 
-    def find_validated_documents(self, template_id: int) -> List[Document]:
-        """Find validated documents for a specific template"""
+    def find_validated_documents(self, template_id: int, unused_only: bool = False) -> List[Document]:
+        """Find validated documents for a specific template
+        
+        Args:
+            template_id: Template ID to filter by
+            unused_only: If True, only return documents with used_for_training=0
+        """
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            SELECT documents.*
-            FROM documents
-            JOIN templates ON documents.template_id = templates.id
-            WHERE documents.template_id = ?
-            AND documents.status = 'validated'
-            """,
-            (template_id,),
-        )
+        if unused_only:
+            cursor.execute(
+                """
+                SELECT documents.*
+                FROM documents
+                JOIN templates ON documents.template_id = templates.id
+                WHERE documents.template_id = ?
+                AND documents.status = 'validated'
+                AND documents.used_for_training = 0
+                """,
+                (template_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT documents.*
+                FROM documents
+                JOIN templates ON documents.template_id = templates.id
+                WHERE documents.template_id = ?
+                AND documents.status = 'validated'
+                """,
+                (template_id,),
+            )
 
         rows = cursor.fetchall()
         conn.close()

@@ -67,21 +67,73 @@ class Validator:
         return True, None
     
     @staticmethod
-    def validate_regex_pattern(pattern: str) -> Tuple[bool, Optional[str]]:
+    def sanitize_regex_pattern(pattern: str) -> str:
         """
-        Validate regex pattern
+        Sanitize regex pattern to plain string format (remove delimiters)
+        
+        Converts various regex formats to plain string:
+        - JavaScript: /pattern/flags -> pattern
+        - Python raw: r'pattern' -> pattern
+        - Already plain: pattern -> pattern
         
         Args:
-            pattern: Regex pattern string
+            pattern: Regex pattern in any format
             
         Returns:
-            Tuple of (is_valid, error_message)
+            Plain regex pattern string (no delimiters)
         """
+        if not pattern:
+            return pattern
+        
+        pattern = pattern.strip()
+        
+        # Remove JavaScript regex delimiters: /pattern/flags
+        if pattern.startswith('/'):
+            # Find last slash (before flags)
+            last_slash = pattern.rfind('/')
+            if last_slash > 0:
+                pattern = pattern[1:last_slash]
+        
+        # Remove Python raw string prefix: r'pattern' or r"pattern"
+        if pattern.startswith(('r"', "r'")):
+            pattern = pattern[2:-1]  # Remove r" and closing "
+        elif pattern.startswith(('R"', "R'")):
+            pattern = pattern[2:-1]  # Remove R" and closing "
+        
+        # Remove quotes if wrapped: 'pattern' or "pattern"
+        if (pattern.startswith('"') and pattern.endswith('"')) or \
+           (pattern.startswith("'") and pattern.endswith("'")):
+            pattern = pattern[1:-1]
+        
+        return pattern
+    
+    @staticmethod
+    def validate_regex_pattern(pattern: str, sanitize: bool = True) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Validate and optionally sanitize regex pattern
+        
+        Args:
+            pattern: Regex pattern string (can have delimiters)
+            sanitize: If True, remove delimiters before validation
+            
+        Returns:
+            Tuple of (is_valid, error_message, sanitized_pattern)
+        """
+        if not pattern:
+            return False, "Pattern cannot be empty", None
+        
+        # Sanitize pattern if requested
+        if sanitize:
+            sanitized = Validator.sanitize_regex_pattern(pattern)
+        else:
+            sanitized = pattern
+        
+        # Validate the sanitized pattern
         try:
-            re.compile(pattern)
-            return True, None
+            re.compile(sanitized)
+            return True, None, sanitized
         except re.error as e:
-            return False, f"Invalid regex pattern: {str(e)}"
+            return False, f"Invalid regex pattern: {str(e)}", None
     
     @staticmethod
     def validate_positive_integer(value: any, field_name: str = "value") -> Tuple[bool, Optional[str]]:

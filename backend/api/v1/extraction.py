@@ -64,7 +64,7 @@ def extract_document():
 
     file = request.files["file"]
     template_id = request.form.get("template_id")
-    experiment_phase = request.form.get("experiment_phase", None)  # NEW: Optional experiment phase
+    experiment_phase = request.form.get("experiment_phase", 'adaptive')  # NEW: Optional experiment phase
 
     if not template_id:
         return APIResponse.bad_request("Template ID is required")
@@ -121,7 +121,7 @@ def extract_documents_bulk():
 
     files = request.files.getlist("files")
     template_id = request.form.get("template_id")
-    experiment_phase = request.form.get("experiment_phase", None)
+    experiment_phase = request.form.get("experiment_phase", 'adaptive')
 
     if not template_id:
         return APIResponse.bad_request("Template ID is required")
@@ -180,6 +180,11 @@ def validate_corrections():
         400: Validation error
         401: Unauthorized
     """
+    # 🐛 CRITICAL DEBUG: Log at very start of endpoint
+    current_app.logger.info("=" * 100)
+    current_app.logger.info("🚨 VALIDATE ENDPOINT CALLED - CODE VERSION 2.0")
+    current_app.logger.info("=" * 100)
+    
     data = request.get_json()
 
     if not data:
@@ -196,88 +201,68 @@ def validate_corrections():
             document_id=data["document_id"], corrections=data["corrections"]
         )
 
+        # 🐛 DEBUG: Log at start of auto-training section
+        current_app.logger.info("=" * 80)
+        current_app.logger.info("🔍 FEEDBACK VALIDATION - CHECKING AUTO-TRAINING CONFIG")
+        current_app.logger.info("=" * 80)
+        
         auto_training = current_app.config.get('AUTO_TRAINING', True)
         if auto_training:
-            # Check if async mode is enabled for both learning and training
+            # Check if async mode is enabled for learning and training separately
             async_learning = current_app.config.get('ASYNC_PATTERN_LEARNING', True)
             async_training = current_app.config.get('ASYNC_AUTO_TRAINING', True)
             
-            if async_learning or async_training:
-                # ⚡ FULL ASYNC MODE: Run everything in background thread (non-blocking)
+            # 🐛 DEBUG: Log config values with types
+            current_app.logger.info(
+                f"🔧 Config: AUTO_TRAINING={auto_training} (type={type(auto_training).__name__}), "
+                f"ASYNC_PATTERN_LEARNING={async_learning} (type={type(async_learning).__name__}), "
+                f"ASYNC_AUTO_TRAINING={async_training} (type={type(async_training).__name__})"
+            )
+            current_app.logger.info(f"🔧 Will use {'ASYNC' if async_training else 'SYNC'} training mode")
+            
+            # ✅ IMPORTANT: Pattern learning and training are independent
+            # - Pattern learning can be async (background thread)
+            # - Training can be async (job queue) or sync (immediate)
+            
+            # ========================================
+            # PATTERN LEARNING (Async or Sync)
+            # ========================================
+            if async_learning:
+                # ⚡ ASYNC: Run pattern learning in background thread
                 import threading
                 
-                # Get data for background thread
                 document_id = data["document_id"]
                 all_fields = result.get("all_fields", {})
                 corrected_fields = result.get("corrected_fields", {})
                 app = current_app._get_current_object()
                 
-                def background_processing():
-                    """Background thread for pattern learning + auto-training"""
+                def run_pattern_learning():
+                    """Background thread for pattern learning only"""
                     with app.app_context():
-                        # 1. Pattern Learning
-                        if async_learning:
-                            try:
-                                from core.learning.services import ModelService
-                                learning_service = ModelService()
-                                learning_result = learning_service.trigger_adaptive_learning(
-                                    document_id=document_id,
-                                    all_fields=all_fields,
-                                    corrected_fields=corrected_fields,
-                                )
-                                app.logger.debug(
-                                    f"✅ Pattern learning: {learning_result['summary']['triggered']} fields triggered"
-                                )
-                            except Exception as e:
-                                app.logger.warning(f"Pattern learning failed: {e}")
-                        
-                        # 2. Auto-Training Job Enqueue
-                        if async_training:
-                            try:
-                                from database.repositories.document_repository import DocumentRepository
-                                from database.repositories.job_repository import JobRepository
-                                from database.db_manager import DatabaseManager
-                                
-                                # Get template_id from document
-                                db = DatabaseManager()
-                                doc_repo = DocumentRepository(db)
-                                document = doc_repo.find_by_id(document_id)
-                                
-                                if document:
-                                    template_id = document.template_id
-                                    model_folder = app.config['MODEL_FOLDER']
-                                    job_repo = JobRepository(db)
-                                    
-                                    # Check if there is already a pending/running job
-                                    if not job_repo.has_active_auto_training_job(template_id):
-                                        job_id = job_repo.enqueue_auto_training_job(template_id, model_folder)
-                                        app.logger.info(
-                                            f"📥 Enqueued auto-training job {job_id} for template {template_id}"
-                                        )
-                                    else:
-                                        app.logger.info(
-                                            f"⏭️  Skipped auto-training enqueue for template {template_id} - job already active"
-                                        )
-                            except Exception as e:
-                                app.logger.warning(f"Auto-training scheduling failed: {e}")
+                        try:
+                            from core.learning.services import ModelService
+                            learning_service = ModelService()
+                            learning_result = learning_service.trigger_adaptive_learning(
+                                document_id=document_id,
+                                all_fields=all_fields,
+                                corrected_fields=corrected_fields,
+                            )
+                            app.logger.debug(
+                                f"✅ Pattern learning: {learning_result['summary']['triggered']} fields triggered"
+                            )
+                        except Exception as e:
+                            app.logger.warning(f"Pattern learning failed: {e}")
                 
-                # Start background thread
-                thread = threading.Thread(target=background_processing, daemon=True)
+                thread = threading.Thread(target=run_pattern_learning, daemon=True)
                 thread.start()
                 
-                # Return immediately
                 result["learning"] = {
                     "status": "scheduled",
                     "message": "Pattern learning scheduled in background",
                     "mode": "async"
                 }
-                result["auto_training"] = {
-                    "status": "scheduled",
-                    "message": "Auto-training job scheduling in background",
-                    "mode": "async"
-                }
             else:
-                # 🔄 SYNC MODE: Run everything immediately (blocking)
+                # 🔄 SYNC: Run pattern learning immediately
                 try:
                     from core.learning.services import ModelService
                     learning_service = ModelService()
@@ -293,7 +278,104 @@ def validate_corrections():
                 except Exception as e:
                     current_app.logger.warning(f"Pattern learning failed: {e}")
                     result["learning"] = {"status": "failed", "error": str(e)}
-                
+            
+            # ========================================
+            # AUTO-TRAINING (Async via Job Queue or Sync)
+            # ========================================
+            if async_training:
+                # ⚡ ASYNC: Enqueue training job to worker
+                current_app.logger.info("🚀 Entering ASYNC training mode - will enqueue job to worker")
+                try:
+                    from database.repositories.document_repository import DocumentRepository
+                    from database.repositories.job_repository import JobRepository
+                    from database.db_manager import DatabaseManager
+                    
+                    db = DatabaseManager()
+                    doc_repo = DocumentRepository(db)
+                    document = doc_repo.find_by_id(data["document_id"])
+                    
+                    if document:
+                        template_id = document.template_id
+                        model_folder = current_app.config['MODEL_FOLDER']
+                        job_repo = JobRepository(db)
+                        
+                        # Check if model exists (first training or incremental)
+                        import os
+                        model_path = os.path.join(model_folder, f"template_{template_id}_model.joblib")
+                        is_first_training = not os.path.exists(model_path)
+                        
+                        # ✅ PRE-CHECK: Only enqueue if conditions are met
+                        min_new_docs = current_app.config.get('MIN_NEW_DOCUMENTS', 5)
+                        
+                        # Count validated documents not yet used for training
+                        conn = db.get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            SELECT COUNT(*)
+                            FROM documents
+                            WHERE template_id = ? 
+                              AND status = 'validated'
+                              AND used_for_training = 0
+                        ''', (template_id,))
+                        unused_docs = cursor.fetchone()[0]
+                        conn.close()
+                        
+                        # Check if there is already a pending/running job
+                        has_active_job = job_repo.has_active_auto_training_job(template_id)
+                        current_app.logger.info(f"🔍 Active job check: has_active_job={has_active_job}")
+                        
+                        if not has_active_job:
+                            # ✅ FIRST TRAINING: Enqueue immediately if model doesn't exist
+                            # ✅ INCREMENTAL: Enqueue only if min_new_docs threshold met
+                            should_enqueue = is_first_training or (unused_docs >= min_new_docs)
+                            current_app.logger.info(
+                                f"🔍 Enqueue decision: is_first_training={is_first_training}, "
+                                f"unused_docs={unused_docs}, min_new_docs={min_new_docs}, "
+                                f"should_enqueue={should_enqueue}"
+                            )
+                            
+                            if should_enqueue:
+                                job_id = job_repo.enqueue_auto_training_job(template_id, model_folder, is_first_training)
+                                training_type = "first training" if is_first_training else "incremental training"
+                                current_app.logger.info(
+                                    f"📥 Enqueued {training_type} job {job_id} for template {template_id} ({unused_docs} unused docs)"
+                                )
+                                result["auto_training"] = {
+                                    "status": "enqueued",
+                                    "job_id": job_id,
+                                    "message": f"{training_type.capitalize()} job enqueued ({unused_docs} unused docs)",
+                                    "mode": "async",
+                                    "is_first_training": is_first_training
+                                }
+                            else:
+                                current_app.logger.debug(
+                                    f"⏭️  Skipped enqueue for template {template_id} - only {unused_docs}/{min_new_docs} unused docs"
+                                )
+                                result["auto_training"] = {
+                                    "status": "skipped",
+                                    "message": f"Not enough documents ({unused_docs}/{min_new_docs})",
+                                    "mode": "async"
+                                }
+                        else:
+                            current_app.logger.info(
+                                f"⏭️  Skipped auto-training enqueue for template {template_id} - job already active"
+                            )
+                            result["auto_training"] = {
+                                "status": "skipped",
+                                "message": "Training job already active",
+                                "mode": "async"
+                            }
+                except Exception as e:
+                    current_app.logger.error(f"❌ Auto-training scheduling failed: {e}")
+                    current_app.logger.error(f"❌ Exception type: {type(e).__name__}")
+                    import traceback
+                    current_app.logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                    result["auto_training"] = {"status": "failed", "error": str(e), "mode": "async"}
+                    # ⚠️ DO NOT FALLBACK TO SYNC - return error instead
+                    return APIResponse.success(result, "Corrections saved but auto-training scheduling failed")
+            else:
+                # 🔄 SYNC: Run training immediately (blocking)
+                current_app.logger.warning("⚠️  Using SYNC training mode - training will block API request!")
                 try:
                     from core.learning.auto_trainer import get_auto_training_service
                     from database.repositories.document_repository import DocumentRepository
@@ -330,7 +412,7 @@ def validate_corrections():
                             }
                 except Exception as e:
                     current_app.logger.warning(f"Auto-training failed: {e}")
-                    result["auto_training"] = {"status": "failed", "error": str(e)}
+                    result["auto_training"] = {"status": "failed", "error": str(e), "mode": "sync"}
         else:
             current_app.logger.info("Auto-training disabled")
 

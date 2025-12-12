@@ -45,9 +45,20 @@ class Config:
     MAX_PATTERN_LIMIT = 20
     
     # Async Processing (NEW)
-    ASYNC_PATTERN_LEARNING = os.environ.get('ASYNC_PATTERN_LEARNING', 'false').lower() == 'true'
-    ASYNC_AUTO_TRAINING = os.environ.get('ASYNC_AUTO_TRAINING', 'false').lower() == 'true'
-    AUTO_TRAINING = os.environ.get('AUTO_TRAINING', 'false').lower() == 'true'
+    ASYNC_PATTERN_LEARNING = os.environ.get('ASYNC_PATTERN_LEARNING', 'true').lower() == 'true'
+    ASYNC_AUTO_TRAINING = os.environ.get('ASYNC_AUTO_TRAINING', 'true').lower() == 'true'
+    AUTO_TRAINING = os.environ.get('AUTO_TRAINING', 'true').lower() == 'true'
+    
+    # Training Performance
+    # Set to 'false' to skip evaluation during incremental training (faster, but no metrics saved)
+    # Set to 'true' to evaluate and save metrics even in incremental mode (slower, but complete metrics)
+    INCREMENTAL_TRAINING_EVALUATE = os.environ.get('INCREMENTAL_TRAINING_EVALUATE', 'false').lower() == 'true'
+    
+    # Auto-Training Triggers
+    # Minimum number of new validated documents before triggering auto-training
+    MIN_NEW_DOCUMENTS = int(os.environ.get('MIN_NEW_DOCUMENTS', '5'))
+    # Full retrain every N documents (instead of incremental)
+    FULL_RETRAIN_INTERVAL = int(os.environ.get('FULL_RETRAIN_INTERVAL', '20'))
     
     @classmethod
     def init_app(cls, app):
@@ -78,6 +89,11 @@ class Config:
         # Async processing config
         app.config['ASYNC_PATTERN_LEARNING'] = cls.ASYNC_PATTERN_LEARNING
         app.config['ASYNC_AUTO_TRAINING'] = cls.ASYNC_AUTO_TRAINING
+        
+        # Training performance config
+        app.config['INCREMENTAL_TRAINING_EVALUATE'] = cls.INCREMENTAL_TRAINING_EVALUATE
+        app.config['MIN_NEW_DOCUMENTS'] = cls.MIN_NEW_DOCUMENTS
+        app.config['FULL_RETRAIN_INTERVAL'] = cls.FULL_RETRAIN_INTERVAL
 
 class DevelopmentConfig(Config):
     """Development configuration"""

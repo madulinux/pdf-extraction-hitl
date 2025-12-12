@@ -247,9 +247,10 @@ class PerformanceMetrics:
         for fb in feedbacks:
             field_name = fb["field_name"]
 
-            # ✅ Normalize whitespace for comparison (same as hybrid_strategy.py)
-            original_normalized = " ".join(str(fb["original_value"]).split())
-            corrected_normalized = " ".join(str(fb["corrected_value"]).split())
+            # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+            # Do NOT normalize internal spaces - missing spaces are real errors!
+            original_normalized = str(fb["original_value"]).strip()
+            corrected_normalized = str(fb["corrected_value"]).strip()
 
             # Count as correction if values differ (after normalization)
             if original_normalized != corrected_normalized:

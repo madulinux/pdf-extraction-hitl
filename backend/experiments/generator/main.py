@@ -291,14 +291,39 @@ def _letter_template_values():
         + str(rt).zfill(3)
         + " RW."
         + str(rw).zfill(3),
-        "keperluan": fake.sentence(nb_words=3)
-        .replace(".", "")
-        .replace("!", "")
-        .replace("?", "")
-        .replace(",", ""),
+        "keperluan": get_keperluan(),
         "tanggal_surat": tanggal_sign.strftime("%d-%m-%Y"),
         "kepala_desa": get_name(with_title=False),
     }
+
+
+def get_keperluan():
+    fake = Faker("id_ID")
+    predicates = ["Mengurus", "Pengajuan", "Mendapatkan"]
+    objects = [
+        "SKCK",
+        "SKTM",
+        "SKP",
+        "KPR",
+        "Kredit Perumahan Rakyat",
+        "KUR",
+        "NPWP",
+        "Kartu Indonesia Pintar",
+        "BPJS Kesehatan",
+        "Beasiswa",
+        "Surat Ijin Mengemudi",
+        "Izin Usaha",
+        "Kredit Usaha Rakyat",
+        "Pinjaman Usaha",
+        "Pinjaman Bank",
+        "Keringanan Pajak",
+    ]
+
+    return (
+        fake.random_element(elements=predicates)
+        + " "
+        + fake.random_element(elements=objects)
+    )
 
 
 def _form_template_values():
@@ -535,6 +560,7 @@ def _invoice_template_values():
         "total_akhir": _rupiah_format(total),
         "nama_direktur": get_name(with_title=False),
     }
+
 
 def _certificate_template_values():
 

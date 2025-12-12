@@ -7,7 +7,8 @@ Provides backward compatibility during migration.
 import os
 import json
 import logging
-from typing import Dict, Optional, Any
+import re
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 
 
@@ -15,6 +16,28 @@ class TemplateConfigLoader:
     """
     Loads template configuration from database or JSON (fallback)
     """
+    
+    # Smart default patterns based on field name patterns
+    # Patterns use capturing groups () to extract value from within text
+    # Example: r'(\d+)' will extract "27" from ": 27 Tahun"
+    FIELD_PATTERN_RULES = [
+        # Email patterns - extract email from text
+        (r'email|e_mail|surel', r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'),
+        # Phone patterns - extract phone number
+        (r'(no_hp|no_telp|telepon|phone|hp|handphone|whatsapp|wa)', r'(\+?[0-9]{1,4}?[-.\\s]?\\(?[0-9]{1,3}?\\)?[-.\\s]?[0-9]{1,4}[-.\\s]?[0-9]{1,4}[-.\\s]?[0-9]{1,9})'),
+        # NIK (Indonesian ID) - extract 16 digits
+        (r'nik|nomor_induk', r'(\d{16})'),
+        # Date patterns (DD-MM-YYYY) - extract date
+        (r'(tanggal|tgl|date).*', r'(\d{2}-\d{2}-\d{4})'),
+        # Age/Usia - extract numbers only
+        (r'(usia|umur|age)', r'(\d+)'),
+        # Numbers - extract digits
+        (r'(nomor|no_|number|jumlah|total)', r'(\d+)'),
+        # Names and text fields - extract text (letters and spaces)
+        (r'(nama|name|tempat|desa|kecamatan|kabupaten|kota|provinsi|jenis_kelamin|status)', r'([a-zA-Z\s]+)'),
+        # Address - extract any text (more permissive)
+        (r'alamat|address', r'(.+)'),
+    ]
     
     def __init__(self, db_manager=None, template_folder: str = None):
         """
@@ -36,6 +59,28 @@ class TemplateConfigLoader:
                 self.config_repo = ConfigRepository(self.db)
             except Exception as e:
                 self.logger.warning(f"Failed to initialize ConfigRepository: {e}")
+    
+    def get_default_pattern(self, field_name: str) -> str:
+        """
+        Generate smart default pattern based on field name
+        
+        Args:
+            field_name: Field name to analyze
+            
+        Returns:
+            Default regex pattern (defaults to .+ if no match)
+        """
+        field_name_lower = field_name.lower()
+        
+        # Try to match against pattern rules
+        for pattern_regex, default_pattern in self.FIELD_PATTERN_RULES:
+            if re.search(pattern_regex, field_name_lower, re.IGNORECASE):
+                self.logger.debug(f"Field '{field_name}' matched rule '{pattern_regex}' -> pattern: {default_pattern}")
+                return default_pattern
+        
+        # Default fallback: match any non-empty text
+        self.logger.debug(f"Field '{field_name}' using default catch-all pattern")
+        return r'.+'
     
     def load_config(
         self,
@@ -117,11 +162,16 @@ class TemplateConfigLoader:
             )
             
             # Build field config
+            # ✅ NEW: Keep base_pattern as NULL if not set (don't default to r'.+')
+            # This enables pure adaptive learning from feedback
+            base_pattern = field_cfg.get('base_pattern')
+            
             field_config = {
                 'field_name': field_name,
                 'field_type': field_cfg.get('field_type', 'text'),
                 'template_id': template_id,
-                'regex_pattern': field_cfg.get('base_pattern', r'.+'),
+                'regex_pattern': base_pattern,  # Can be NULL
+                'base_pattern': base_pattern,   # Also add as base_pattern for consistency
                 'confidence_threshold': field_cfg.get('confidence_threshold', 0.7),
                 'is_required': field_cfg.get('is_required', False),
                 'locations': []
@@ -159,7 +209,10 @@ class TemplateConfigLoader:
                 field_config['rules'] = {
                     'learned_patterns': []
                 }
-                for lp in learned_patterns:
+                # Sort by priority (highest first)
+                sorted_patterns = sorted(learned_patterns, key=lambda x: x.get('priority', 0), reverse=True)
+                
+                for lp in sorted_patterns:
                     field_config['rules']['learned_patterns'].append({
                         'pattern': lp['pattern'],
                         'type': lp.get('pattern_type', 'learned'),
@@ -168,6 +221,10 @@ class TemplateConfigLoader:
                         'priority': lp.get('priority', 0),
                         'pattern_id': lp['id']
                     })
+                
+                # Add the highest priority pattern as the active trained pattern
+                if sorted_patterns:
+                    field_config['pattern'] = sorted_patterns[0]['pattern']
             
             config['fields'][field_name] = field_config
         
@@ -246,12 +303,20 @@ class TemplateConfigLoader:
             # Add fields
             fields = config.get('fields', {})
             for field_name, field_cfg in fields.items():
+                # Get base_pattern: use provided pattern or generate smart default
+                # base_pattern = field_cfg.get('regex_pattern')
+                # if not base_pattern:
+                #     # Generate smart default pattern based on field name
+                #     base_pattern = self.get_default_pattern(field_name)
+                #     self.logger.info(f"Generated default pattern for '{field_name}': {base_pattern}")
+                base_pattern = r'(.+)'
+                
                 # Create field config
                 field_config_id = self.config_repo.create_field_config(
                     config_id=config_id,
                     field_name=field_name,
                     field_type=field_cfg.get('field_type', 'text'),
-                    base_pattern=field_cfg.get('regex_pattern', r'.+'),
+                    base_pattern=base_pattern,  # Smart default or provided pattern
                     confidence_threshold=field_cfg.get('confidence_threshold', 0.7),
                     is_required=field_cfg.get('is_required', False)
                 )

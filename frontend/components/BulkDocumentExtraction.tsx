@@ -22,6 +22,7 @@ export default function BulkDocumentExtraction({
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [results, setResults] = useState<{
     total: number;
     successful: number;
@@ -29,16 +30,59 @@ export default function BulkDocumentExtraction({
     errors: Array<{ filename: string; error: string }>;
   } | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    const pdfFiles = selectedFiles.filter(file => file.type === 'application/pdf');
-    
-    if (pdfFiles.length !== selectedFiles.length) {
+  const addFiles = (incomingFiles: File[]) => {
+    const pdfFiles = incomingFiles.filter((file) => {
+      const isPdfByType = file.type === 'application/pdf';
+      const isPdfByName = file.name.toLowerCase().endsWith('.pdf');
+      return isPdfByType || isPdfByName;
+    });
+
+    if (pdfFiles.length !== incomingFiles.length) {
       toast.error('Hanya file PDF yang diperbolehkan');
     }
-    
-    setFiles(pdfFiles);
+
+    setFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}-${f.size}-${f.lastModified}`));
+      const merged = [...prev];
+      for (const f of pdfFiles) {
+        const key = `${f.name}-${f.size}-${f.lastModified}`;
+        if (!seen.has(key)) {
+          merged.push(f);
+          seen.add(key);
+        }
+      }
+      return merged;
+    });
+
     setResults(null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    addFiles(selectedFiles);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!loading) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (loading) return;
+
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    if (droppedFiles.length === 0) return;
+    addFiles(droppedFiles);
   };
 
   const removeFile = (index: number) => {
@@ -135,7 +179,15 @@ export default function BulkDocumentExtraction({
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg hover:border-primary transition-colors">
+              <div
+                className={`flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
+                  isDragging ? 'border-primary bg-primary/5' : 'hover:border-primary'
+                } ${loading ? 'opacity-60 pointer-events-none' : ''}`}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <div className="space-y-1 text-center">
                   <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
                   <div className="flex text-sm text-muted-foreground">

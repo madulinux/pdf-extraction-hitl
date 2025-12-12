@@ -27,8 +27,10 @@ import { Label } from "@/components/ui/label";
 import { templatesAPI } from "@/lib/api/templates.api";
 import { TemplateConfig, FieldInfo } from "@/lib/types/template.types";
 import { getFieldLocations, getLocationCount } from "@/lib/utils/template-helpers";
+import { validateRegexPattern } from "@/lib/utils/regex-validator";
 import Image from "next/image";
 import { ScrollArea } from "./ui/scroll-area";
+import { toast } from 'sonner';
 
 interface TemplatePreviewProps {
   templateId: number;
@@ -177,6 +179,62 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
       const oldPattern = config.fields[fieldName].regex_pattern;
       const newPattern = editValues.regex_pattern;
 
+      // Validate regex pattern if not empty
+      if (newPattern && newPattern.trim() !== '') {
+        const validation = validateRegexPattern(newPattern, true);
+        
+        if (!validation.isValid) {
+          toast.error(`Invalid regex pattern: ${validation.error}`);
+          return;
+        }
+        
+        // Use sanitized pattern
+        if (validation.sanitized && validation.sanitized !== newPattern) {
+          console.log('Pattern sanitized:', newPattern, '->', validation.sanitized);
+          // Update editValues with sanitized pattern
+          setEditValues(prev => ({
+            ...prev,
+            regex_pattern: validation.sanitized || newPattern
+          }));
+        }
+      }
+
+      // Save pattern to backend
+      if (oldPattern !== newPattern) {
+        try {
+          const token = localStorage.getItem("access_token");
+          const response = await fetch(
+            `${API_BASE_URL}/v1/templates/${templateId}/fields/${fieldName}/pattern`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                base_pattern: newPattern || null  // Allow NULL for pure adaptive learning
+              })
+            }
+          );
+
+          const result = await response.json();
+          
+          if (!result.success) {
+            toast.error(`Failed to save pattern: ${result.message || 'Unknown error'}`);
+            return;
+          }
+
+          console.log('Pattern saved successfully:', result.data);
+          
+          // Show success message
+          toast.success('Pattern updated successfully!');
+        } catch (err) {
+          console.error('Error saving pattern to backend:', err);
+          toast.error('Failed to save pattern to server. Please try again.');
+          return;
+        }
+      }
+
       // Update local config
       const updatedConfig = { ...config };
       const field = updatedConfig.fields[fieldName];
@@ -189,25 +247,20 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
         };
       }
       
-      // Update regex pattern
-      field.regex_pattern = newPattern;
+      // Update regex pattern (undefined for NULL in TypeScript)
+      field.regex_pattern = newPattern || undefined;
       
       updatedConfig.fields[fieldName] = field;
 
       setConfig(updatedConfig);
       setEditingField(null);
-
-      // Learn pattern in backend (adaptive learning)
-      if (oldPattern !== newPattern) {
-        // TODO: Implement pattern learning API
-        // await learningAPI.learnPattern({
-        //   field_name: fieldName,
-        //   regex_pattern: newPattern
-        // });
-        console.log("Pattern updated:", { fieldName, oldPattern, newPattern });
-      }
+      
+      // Reload config to get latest data from backend
+      await loadTemplateData();
+      
     } catch (err) {
       console.error("Error saving field:", err);
+      toast.error('An error occurred while saving. Please try again.');
     }
   };
 
@@ -406,30 +459,10 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
                                     <div className="space-y-3 mt-3">
                                       <div>
                                         <Label
-                                          htmlFor={`label-${fieldName}`}
-                                          className="text-sm font-medium"
-                                        >
-                                          Context Label
-                                        </Label>
-                                        <Input
-                                          id={`label-${fieldName}`}
-                                          value={editValues.context_label}
-                                          onChange={(e) =>
-                                            setEditValues({
-                                              ...editValues,
-                                              context_label: e.target.value,
-                                            })
-                                          }
-                                          className="mt-1"
-                                          placeholder="e.g., Nama:"
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label
                                           htmlFor={`pattern-${fieldName}`}
                                           className="text-sm font-medium"
                                         >
-                                          Regex Pattern
+                                          Base Pattern (Optional)
                                         </Label>
                                         <Input
                                           id={`pattern-${fieldName}`}
@@ -441,8 +474,13 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
                                             })
                                           }
                                           className="mt-1 font-mono text-xs"
-                                          placeholder="e.g., [A-Za-z\\s]+"
+                                          placeholder="Leave empty for adaptive learning or enter pattern like: ^[A-Za-z\\s]+$"
                                         />
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          💡 Tip: Leave empty to let the system learn from feedback, or enter a regex pattern.
+                                          <br />
+                                          Supports JavaScript (/pattern/), Python (r&apos;pattern&apos;), or plain format.
+                                        </p>
                                       </div>
                                       <div className="text-sm text-muted-foreground">
                                         {field.marker_text && (
@@ -503,12 +541,29 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
                                                 {field.marker_text}
                                               </p>
                                             )}
-                                            {(field.regex_pattern || field.pattern) && (
+                                            {field.regex_pattern ? (
                                               <p className="font-mono text-xs bg-muted px-2 py-1 rounded">
                                                 <span className="font-medium">
-                                                  Pattern:
+                                                  Base Pattern (User-defined):
                                                 </span>{" "}
-                                                {field.regex_pattern || field.pattern}
+                                                {field.regex_pattern}
+                                              </p>
+                                            ) : (
+                                              <p className="text-xs bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+                                                <span className="font-medium text-amber-700">
+                                                  ⚠️ No base pattern
+                                                </span>{" "}
+                                                <span className="text-amber-600">
+                                                  - System will learn from feedback
+                                                </span>
+                                              </p>
+                                            )}
+                                            {field.pattern && (
+                                              <p className="font-mono text-xs bg-blue-50 border border-blue-200 px-2 py-1 rounded">
+                                                <span className="font-medium text-blue-700">
+                                                  ✓ Trained Pattern (Adaptive):
+                                                </span>{" "}
+                                                <span className="text-blue-900">{field.pattern}</span>
                                               </p>
                                             )}
                                             {firstLocation && (

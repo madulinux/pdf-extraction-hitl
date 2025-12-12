@@ -10,7 +10,7 @@ class JobRepository:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
-    def enqueue_auto_training_job(self, template_id: int, model_folder: str) -> int:
+    def enqueue_auto_training_job(self, template_id: int, model_folder: str, is_first_training: bool = False) -> int:
         """Create a new auto_training job if none is active for this template."""
         conn = self.db.get_connection()
         cursor = conn.cursor()
@@ -18,6 +18,49 @@ class JobRepository:
         payload = json.dumps({
             "template_id": template_id,
             "model_folder": model_folder,
+            "is_first_training": is_first_training,
+        })
+
+        cursor.execute(
+            """
+            INSERT INTO jobs (type, template_id, payload, status)
+            VALUES (?, ?, ?, 'pending')
+            """,
+            ("auto_training", template_id, payload),
+        )
+        job_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return job_id
+    
+    def enqueue_manual_training_job(
+        self, 
+        template_id: int, 
+        model_folder: str,
+        use_all_feedback: bool = True,
+        is_incremental: bool = False
+    ) -> int:
+        """
+        Create a new manual training job (triggered by user via API).
+        
+        Args:
+            template_id: Template ID to train
+            model_folder: Path to model folder
+            use_all_feedback: Use all feedback or only unused
+            is_incremental: Incremental training mode
+            
+        Returns:
+            Job ID
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        payload = json.dumps({
+            "template_id": template_id,
+            "model_folder": model_folder,
+            "use_all_feedback": use_all_feedback,
+            "is_incremental": is_incremental,
+            "trigger": "manual"  # Mark as manual trigger
         })
 
         cursor.execute(

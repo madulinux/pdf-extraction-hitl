@@ -25,6 +25,52 @@ export const templatesAPI = {
   },
 
   /**
+   * Create multiple templates by analyzing multiple PDF files (bulk)
+   */
+  async createBulk(
+    files: File[],
+    {
+      nameMode = 'filename',
+      namePrefix = '',
+    }: { nameMode?: 'filename'; namePrefix?: string } = {}
+  ): Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    templates: Array<{
+      template_id: number;
+      template_name: string;
+      filename: string;
+      field_count: number;
+    }>;
+    errors: Array<{ filename: string; error: string }>;
+  }> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    formData.append('name_mode', nameMode);
+    formData.append('name_prefix', namePrefix);
+
+    const response = await apiClient.post('/v1/templates/bulk', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      } as unknown as AxiosRequestHeaders,
+    });
+
+    return response.data.data as {
+      total: number;
+      successful: number;
+      failed: number;
+      templates: Array<{
+        template_id: number;
+        template_name: string;
+        filename: string;
+        field_count: number;
+      }>;
+      errors: Array<{ filename: string; error: string }>;
+    };
+  },
+
+  /**
    * List all templates
    */
   async list(

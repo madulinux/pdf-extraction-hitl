@@ -197,6 +197,63 @@ class TemplateService:
 
         return result
 
+    def analyze_and_create_bulk(
+        self,
+        files: List[FileStorage],
+        name_mode: str = "filename",
+        name_prefix: str = "",
+    ) -> Dict[str, Any]:
+        """Analyze and create multiple templates in bulk.
+
+        Args:
+            files: List of uploaded PDF files
+            name_mode: Naming mode for templates. Supported: 'filename'
+            name_prefix: Optional prefix to prepend to generated names
+
+        Returns:
+            Bulk result summary
+        """
+        if name_mode not in {"filename"}:
+            raise ValidationError("Invalid name_mode. Supported: filename")
+
+        results: Dict[str, Any] = {
+            "total": len(files),
+            "successful": 0,
+            "failed": 0,
+            "templates": [],
+            "errors": [],
+        }
+
+        for file in files:
+            try:
+                raw_name = os.path.splitext(file.filename or "")[0]
+                template_name = raw_name
+                if name_prefix:
+                    template_name = f"{name_prefix}{template_name}"
+
+                # Fallback if filename is empty after normalization
+                if not template_name or template_name.strip() == "":
+                    template_name = "Unnamed Template"
+
+                created = self.analyze_and_create(file, template_name)
+                results["successful"] += 1
+                results["templates"].append(
+                    {
+                        "template_id": created.get("template_id"),
+                        "template_name": created.get("template_name"),
+                        "filename": created.get("filename"),
+                        "field_count": created.get("field_count"),
+                    }
+                )
+
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append(
+                    {"filename": getattr(file, "filename", ""), "error": str(e)}
+                )
+
+        return results
+
     def delete(self, template_id: int) -> bool:
         """
         Delete template

@@ -183,26 +183,31 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
         """
         Get all patterns: base pattern + learned patterns from database/config
         
+        ✅ NEW BEHAVIOR: If base_pattern is NULL, skip it and rely purely on learned patterns.
+        This enables pure adaptive learning where the system learns from feedback data.
+        
         Returns:
             List of pattern dicts with 'pattern', 'description', 'type'
         """
         field_name = field_config.get('field_name', 'unknown')
         patterns = []
         
-        # Base pattern (from validation_rules or catch-all default)
-        validation_rules = field_config.get('validation_rules', {})
-        base_pattern = validation_rules.get('pattern') or self._get_default_pattern(field_config)
+        # ✅ NEW: Check base_pattern from field config (can be NULL)
+        base_pattern = field_config.get('regex_pattern') or field_config.get('base_pattern')
         
-        patterns.append({
-            'pattern': base_pattern,
-            'description': 'base_pattern',
-            'type': 'manual',
-            'pattern_id': None,
-            'source': 'validation_rules' if validation_rules.get('pattern') else 'default'
-        })
-        
-        # Log base pattern being used
-        # self.logger.info(f"📋 [{field_name}] Base pattern: {base_pattern[:50]}... (source: {patterns[0]['source']})")
+        # Only add base pattern if it exists (not NULL)
+        if base_pattern:
+            patterns.append({
+                'pattern': base_pattern,
+                'description': 'base_pattern (user-defined)',
+                'type': 'manual',
+                'pattern_id': None,
+                'source': 'user_defined'
+            })
+            # self.logger.info(f"📋 [{field_name}] Using base pattern: {base_pattern[:50]}...")
+        else:
+            # self.logger.info(f"📋 [{field_name}] No base pattern - will use learned patterns only")
+            pass
         
         # Try to load learned patterns from database first
         db_patterns = self._load_patterns_from_db(field_config)
@@ -226,6 +231,12 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
                         'frequency': lp.get('frequency', 0),
                         'pattern_id': None
                     })
+        
+        # ⚠️ IMPORTANT: If no patterns at all, extraction will fail
+        # This is intentional - forces user to validate documents first
+        if not patterns:
+            self.logger.warning(f"⚠️ [{field_name}] No patterns available (base_pattern=NULL, no learned patterns)")
+            self.logger.warning(f"   Extraction will fail until patterns are learned from feedback")
         
         return patterns
     
@@ -437,9 +448,13 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             
             # Apply regex pattern
             if candidate_text:
+                # Try to extract value using pattern
+                # Pattern can match partial text (e.g., extract "27" from ": 27 Tahun")
                 match = re.search(regex_pattern, candidate_text)
                 if match:
-                    raw_value = match.group(0).strip()
+                    # Use captured group if exists, otherwise use full match
+                    raw_value = match.group(1) if match.groups() else match.group(0)
+                    raw_value = raw_value.strip()
                     cleaned_value = self._post_process_value(raw_value, field_name, candidate_text)
                     
                     # Higher confidence for label-based extraction
@@ -539,9 +554,13 @@ class RuleBasedExtractionStrategy(ExtractionStrategy):
             
             # Apply regex pattern
             if candidate_text:
+                # Try to extract value using pattern
+                # Pattern can match partial text (e.g., extract "27" from ": 27 Tahun")
                 match = re.search(regex_pattern, candidate_text)
                 if match:
-                    raw_value = match.group(0).strip()
+                    # Use captured group if exists, otherwise use full match
+                    raw_value = match.group(1) if match.groups() else match.group(0)
+                    raw_value = raw_value.strip()
                     
                     # Post-process: Clean up the value
                     cleaned_value = self._post_process_value(

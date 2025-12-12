@@ -425,19 +425,19 @@ class RulePatternOptimizer:
                     # Pattern: [A-Z][a-z]+(?:\s+[A-Z][a-z]+){min-1,max-1}
                     
                     if min_words == max_words:
-                        # Same min/max: specific pattern
+                        # Same min/max: specific pattern with capturing group
                         if min_words == 1:
-                            flexible_pattern = r'[A-Z][a-z]+'
+                            flexible_pattern = r'([A-Z][a-z]+)'
                             description = 'Single capitalized word'
                         else:
                             repeat = min_words - 1
-                            flexible_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '}'
+                            flexible_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '})'
                             description = f'{min_words} capitalized words'
                     else:
-                        # Variable: flexible range
+                        # Variable: flexible range with capturing group
                         min_repeat = max(0, min_words - 1)
                         max_repeat = max_words - 1
-                        flexible_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(min_repeat) + ',' + str(max_repeat) + '}'
+                        flexible_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(min_repeat) + ',' + str(max_repeat) + '})'
                         description = f'Flexible: {min_words}-{max_words} capitalized words'
                     
                     # Count total frequency
@@ -467,15 +467,15 @@ class RulePatternOptimizer:
                     )
                 
                 else:
-                    # Low variability: use specific pattern
+                    # Low variability: use specific pattern with capturing group
                     most_common = insights.get('most_common_word_count', 1)
                     
                     if most_common == 1:
-                        specific_pattern = r'[A-Z][a-z]+'
+                        specific_pattern = r'([A-Z][a-z]+)'
                         description = 'Single capitalized word'
                     else:
                         repeat = most_common - 1
-                        specific_pattern = r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '}'
+                        specific_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){' + str(repeat) + '})'
                         description = f'{most_common} capitalized words'
                     
                     total_freq = sum(freq for shape, freq in patterns['token_shapes'].items() if 'Aa+' in shape)
@@ -533,17 +533,19 @@ class RulePatternOptimizer:
         #             'examples': [v for v in sample_values if len(v.split()) == word_count][:3]
         #         })
         
-        # Suggestion 3: Based on delimiters
+        # Suggestion 3: Based on delimiters with capturing group
         if patterns.get('delimiters'):
             for delim, freq in list(patterns['delimiters'].items())[:2]:
                 escaped_delim = re.escape(delim)
-                regex = r'[^' + escaped_delim + r']+(?:' + escaped_delim + r'[^' + escaped_delim + r']+)*'
+                # Wrap in capturing group for extraction
+                regex = r'([^' + escaped_delim + r']+(?:' + escaped_delim + r'[^' + escaped_delim + r']+)*)'
                 
                 suggestions.append({
                     'type': 'delimiter',
                     'pattern': regex,
                     'description': f'Text with {delim} delimiter',
                     'frequency': freq,
+                    'priority': 3,  # Lower priority
                     'examples': [v for v in sample_values if delim in v][:3]
                 })
         
@@ -551,12 +553,12 @@ class RulePatternOptimizer:
     
     def _shape_to_regex(self, shape: str) -> str:
         """
-        Convert token shape to regex pattern
+        Convert token shape to regex pattern with capturing group
         
         Examples:
-            "Aa+" -> r"[A-Z][a-z]+"
-            "9+" -> r"\\d+"
-            "A+-9+" -> r"[A-Z]+-\\d+"
+            "Aa+" -> r"([A-Z][a-z]+)"
+            "9+" -> r"(\\d+)"
+            "A+-9+" -> r"([A-Z]+-\\d+)"
         """
         regex_parts = []
         i = 0
@@ -584,7 +586,8 @@ class RulePatternOptimizer:
                 regex_parts.append(re.escape(char))
                 i += 1
         
-        return ''.join(regex_parts)
+        # Wrap entire pattern in capturing group for extraction
+        return '(' + ''.join(regex_parts) + ')'
     
     def update_template_config(
         self,

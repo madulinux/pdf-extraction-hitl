@@ -21,6 +21,7 @@ class Document:
     created_at: datetime
     updated_at: Optional[datetime] = None
     validated_at: Optional[datetime] = None
+    used_for_training: Optional[int] = 0
     experiment_phase: Optional[str] = None  # For experiment tracking
 
     def to_dict(self) -> dict:
@@ -36,6 +37,7 @@ class Document:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "validated_at": self.validated_at,
+            "used_for_training": self.used_for_training,
             "experiment_phase": self.experiment_phase,
         }
 

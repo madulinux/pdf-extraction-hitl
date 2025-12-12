@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle2, Loader2, Clock, ArrowRight, ThumbsUp } from 'lucide-react';
 import { extractionAPI } from '@/lib/api/extraction.api';
-import { ExtractionResult, Correction } from '@/lib/types/extraction.types';
+import { ExtractionResult, Correction, FeedbackRecord } from '@/lib/types/extraction.types';
 import { getConfidenceBadgeColor } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,10 +17,11 @@ import { ConflictResolution, ConflictSummary } from '@/components/extraction/Con
 interface ValidationFormProps {
   documentId: number | null;
   extractionResults: ExtractionResult | null;
+  feedbackHistory?: FeedbackRecord[];
   onValidationComplete?: () => void;
 }
 
-export default function ValidationForm({ documentId, extractionResults, onValidationComplete }: ValidationFormProps) {
+export default function ValidationForm({ documentId, extractionResults, feedbackHistory = [], onValidationComplete }: ValidationFormProps) {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,6 +139,34 @@ export default function ValidationForm({ documentId, extractionResults, onValida
     }
   };
 
+  const handleValidateAllCorrect = async () => {
+    if (!documentId) {
+      setError('Document ID tidak ditemukan');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Submit with empty corrections to indicate all data is correct
+      await extractionAPI.submitValidation(documentId, {});
+      setSuccess('Berhasil memvalidasi data. Semua data ekstraksi sudah benar dan akan digunakan untuk melatih model.');
+      
+      if (onValidationComplete) {
+        setTimeout(() => {
+          onValidationComplete();
+        }, 1500); // Delay to show success message
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Gagal menyimpan validasi';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!extractionResults || !extractionResults.extracted_data) {
     return (
       <Card>
@@ -170,8 +199,8 @@ export default function ValidationForm({ documentId, extractionResults, onValida
         <Tabs defaultValue="form" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="form">Form Validasi</TabsTrigger>
-            <TabsTrigger value="summary">
-              Ringkasan ({corrections.length} koreksi)
+            <TabsTrigger value="history">
+              Riwayat Koreksi ({corrections.length > 0 ? `${corrections.length} baru` : feedbackHistory.length})
             </TabsTrigger>
           </TabsList>
 
@@ -256,58 +285,171 @@ export default function ValidationForm({ documentId, extractionResults, onValida
                 </Alert>
               )}
 
-              <Button
-                type="submit"
-                disabled={loading || corrections.length === 0}
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Simpan Koreksi ({corrections.length})
-                  </>
-                )}
-              </Button>
+              {/* Conditional Button: Show 'Validasi Semua Benar' when no corrections, otherwise 'Simpan Koreksi' */}
+              {corrections.length === 0 && feedbackHistory.length === 0 ? (
+                <Button
+                  type="button"
+                  onClick={handleValidateAllCorrect}
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Memvalidasi...
+                    </>
+                  ) : (
+                    <>
+                      <ThumbsUp className="w-4 h-4 mr-2" />
+                      Validasi Semua Benar
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={loading || corrections.length === 0}
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Simpan Koreksi ({corrections.length})
+                    </>
+                  )}
+                </Button>
+              )}
             </form>
           </TabsContent>
 
-          <TabsContent value="summary" className="mt-4">
-            {corrections.length === 0 ? (
-              <Alert>
-                <AlertDescription>
-                  Belum ada koreksi. Ubah nilai field di tab Form Validasi untuk membuat koreksi.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <div className="space-y-3">
-                {corrections.map((correction, index) => (
-                  <div key={index} className="p-4 border rounded-lg bg-muted/50">
-                    <p className="font-semibold text-sm mb-2">
-                      {correction.field_name.replace(/_/g, ' ').toUpperCase()}
-                    </p>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Nilai Asli:</p>
-                        <p className="font-mono text-destructive line-through">
-                          {correction.original_value || '(kosong)'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Nilai Koreksi:</p>
-                        <p className="font-mono text-green-600 font-semibold">
-                          {correction.corrected_value}
-                        </p>
+          <TabsContent value="history" className="mt-4">
+            <div className="space-y-4">
+              {/* Current Corrections (Not Yet Saved) */}
+              {corrections.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-semibold text-sm">Koreksi Saat Ini (Belum Disimpan)</h3>
+                  </div>
+                  {corrections.map((correction, index) => (
+                    <div key={index} className="p-4 border-2 border-amber-200 rounded-lg bg-amber-50">
+                      <p className="font-semibold text-sm mb-2">
+                        {correction.field_name.replace(/_/g, ' ').toUpperCase()}
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Nilai Asli:</p>
+                          <p className="font-mono text-destructive line-through">
+                            {correction.original_value || '(kosong)'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Nilai Koreksi:</p>
+                          <p className="font-mono text-green-600 font-semibold">
+                            {correction.corrected_value}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Past Feedback History (From DB) */}
+              {feedbackHistory.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    <h3 className="font-semibold text-sm">Riwayat Koreksi Tersimpan</h3>
                   </div>
-                ))}
-              </div>
-            )}
+                  {(() => {
+                    // Group by field_name
+                    const groupedFeedback = feedbackHistory.reduce((acc, feedback) => {
+                      if (!acc[feedback.field_name]) {
+                        acc[feedback.field_name] = [];
+                      }
+                      acc[feedback.field_name].push(feedback);
+                      return acc;
+                    }, {} as Record<string, FeedbackRecord[]>);
+
+                    const formatDate = (dateString: string) => {
+                      const date = new Date(dateString);
+                      return date.toLocaleString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    };
+
+                    return Object.entries(groupedFeedback).map(([fieldName, records]) => (
+                      <div key={fieldName} className="border rounded-lg p-4 space-y-3 bg-muted/50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm uppercase">
+                            {fieldName.replace(/_/g, ' ')}
+                          </h4>
+                          <Badge variant={records[0].used_for_training ? "default" : "secondary"}>
+                            {records[0].used_for_training ? (
+                              <><CheckCircle2 className="w-3 h-3 mr-1" /> Digunakan untuk Training</>
+                            ) : (
+                              <><Clock className="w-3 h-3 mr-1" /> Belum Digunakan</>
+                            )}
+                          </Badge>
+                        </div>
+
+                        {records.map((record, index) => (
+                          <div key={record.id} className="space-y-2">
+                            {index > 0 && <div className="border-t pt-2" />}
+                            
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 space-y-1">
+                                {record.original_value && (
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="text-muted-foreground">Original:</span>
+                                    <span className="line-through text-red-600">{record.original_value}</span>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center gap-2 text-sm">
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Koreksi:</span>
+                                  <span className="font-medium text-green-600">{record.corrected_value}</span>
+                                </div>
+
+                                {record.confidence_score !== null && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Confidence: {(record.confidence_score * 100).toFixed(1)}%
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="text-xs text-muted-foreground text-right">
+                                <div>{formatDate(record.created_at)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {corrections.length === 0 && feedbackHistory.length === 0 && (
+                <Alert>
+                  <AlertDescription>
+                    Belum ada koreksi. Ubah nilai field di tab Form Validasi untuk membuat koreksi.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </CardContent>

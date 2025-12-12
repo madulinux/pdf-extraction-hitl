@@ -27,16 +27,17 @@ class AutoTrainingService:
     # - Template B (25 fields): 1 doc = 25 feedback → BAD training!
     # 
     # Solution: Threshold based on DOCUMENT count, not feedback count
-    MIN_NEW_DOCUMENTS = 5  # Minimum new documents to trigger retraining
-    # MIN_HOURS_SINCE_LAST_TRAINING = 1  # Minimum hours between trainings
-    FULL_RETRAIN_INTERVAL = 20  # Full retrain every N documents to use ALL feedback
-    
     def __init__(self, db_manager: DatabaseManager):
-        self.logger = logging.getLogger(__name__)
         self.db = db_manager
-        self.feedback_repo = FeedbackRepository(db_manager)
+        self.logger = logging.getLogger(__name__)
         self.template_repo = TemplateRepository(db_manager)
         self.model_service = ModelService(db_manager)
+        
+        # Load config from environment (centralized in config.py)
+        self.MIN_NEW_DOCUMENTS = int(os.getenv('MIN_NEW_DOCUMENTS', '5'))
+        self.FULL_RETRAIN_INTERVAL = int(os.getenv('FULL_RETRAIN_INTERVAL', '20'))
+        
+        self.logger.info(f"Auto-training config: MIN_NEW_DOCUMENTS={self.MIN_NEW_DOCUMENTS}, FULL_RETRAIN_INTERVAL={self.FULL_RETRAIN_INTERVAL}")
     
     def check_and_train(self, template_id: int, model_folder: str = 'models', force_first_training: bool = False) -> Optional[Dict]:
         """
@@ -55,35 +56,38 @@ class AutoTrainingService:
             self.logger.error(f"❌ Template {template_id} not found")
             return None
         
-        # 2. Get feedback statistics (document-based)
+        # 2. Get validated documents statistics
         conn = self.db.get_connection()
         cursor = conn.cursor()
         
-        # Count DISTINCT documents with unused feedback
+        # ✅ Count validated documents that haven't been used for training yet
+        # This approach works for both:
+        # - Documents with corrections (have feedback records)
+        # - Documents validated as "all correct" (no feedback records)
         cursor.execute('''
-            SELECT COUNT(DISTINCT f.document_id)
-            FROM feedback f
-            JOIN documents d ON f.document_id = d.id
-            WHERE d.template_id = ? AND f.used_for_training = 0
+            SELECT COUNT(*)
+            FROM documents
+            WHERE template_id = ? 
+              AND status = 'validated'
+              AND used_for_training = 0
         ''', (template_id,))
         unused_documents = cursor.fetchone()[0]
         
-        # Get total fields per document for context
+        # Get total validated documents
         cursor.execute('''
-            SELECT COUNT(*) as field_count
-            FROM feedback
-            WHERE document_id IN (
-                SELECT id FROM documents WHERE template_id = ? LIMIT 1
-            )
+            SELECT COUNT(*)
+            FROM documents
+            WHERE template_id = ? AND status = 'validated'
         ''', (template_id,))
-        fields_per_doc = cursor.fetchone()[0] or 9
+        total_validated = cursor.fetchone()[0]
+        
         conn.close()
         
-        self.logger.info(f"\n🤖 Auto-training check: template {template_id} ({unused_documents} unused docs)")
+        self.logger.info(f"\n🤖 Auto-training check: template {template_id} ({unused_documents} new validated docs, {total_validated} total)")
         
         # 3. Check if enough new documents
         if unused_documents < self.MIN_NEW_DOCUMENTS:
-            self.logger.info(f"   ⏸️  Not enough unused documents ({unused_documents} < {self.MIN_NEW_DOCUMENTS})")
+            self.logger.info(f"   ⏸️  Not enough new validated documents ({unused_documents} < {self.MIN_NEW_DOCUMENTS})")
             return None
         
         # 4. Check if model exists
@@ -108,24 +112,12 @@ class AutoTrainingService:
             #     return None
         
         # 5. Determine training mode: Full or Incremental
-        # Get total documents to check if periodic full retrain needed
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT COUNT(DISTINCT f.document_id)
-            FROM feedback f
-            JOIN documents d ON f.document_id = d.id
-            WHERE d.template_id = ?
-        ''', (template_id,))
-        total_documents = cursor.fetchone()[0]
-        conn.close()
-        
-        # Check if periodic full retrain needed
-        should_full_retrain = (total_documents % self.FULL_RETRAIN_INTERVAL) < unused_documents
+        # Check if periodic full retrain needed based on total validated documents
+        should_full_retrain = (total_validated % self.FULL_RETRAIN_INTERVAL) < unused_documents
         
         # 6. Trigger auto-retraining
         if should_full_retrain:
-            self.logger.info(f"\n✅ Auto-training: FULL retrain ({total_documents} docs)")
+            self.logger.info(f"\n✅ Auto-training: FULL retrain ({total_validated} docs)")
             use_all = True
             is_incr = False
         else:
@@ -133,6 +125,7 @@ class AutoTrainingService:
             use_all = False
             is_incr = True
         
+        conn = None
         try:
             result = self.model_service.retrain_model(
                 template_id=template_id,
@@ -141,13 +134,58 @@ class AutoTrainingService:
                 is_incremental=is_incr
             )
             
-            print(f"✅ Auto-training completed: {result['training_samples']} samples, {result['test_metrics']['accuracy']*100:.2f}% accuracy")
+            # Handle None metrics from incremental training without evaluation
+            accuracy = result['test_metrics'].get('accuracy')
+            if accuracy is not None:
+                self.logger.info(f"✅ Auto-training completed: {result['training_samples']} samples, {accuracy*100:.2f}% accuracy")
+            else:
+                self.logger.info(f"✅ Auto-training completed: {result['training_samples']} samples (metrics not evaluated)")
+            
+            # ✅ TRANSACTION: Mark validated documents and their feedback as used for training
+            # Only commit if everything succeeds (training + logging)
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            # Mark documents
+            cursor.execute('''
+                UPDATE documents
+                SET used_for_training = 1
+                WHERE template_id = ? AND status = 'validated' AND used_for_training = 0
+            ''', (template_id,))
+            updated_docs = cursor.rowcount
+            
+            # Mark feedback records for these documents
+            cursor.execute('''
+                UPDATE feedback
+                SET used_for_training = 1
+                WHERE document_id IN (
+                    SELECT id FROM documents 
+                    WHERE template_id = ? AND status = 'validated'
+                )
+                AND used_for_training = 0
+            ''', (template_id,))
+            updated_feedback = cursor.rowcount
+            
+            # ✅ COMMIT only after all operations succeed
+            conn.commit()
+            
+            self.logger.info(f"   Marked {updated_docs} documents and {updated_feedback} feedback records as used for training")
             
             return result
             
         except Exception as e:
-            print(f"❌ Auto-training failed: {e}")
-            return None
+            # ✅ ROLLBACK transaction if any error occurs
+            if conn:
+                conn.rollback()
+                self.logger.warning("   Transaction rolled back - documents not marked as used")
+            
+            self.logger.error(f"❌ Auto-training failed: {e}")
+            # Re-raise exception so worker can properly handle it and mark job as failed
+            raise
+        finally:
+            # ✅ Always close connection
+            if conn:
+                conn.close()
     
     def check_all_templates(self, model_folder: str = 'models') -> Dict[int, Optional[Dict]]:
         """

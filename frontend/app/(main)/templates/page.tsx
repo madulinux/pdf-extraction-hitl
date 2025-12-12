@@ -3,12 +3,16 @@
 import { useState } from 'react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import TemplateUpload from '@/components/TemplateUpload';
+import BulkTemplateUpload from '@/components/BulkTemplateUpload';
 import TemplateList from '@/components/TemplateList';
 import { Template } from '@/lib/types/template.types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileText, Upload } from 'lucide-react';
 
 function TemplatesPageContent() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [activeTab, setActiveTab] = useState('single');
 
   const handleTemplateUploadSuccess = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -28,7 +32,26 @@ function TemplatesPageContent() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TemplateUpload onSuccess={handleTemplateUploadSuccess} />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="single" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Single Template
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              Bulk Upload
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="single" className="mt-4">
+            <TemplateUpload onSuccess={handleTemplateUploadSuccess} />
+          </TabsContent>
+
+          <TabsContent value="bulk" className="mt-4">
+            <BulkTemplateUpload onSuccess={handleTemplateUploadSuccess} />
+          </TabsContent>
+        </Tabs>
         <TemplateList
           onSelectTemplate={handleTemplateSelect}
           refreshTrigger={refreshTrigger}

@@ -12,6 +12,10 @@ from flask import Flask
 from flask_cors import CORS
 from flasgger import Swagger
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import configuration
 from config import get_config
@@ -28,6 +32,7 @@ from api.v1.pattern_info import pattern_info_bp
 from api.v1.pattern_cleanup import pattern_cleanup_bp
 from api.v1.pattern_statistics import pattern_statistics_bp
 from api.v1.dashboard import dashboard_bp
+from api.v1.jobs import jobs_bp
 
 # Import utilities
 from utils.response import APIResponse
@@ -119,6 +124,7 @@ def register_blueprints(app):
     app.register_blueprint(pattern_cleanup_bp)
     app.register_blueprint(pattern_statistics_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(jobs_bp)
 
 def register_error_handlers(app):
     """Register global error handlers"""

@@ -34,11 +34,12 @@ def train_model():
     {
         "template_id": int,
         "use_all_feedback": bool (optional, default: True),
-        "is_incremental": bool (optional, default: False)
+        "is_incremental": bool (optional, default: False),
+        "async_mode": bool (optional, default: from config)
     }
     
     Returns:
-        200: Training successful
+        200: Training successful or job enqueued
         400: Validation error
         401: Unauthorized
     """
@@ -53,24 +54,66 @@ def train_model():
     use_all_feedback = data.get('use_all_feedback', True)
     # ✅ Incremental training: only use new feedback, faster training
     is_incremental = data.get('is_incremental', False)
+    # ✅ Check if async mode is enabled (from request or config)
+    async_mode = data.get('async_mode', current_app.config.get('ASYNC_AUTO_TRAINING', True))
     
-    service = get_model_service()
+    if async_mode:
+        # ⚡ ASYNC MODE: Enqueue training job to background worker
+        try:
+            from database.repositories.job_repository import JobRepository
+            from database.db_manager import DatabaseManager
+            
+            db = DatabaseManager()
+            job_repo = JobRepository(db)
+            model_folder = current_app.config['MODEL_FOLDER']
+            
+            # Check if there's already an active job
+            if job_repo.has_active_auto_training_job(template_id):
+                return APIResponse.bad_request(
+                    f"Training job already active for template {template_id}"
+                )
+            
+            # Enqueue manual training job
+            job_id = job_repo.enqueue_manual_training_job(
+                template_id=template_id,
+                model_folder=model_folder,
+                use_all_feedback=use_all_feedback,
+                is_incremental=is_incremental
+            )
+            
+            return APIResponse.success(
+                {
+                    'job_id': job_id,
+                    'template_id': template_id,
+                    'status': 'enqueued',
+                    'mode': 'async'
+                },
+                f"Training job {job_id} enqueued successfully"
+            )
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to enqueue training job: {e}")
+            return APIResponse.error(f"Failed to enqueue training job: {str(e)}")
     
-    try:
-        result = service.retrain_model(
-            template_id=template_id,
-            use_all_feedback=use_all_feedback,
-            model_folder=current_app.config['MODEL_FOLDER'],
-            is_incremental=is_incremental
-        )
+    else:
+        # 🔄 SYNC MODE: Run training immediately (blocking)
+        service = get_model_service()
         
-        return APIResponse.success(
-            result,
-            "Model trained successfully"
-        )
-    
-    except ValueError as e:
-        return APIResponse.bad_request(str(e))
+        try:
+            result = service.retrain_model(
+                template_id=template_id,
+                use_all_feedback=use_all_feedback,
+                model_folder=current_app.config['MODEL_FOLDER'],
+                is_incremental=is_incremental
+            )
+            
+            return APIResponse.success(
+                {**result, 'mode': 'sync'},
+                "Model trained successfully"
+            )
+        
+        except ValueError as e:
+            return APIResponse.bad_request(str(e))
 
 
 @learning_bp.route('/history/<int:template_id>', methods=['GET'])

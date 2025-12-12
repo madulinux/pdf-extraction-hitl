@@ -844,10 +844,11 @@ class HybridExtractionStrategy:
                         # Field was corrected - check if this strategy had the right value
                         corrected_value = corrections[field_name]
 
-                        # ✅ CRITICAL FIX: Normalize whitespace for comparison
-                        # Handle newlines, multiple spaces, leading/trailing whitespace
-                        strategy_value_norm = " ".join(str(strategy_value).split())
-                        corrected_value_norm = " ".join(str(corrected_value).split())
+                        # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+                        # Do NOT normalize internal spaces - missing spaces are real errors!
+                        # This ensures strategy performance tracking is accurate
+                        strategy_value_norm = str(strategy_value).strip()
+                        corrected_value_norm = str(corrected_value).strip()
 
                         strategy_was_correct = (
                             strategy_value_norm == corrected_value_norm
@@ -875,9 +876,9 @@ class HybridExtractionStrategy:
                             "extracted_data", {}
                         ).get(field_name, "")
 
-                        # ✅ CRITICAL FIX: Normalize whitespace for comparison
-                        strategy_value_norm = " ".join(str(strategy_value).split())
-                        selected_value_norm = " ".join(str(selected_value).split())
+                        # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+                        strategy_value_norm = str(strategy_value).strip()
+                        selected_value_norm = str(selected_value).strip()
 
                         strategy_was_correct = (
                             strategy_value_norm == selected_value_norm

@@ -56,9 +56,10 @@ def simulate_feedback(doc_id, extraction_result, ground_truth, extraction_servic
     for field_name, correct_value in ground_truth.items():
         extracted_value = extracted_data.get(field_name, "")
 
-        # Normalize for comparison (strip whitespace, normalize internal spaces)
-        extracted_normalized = re.sub(r"\s+", " ", str(extracted_value).strip())
-        correct_normalized = re.sub(r"\s+", " ", str(correct_value).strip())
+        # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+        # Do NOT normalize internal spaces - missing spaces are real errors!
+        extracted_normalized = str(extracted_value).strip()
+        correct_normalized = str(correct_value).strip()
 
         if extracted_normalized != correct_normalized:
             corrections[field_name] = correct_value
@@ -93,9 +94,9 @@ def evaluate_accuracy(documents, ground_truth):
             total_fields += 1
             gt_value = gt.get(field_name)
 
-            # Normalize for comparison (strip whitespace, normalize internal spaces)
-            extracted_value = re.sub(r"\s+", " ", str(extracted_value).strip())
-            gt_value = re.sub(r"\s+", " ", str(gt_value).strip())
+            # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+            extracted_value = str(extracted_value).strip()
+            gt_value = str(gt_value).strip()
 
             if extracted_value == gt_value:
                 correct_fields += 1
@@ -182,8 +183,9 @@ def calculate_detailed_metrics(documents, ground_truth):
             # TN: Both empty (not counted in extraction metrics)
             
             if extracted_value and gt_value:
-                extracted_value = re.sub(r"\s+", " ", str(extracted_value).strip())
-                gt_value = re.sub(r"\s+", " ", str(gt_value).strip())
+                # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
+                extracted_value = str(extracted_value).strip()
+                gt_value = str(gt_value).strip()
                 # Both have values
                 if extracted_value == gt_value:
                     # True Positive: Correct extraction
@@ -417,13 +419,22 @@ def run_adaptive_experiment(
             else:
                 print(f"    🔄 Retraining existing model...")
 
-            # Train model
-            result = model_service.retrain_model(
-                template_id=template_id,
-                use_all_feedback=True,  # Use all feedback for experiment
-                model_folder="models",
-                is_incremental=False,  # Full training each time for experiment
-            )
+            if is_first_training:
+                # Train model
+                result = model_service.retrain_model(
+                    template_id=template_id,
+                    use_all_feedback=True,
+                    model_folder="models",
+                    is_incremental=False,
+                )
+            else:
+                result = model_service.retrain_model(
+                    template_id=template_id,
+                    use_all_feedback=False,
+                    model_folder="models",
+                    is_incremental=True,
+                )
+
 
             print(f"    ✅ Training complete!")
             print(f"       Samples: {result.get('training_samples', 0)}")
