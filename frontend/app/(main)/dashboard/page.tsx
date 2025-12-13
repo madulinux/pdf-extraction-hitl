@@ -75,7 +75,6 @@ export default function DashboardPage() {
         selectedTemplate?.id || 1,
         phase
       );
-      console.log("Metrics data received:", data);
       setMetrics(data);
     } catch (error) {
       console.error("Failed to load metrics:", error);

@@ -119,7 +119,6 @@ export default function ModelTraining({
         false, // use_all_feedback = false (use incremental training)
         true // is_incremental = true (incremental training)
       );
-      console.log(result);
 
       setSuccess(
         `Model berhasil dilatih! Akurasi: ${(
@@ -168,21 +167,12 @@ export default function ModelTraining({
       // - Backend: Continuous learning (incremental, automatic)
       // - UI: Optimal retraining (full, manual)
 
-      console.log(
-        "Training mode: FULL (Manual training always uses full training)"
-      );
-      console.log(
-        "  - use_all_feedback: true (all feedback for best accuracy)"
-      );
-      console.log("  - is_incremental: false (full training with grid search)");
-      console.log("  - Expected: 95-99% accuracy on new documents");
 
       const result = await learningAPI.train(
         selectedTemplate.id,
         true, // use_all_feedback = true (use ALL feedback)
         false // is_incremental = false (ALWAYS full training)
       );
-      console.log(result);
 
       setSuccess(
         `Model berhasil dilatih! Akurasi: ${(

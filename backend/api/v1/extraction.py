@@ -3,9 +3,10 @@ Extraction API Routes
 Document extraction endpoints (using core services)
 """
 
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, send_file
 
 from core.extraction.services import ExtractionService
+from core.export.excel_exporter import ExcelExporter
 from database.repositories.document_repository import DocumentRepository
 from database.repositories.feedback_repository import FeedbackRepository
 from database.repositories.template_repository import TemplateRepository
@@ -16,6 +17,7 @@ from api.middleware.auth import require_auth
 from shared.exceptions import ValidationError, NotFoundError
 from database.db_manager import DatabaseManager
 import os
+from datetime import datetime
 
 
 # Create blueprint
@@ -502,4 +504,115 @@ def preview_document(document_id):
         mimetype="application/pdf",
         as_attachment=False,
         download_name=document.get("filename", "document.pdf"),
+    )
+
+
+@extraction_bp.route("/export/<int:template_id>", methods=["GET"])
+@handle_errors
+@require_auth
+def export_extraction_results(template_id):
+    """
+    Export extraction results to Excel for a specific template
+    
+    Query Parameters:
+        status: Filter by status (optional: 'validated', 'pending', 'all')
+        include_metadata: Include summary sheet (default: true)
+    
+    Returns:
+        200: Excel file download
+        404: Template not found
+        401: Unauthorized
+    """
+    db_path = os.getenv("DATABASE_PATH", "data/app.db")
+    db = DatabaseManager(db_path)
+    doc_repo = DocumentRepository(db)
+    template_repo = TemplateRepository(db)
+    
+    # Get template info
+    template = template_repo.find_by_id(template_id)
+    if not template:
+        return APIResponse.not_found(f"Template with ID {template_id} not found")
+    template = template.to_dict()
+    # Get query parameters
+    status_filter = request.args.get('status', 'all')
+    include_metadata = request.args.get('include_metadata', 'true').lower() == 'true'
+    
+    # Get documents for this template
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    if status_filter == 'all':
+        cursor.execute('''
+            SELECT * FROM documents 
+            WHERE template_id = ?
+            ORDER BY created_at DESC
+        ''', (template_id,))
+    else:
+        cursor.execute('''
+            SELECT * FROM documents 
+            WHERE template_id = ? AND status = ?
+            ORDER BY created_at DESC
+        ''', (template_id, status_filter))
+    
+    columns = [description[0] for description in cursor.description]
+    documents = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    
+    if not documents:
+        conn.close()
+        return APIResponse.not_found("No documents found for this template")
+    
+    # Get field names from database (field_configs table) BEFORE closing connection
+    cursor.execute('''
+        SELECT fc.field_name 
+        FROM field_configs fc
+        JOIN template_configs tc ON fc.config_id = tc.id
+        WHERE tc.template_id = ?
+        ORDER BY fc.extraction_order, fc.field_name
+    ''', (template_id,))
+    field_names = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    
+    # Parse extraction results
+    import json
+    for doc in documents:
+        if doc.get('extraction_result'):
+            try:
+                extraction_result = json.loads(doc['extraction_result'])
+                doc['extraction_result'] = extraction_result
+                
+                # Debug: Log structure (only first document to avoid spam)
+                if doc.get('id') == documents[0].get('id'):
+                    current_app.logger.warning(f"🔍 EXPORT DEBUG - Document {doc.get('id')} structure:")
+                    current_app.logger.warning(f"  - Top level keys: {list(extraction_result.keys())}")
+                    if 'extracted_data' in extraction_result:
+                        extracted_data = extraction_result['extracted_data']
+                        current_app.logger.warning(f"  - extracted_data has {len(extracted_data)} fields")
+                        current_app.logger.warning(f"  - Sample fields: {list(extracted_data.keys())[:5]}")
+                        current_app.logger.warning(f"  - Sample values: {dict(list(extracted_data.items())[:3])}")
+                    else:
+                        current_app.logger.warning(f"  - No extracted_data key! Direct fields: {list(extraction_result.keys())[:5]}")
+            except (json.JSONDecodeError, TypeError) as e:
+                current_app.logger.error(f"Failed to parse extraction_result for doc {doc.get('id')}: {e}")
+                doc['extraction_result'] = {}
+    
+    current_app.logger.warning(f"📊 EXPORT: {len(documents)} documents, {len(field_names)} fields: {field_names}")
+    
+    # Create Excel file
+    exporter = ExcelExporter()
+    excel_file = exporter.export_extraction_results(
+        documents=documents,
+        template_name=template.get('name', f'Template {template_id}'),
+        field_names=field_names,
+        include_metadata=include_metadata
+    )
+    
+    # Generate filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"extraction_results_{template.get('name', template_id)}_{timestamp}.xlsx"
+    
+    return send_file(
+        excel_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
     )

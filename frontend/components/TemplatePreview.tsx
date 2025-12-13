@@ -190,7 +190,6 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
         
         // Use sanitized pattern
         if (validation.sanitized && validation.sanitized !== newPattern) {
-          console.log('Pattern sanitized:', newPattern, '->', validation.sanitized);
           // Update editValues with sanitized pattern
           setEditValues(prev => ({
             ...prev,
@@ -224,7 +223,6 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
             return;
           }
 
-          console.log('Pattern saved successfully:', result.data);
           
           // Show success message
           toast.success('Pattern updated successfully!');

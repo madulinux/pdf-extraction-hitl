@@ -138,4 +138,28 @@ export const extractionAPI = {
       }>;
     };
   },
+
+  /**
+   * Export extraction results to Excel
+   */
+  async exportToExcel(
+    templateId: number,
+    options: {
+      status?: 'all' | 'validated' | 'pending';
+      includeMetadata?: boolean;
+    } = {}
+  ): Promise<Blob> {
+    const { status = 'all', includeMetadata = true } = options;
+    
+    const params = new URLSearchParams({
+      status,
+      include_metadata: includeMetadata.toString(),
+    });
+
+    const response = await apiClient.getBlob(
+      `/v1/extraction/export/${templateId}?${params.toString()}`
+    );
+
+    return response.data;
+  },
 };

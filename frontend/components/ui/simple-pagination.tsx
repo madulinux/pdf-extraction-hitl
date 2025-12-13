@@ -28,7 +28,6 @@ function SimplePagination({
   onPageSizeChange?: (newPageSize: number) => void;
 }) {
   const range = getPaginationRange(page, totalPages);
-  console.log(range);
 
   const handlePageChange = (newPage: number) => {
     onPageChange(newPage);

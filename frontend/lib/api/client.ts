@@ -127,6 +127,13 @@ class APIClient {
     return this.client.delete<APIResponse<T>>(url, config);
   }
 
+  public getBlob(url: string, config?: InternalAxiosRequestConfig) {
+    return this.client.get<Blob>(url, {
+      ...config,
+      responseType: 'blob',
+    });
+  }
+
   public getClient(): AxiosInstance {
     return this.client;
   }

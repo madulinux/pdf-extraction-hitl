@@ -8,7 +8,10 @@ import BulkDocumentExtraction from "@/components/BulkDocumentExtraction";
 import ExtractionList from "@/components/ExtractionList";
 import { Template } from "@/lib/types/template.types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, Upload, Download } from "lucide-react";
+import { toast } from "sonner";
+import { extractionAPI } from "@/lib/api/extraction.api";
 
 function ExtractionPageContent() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
@@ -16,6 +19,7 @@ function ExtractionPageContent() {
   );
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState("single");
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleTemplateSelect = (template: Template) => {
     setSelectedTemplate(template);
@@ -26,13 +30,60 @@ function ExtractionPageContent() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const handleExportToExcel = async () => {
+    if (!selectedTemplate) {
+      toast.error("Pilih template terlebih dahulu");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      // Use API client for export
+      const blob = await extractionAPI.exportToExcel(selectedTemplate.id, {
+        status: 'all',
+        includeMetadata: true,
+      });
+
+      // Download file
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `extraction_results_${selectedTemplate.name}_${new Date().getTime()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Data berhasil diexport ke Excel");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Gagal export data");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ekstraksi Data</h1>
-        <p className="text-muted-foreground">
-          Upload dokumen PDF untuk diekstraksi dan validasi hasilnya
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Ekstraksi Data</h1>
+          <p className="text-muted-foreground">
+            Upload dokumen PDF untuk diekstraksi dan validasi hasilnya
+          </p>
+        </div>
+        
+        {selectedTemplate && (
+          <Button
+            onClick={handleExportToExcel}
+            disabled={isExporting}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? "Exporting..." : "Export to Excel"}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

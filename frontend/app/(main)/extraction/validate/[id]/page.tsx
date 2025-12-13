@@ -25,7 +25,6 @@ function ValidationPageContent() {
     try {
       setLoading(true);
       const response = await extractionAPI.getById(documentId);
-      console.log(response);
       setDocument(response.document);
       
       // Parse extraction results
