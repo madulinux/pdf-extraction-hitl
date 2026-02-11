@@ -415,15 +415,6 @@ def show_help():
     )
 
 
-def runserver():
-    """Run the application"""
-    print("Running the application...")
-    # run flask app with gunicorn (development server) dengan live reload dan logging debug mode ke console
-    os.system(
-        "gunicorn --timeout 120 --graceful-timeout 300 -w 16 app:app --reload --log-level debug"
-    )
-
-
 def main():
     if len(sys.argv) < 2:
         show_help()
