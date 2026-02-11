@@ -21,11 +21,14 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Production WSGI server
+RUN pip install --no-cache-dir gunicorn
+
 # Copy application code
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p data experiments/results models uploads logs
+RUN mkdir -p data experiments/results models uploads logs templates previews feedback
 
 # Set environment variables
 ENV FLASK_APP=app.py
@@ -41,4 +44,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Run the application
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8071} --timeout 240 --graceful-timeout 600 -w 4 app:app"]

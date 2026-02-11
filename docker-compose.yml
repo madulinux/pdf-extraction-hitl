@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Backend API Service
   backend:
@@ -8,14 +6,14 @@ services:
       dockerfile: Dockerfile
     container_name: pdf-extraction-backend
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      - FLASK_ENV=${FLASK_ENV}
-      - FLASK_APP=${FLASK_APP}
-      - FLASK_DEBUG=${FLASK_DEBUG}
-      - PORT=${BACKEND_PORT}
-      - DATABASE_PATH=${DATABASE_PATH}
-      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_APP=${FLASK_APP:-app.py}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - PORT=8000
+      - DATABASE_PATH=${DATABASE_PATH:-data/app.db}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
       - SECRET_KEY=${SECRET_KEY}
     env_file:
       - .env
@@ -25,19 +23,50 @@ services:
       - backend-experiments:/app/experiments
       - backend-models:/app/models
       - backend-uploads:/app/uploads
-      # Mount ground truth (read-only) - needed for experiments
-      - ./backend/data/ground_truth:/app/data/ground_truth:ro
-      # Mount experiment results (read-only) - needed for dashboard
-      - ./backend/experiments/results:/app/experiments/results:ro
+      - backend-templates:/app/templates
+      - backend-previews:/app/previews
+      - backend-feedback:/app/feedback
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT}/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$$PORT/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Backend Worker Service (auto_training jobs)
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pdf-extraction-backend-worker
+    command: ["python", "manage.py", "worker", "--sleep", "5"]
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_APP=${FLASK_APP:-app.py}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - PORT=8000
+      - DATABASE_PATH=${DATABASE_PATH:-data/app.db}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - SECRET_KEY=${SECRET_KEY}
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - backend-data:/app/data
+      - backend-experiments:/app/experiments
+      - backend-models:/app/models
+      - backend-uploads:/app/uploads
+      - backend-templates:/app/templates
+      - backend-previews:/app/previews
+      - backend-feedback:/app/feedback
+    networks:
+      - app-network
+    restart: unless-stopped
 
   # Frontend Service
   frontend:
@@ -48,20 +77,21 @@ services:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: pdf-extraction-frontend
     ports:
-      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NODE_ENV=${NODE_ENV}
-      - NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      - NODE_ENV=${NODE_ENV:-production}
+      - NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED:-1}
     env_file:
       - .env
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${FRONTEND_PORT}"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -79,4 +109,10 @@ volumes:
   backend-models:
     driver: local
   backend-uploads:
+    driver: local
+  backend-templates:
+    driver: local
+  backend-previews:
+    driver: local
+  backend-feedback:
     driver: local
