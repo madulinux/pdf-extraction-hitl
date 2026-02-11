@@ -253,11 +253,111 @@ class CRFExtractionStrategy(ExtractionStrategy):
             #     print(f"   ℹ️ Model did not predict any tokens for this field")
 
             # self.logger.debug(f"⚠️ CRF: No tokens found for '{field_name}' (predicted {target_count} related tokens)")
+            
+            # ✅ FALLBACK: Try fuzzy matching if CRF failed
+            # self.logger.info(f"🔄 [CRF] No tokens found, trying fuzzy matching fallback for '{field_name}'")
+            # return self._fuzzy_matching_fallback(all_words, field_config, context)
             return None
 
         except Exception as e:
             self.logger.error(f"CRF extraction failed for {field_name}: {e}")
             return None
+    
+    def _fuzzy_matching_fallback(
+        self, 
+        all_words: List[Dict], 
+        field_config: Dict,
+        context: Dict
+    ) -> Optional[FieldValue]:
+        """
+        Fuzzy matching fallback when CRF fails
+        
+        Uses label-based search with high tolerance for text quality issues
+        
+        Args:
+            all_words: All words from PDF
+            field_config: Field configuration
+            context: Context information
+            
+        Returns:
+            FieldValue if found, None otherwise
+        """
+        from difflib import SequenceMatcher
+        
+        field_name = field_config.get("field_name", "unknown")
+        label = context.get("label", "")
+        
+        if not label:
+            return None
+        
+        # Find label in text with fuzzy matching
+        label_lower = label.lower()
+        best_match_idx = -1
+        best_match_score = 0.0
+        
+        for i, word in enumerate(all_words):
+            word_text = word.get("text", "").lower()
+            
+            # Calculate similarity
+            similarity = SequenceMatcher(None, label_lower, word_text).ratio()
+            
+            if similarity > best_match_score and similarity > 0.6:  # 60% threshold
+                best_match_score = similarity
+                best_match_idx = i
+        
+        if best_match_idx == -1:
+            return None
+        
+        # Extract text after label
+        label_word = all_words[best_match_idx]
+        label_y = label_word.get("top", 0)
+        label_x1 = label_word.get("x1", 0)
+        
+        # Get next field boundary
+        next_field_y = context.get("next_field_y")
+        words_after = context.get("words_after", [])
+        next_field_x = words_after[0].get("x") if words_after else None
+        
+        # Collect value tokens
+        value_tokens = []
+        for i in range(best_match_idx + 1, len(all_words)):
+            word = all_words[i]
+            word_y = word.get("top", 0)
+            word_x0 = word.get("x0", 0)
+            
+            # Check boundaries
+            if next_field_x and word_x0 >= next_field_x:
+                break
+            if next_field_y and word_y >= next_field_y:
+                break
+            
+            # Same line or close enough
+            if abs(word_y - label_y) < 5:
+                value_tokens.append(word.get("text", ""))
+            elif word_y > label_y + 5:
+                # Different line, stop
+                break
+        
+        if not value_tokens:
+            return None
+        
+        raw_value = " ".join(value_tokens)
+        cleaned_value = self._post_process_value(raw_value, field_name, raw_value)
+        
+        self.logger.info(f"✅ [CRF Fallback] Found '{field_name}' via fuzzy matching: {cleaned_value[:50]}...")
+        
+        return FieldValue(
+            field_id=field_name,
+            field_name=field_name,
+            value=cleaned_value,
+            confidence=0.4,  # Lower confidence for fallback
+            method="crf_fuzzy_fallback",
+            metadata={
+                "fallback": True,
+                "label_match_score": best_match_score,
+                "token_count": len(value_tokens),
+            },
+        )
 
     def _extract_features(
         self,

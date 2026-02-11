@@ -1032,20 +1032,86 @@ class HybridExtractionStrategy:
                 "per_template": self.performance_history,
             }
 
-    def _extract_words_from_pdf(self, pdf_path: str) -> List[Dict]:
-        """Extract all words from PDF"""
+    def _extract_words_from_pdf(self, pdf_path: str, enable_normalization: bool = False) -> List[Dict]:
+        """
+        Extract all words from PDF
+        
+        Args:
+            pdf_path: Path to PDF file
+            enable_normalization: Enable text normalization (disabled by default to avoid breaking existing extractions)
+        
+        Note: Text normalization is DISABLED by default because it can negatively impact
+        fields that are already extracting correctly. Only enable if you have specific
+        concatenated word issues.
+        """
         import pdfplumber
 
         all_words = []
+        
         try:
             with pdfplumber.open(pdf_path) as pdf:
                 for page in pdf.pages:
                     words = page.extract_words(x_tolerance=3, y_tolerance=3)
                     all_words.extend(words)
+                    
+            # Apply normalization only if explicitly enabled
+            if enable_normalization:
+                all_words = self._apply_text_normalization(all_words)
+                            
         except Exception as e:
             self.logger.error(f"Error extracting words from PDF: {e}")
 
         return all_words
+    
+    def _apply_text_normalization(self, words: List[Dict]) -> List[Dict]:
+        """
+        Apply text normalization to words (opt-in only)
+        
+        This is separated to allow controlled application of normalization
+        without affecting all extractions by default.
+        
+        Args:
+            words: List of word dictionaries
+            
+        Returns:
+            List of normalized words
+        """
+        from .text_normalizer import get_normalizer
+        
+        normalizer = get_normalizer()
+        normalized_words = []
+        
+        for word in words:
+            original_text = word.get('text', '')
+            
+            # Very conservative check - only normalize extremely long words
+            # that are clearly concatenated (>25 chars, no spaces)
+            if len(original_text) > 25 and ' ' not in original_text:
+                # Apply segmentation
+                normalized_text = normalizer.segment_concatenated_text(original_text)
+                
+                # Only apply if segmentation actually helped
+                if ' ' in normalized_text and len(normalized_text.split()) >= 2:
+                    # Split into multiple word entries
+                    segments = normalized_text.split()
+                    segment_width = word.get('width', 0) / len(segments) if segments else 0
+                    
+                    for i, segment in enumerate(segments):
+                        # Create new word entry for each segment
+                        new_word = word.copy()
+                        new_word['text'] = segment
+                        new_word['x0'] = word.get('x0', 0) + (i * segment_width)
+                        new_word['x1'] = new_word['x0'] + segment_width
+                        new_word['_normalized'] = True
+                        normalized_words.append(new_word)
+                else:
+                    # Segmentation didn't help, keep original
+                    normalized_words.append(word)
+            else:
+                # No normalization needed
+                normalized_words.append(word)
+        
+        return normalized_words
 
     def _get_adaptive_crf_weight(self, template_id: int) -> float:
         """

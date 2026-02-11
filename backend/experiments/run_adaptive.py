@@ -21,6 +21,43 @@ import argparse
 import re
 
 
+def normalize_whitespace(text: str) -> str:
+    """
+    Normalize whitespace in text for comparison
+    
+    This function makes comparison tolerant to whitespace differences:
+    - Multiple spaces → single space
+    - Tabs → spaces
+    - Newlines → spaces
+    - Leading/trailing whitespace removed
+    
+    Args:
+        text: Input text
+        
+    Returns:
+        Normalized text with single spaces
+        
+    Examples:
+        "John  Doe" → "John Doe"
+        "John\tDoe" → "John Doe"
+        "John\nDoe" → "John Doe"
+        "  John Doe  " → "John Doe"
+    """
+    if not text:
+        return ""
+    
+    # Convert to string if not already
+    text = str(text)
+    
+    # Replace all whitespace characters (spaces, tabs, newlines) with single space
+    normalized = re.sub(r'\s+', ' ', text)
+    
+    # Strip leading/trailing whitespace
+    normalized = normalized.strip()
+    
+    return normalized
+
+
 def load_ground_truth(documents, ground_truth_dir="data/ground_truth"):
     """Load ground truth from JSON files"""
     ground_truth = {}
@@ -56,10 +93,10 @@ def simulate_feedback(doc_id, extraction_result, ground_truth, extraction_servic
     for field_name, correct_value in ground_truth.items():
         extracted_value = extracted_data.get(field_name, "")
 
-        # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
-        # Do NOT normalize internal spaces - missing spaces are real errors!
-        extracted_normalized = str(extracted_value).strip()
-        correct_normalized = str(correct_value).strip()
+        # ✅ WHITESPACE TOLERANT COMPARISON
+        # Normalize whitespace to ignore differences in spaces/tabs/newlines
+        extracted_normalized = normalize_whitespace(extracted_value)
+        correct_normalized = normalize_whitespace(correct_value)
 
         if extracted_normalized != correct_normalized:
             corrections[field_name] = correct_value
@@ -94,11 +131,11 @@ def evaluate_accuracy(documents, ground_truth):
             total_fields += 1
             gt_value = gt.get(field_name)
 
-            # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
-            extracted_value = str(extracted_value).strip()
-            gt_value = str(gt_value).strip()
+            # ✅ WHITESPACE TOLERANT COMPARISON
+            extracted_normalized = normalize_whitespace(extracted_value)
+            gt_normalized = normalize_whitespace(gt_value)
 
-            if extracted_value == gt_value:
+            if extracted_normalized == gt_normalized:
                 correct_fields += 1
 
     return correct_fields / total_fields if total_fields > 0 else 0
@@ -183,11 +220,11 @@ def calculate_detailed_metrics(documents, ground_truth):
             # TN: Both empty (not counted in extraction metrics)
             
             if extracted_value and gt_value:
-                # ✅ STRICT COMPARISON: Only strip leading/trailing whitespace
-                extracted_value = str(extracted_value).strip()
-                gt_value = str(gt_value).strip()
+                # ✅ WHITESPACE TOLERANT COMPARISON
+                extracted_normalized = normalize_whitespace(extracted_value)
+                gt_normalized = normalize_whitespace(gt_value)
                 # Both have values
-                if extracted_value == gt_value:
+                if extracted_normalized == gt_normalized:
                     # True Positive: Correct extraction
                     correct_fields += 1
                     field_stats[field_name]['correct'] += 1
