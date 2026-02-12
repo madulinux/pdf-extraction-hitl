@@ -331,6 +331,20 @@ class ExtractionService:
             feedback_path=feedback_path,
         )
 
+        # ✅ MULTILINE LEARNING (immediate): update allow_multiline as soon as we have
+        # a correction that suggests wrapped text in the PDF.
+        try:
+            from core.learning.services import ModelService
+
+            model_service = ModelService(self.db)
+            model_service.update_allow_multiline_from_document_feedback(
+                document_id=document_id,
+                all_fields=extracted_data,
+                corrected_fields=actual_corrections,
+            )
+        except Exception as e:
+            self.logger.warning(f"⚠️ allow_multiline immediate update failed: {e}")
+
         # ✅ KEEP original extraction_result unchanged in documents table
         # Corrected values are stored in feedback table
         # This preserves the original extraction for comparison and metrics

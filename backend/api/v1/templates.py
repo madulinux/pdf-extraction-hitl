@@ -22,7 +22,7 @@ templates_bp = Blueprint('templates', __name__, url_prefix='/api/v1/templates')
 def get_template_service():
     """Get template service instance"""
     db_path = os.getenv('DATABASE_PATH', 'data/app.db')
-    db = DatabaseManager()
+    db = DatabaseManager(db_path)
     repository = TemplateRepository(db)
     return TemplateService(
         repository=repository,

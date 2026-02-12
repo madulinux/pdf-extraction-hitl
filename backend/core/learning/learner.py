@@ -4,6 +4,7 @@ Implements incremental learning using CRF model with user feedback
 """
 import sklearn_crfsuite
 from sklearn_crfsuite import metrics
+from sklearn.metrics import classification_report
 import joblib
 import json
 import os
@@ -33,7 +34,7 @@ class AdaptiveLearner:
                 algorithm='lbfgs',
                 c1=0.01,              # ✅ Optimal L1 from grid search (prevents overfitting)
                 c2=0.01,              # ✅ Optimal L2 from grid search (better generalization)
-                max_iterations=100,   # ⚡ Reduced from 100 (faster training, still good accuracy)
+                max_iterations=250,   # ⚡ Reduced from 100 (faster training, still good accuracy)
                 all_possible_transitions=True,
                 verbose=False,
                 num_memories=12       # ⚡ L-BFGS memory size (lower = faster, less memory)
@@ -604,7 +605,7 @@ class AdaptiveLearner:
     
     def train(self, X_train: List[List[Dict]], y_train: List[List[str]], 
               c1: float = None, c2: float = None, 
-              max_iterations: int = 100,
+              max_iterations: int = 250,
               skip_evaluation: bool = False) -> Dict[str, float]:
         """
         Train or retrain the CRF model
@@ -689,7 +690,7 @@ class AdaptiveLearner:
         # ⚡ Train with fewer iterations for incremental (model already converged)
         # Use 100 iterations instead of 100 for ~5x speedup
         return self.train(X_combined, y_combined, 
-                         max_iterations=100, 
+                         max_iterations=250, 
                          skip_evaluation=skip_evaluation)
     
     def save_model(self, output_path: str):
@@ -858,6 +859,13 @@ class AdaptiveLearner:
         
         # Calculate metrics
         # ✅ Use zero_division=0 to suppress warnings for missing labels in small datasets
+        # NOTE:
+        # - sklearn_crfsuite.metrics.flat_classification_report is not compatible with
+        #   newer scikit-learn versions where classification_report arguments became
+        #   keyword-only (it passes `labels` positionally internally).
+        # - We compute the report ourselves with a safe, flattened representation.
+        y_true_flat = [tag for seq in y_test for tag in seq]
+        y_pred_flat = [tag for seq in y_pred for tag in seq]
         results = {
             'accuracy': metrics.flat_accuracy_score(y_test, y_pred),
             'precision': metrics.flat_precision_score(y_test, y_pred, 
@@ -869,9 +877,13 @@ class AdaptiveLearner:
             'f1': metrics.flat_f1_score(y_test, y_pred, 
                                        average='weighted', labels=labels,
                                        zero_division=0),
-            'classification_report': metrics.flat_classification_report(
-                y_test, y_pred, labels=labels, digits=3, zero_division=0
-            )
+            'classification_report': classification_report(
+                y_true_flat,
+                y_pred_flat,
+                labels=labels,
+                digits=3,
+                zero_division=0,
+            ),
         }
         
         return results

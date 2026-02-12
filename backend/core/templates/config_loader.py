@@ -174,6 +174,7 @@ class TemplateConfigLoader:
                 'base_pattern': base_pattern,   # Also add as base_pattern for consistency
                 'confidence_threshold': field_cfg.get('confidence_threshold', 0.7),
                 'is_required': field_cfg.get('is_required', False),
+                'allow_multiline': bool(field_cfg.get('allow_multiline')) if field_cfg.get('allow_multiline') is not None else None,
                 'locations': []
             }
             

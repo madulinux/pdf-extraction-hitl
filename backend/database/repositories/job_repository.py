@@ -10,10 +10,20 @@ class JobRepository:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
     def enqueue_auto_training_job(self, template_id: int, model_folder: str, is_first_training: bool = False) -> int:
         """Create a new auto_training job if none is active for this template."""
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        user_id = self._current_user_id()
 
         payload = json.dumps({
             "template_id": template_id,
@@ -23,10 +33,10 @@ class JobRepository:
 
         cursor.execute(
             """
-            INSERT INTO jobs (type, template_id, payload, status)
-            VALUES (?, ?, ?, 'pending')
+            INSERT INTO jobs (type, template_id, payload, status, created_by, updated_by)
+            VALUES (?, ?, ?, 'pending', ?, ?)
             """,
-            ("auto_training", template_id, payload),
+            ("auto_training", template_id, payload, user_id, user_id),
         )
         job_id = cursor.lastrowid
         conn.commit()
@@ -55,6 +65,8 @@ class JobRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         payload = json.dumps({
             "template_id": template_id,
             "model_folder": model_folder,
@@ -65,10 +77,10 @@ class JobRepository:
 
         cursor.execute(
             """
-            INSERT INTO jobs (type, template_id, payload, status)
-            VALUES (?, ?, ?, 'pending')
+            INSERT INTO jobs (type, template_id, payload, status, created_by, updated_by)
+            VALUES (?, ?, ?, 'pending', ?, ?)
             """,
-            ("auto_training", template_id, payload),
+            ("auto_training", template_id, payload, user_id, user_id),
         )
         job_id = cursor.lastrowid
         conn.commit()
@@ -115,13 +127,14 @@ class JobRepository:
     def mark_running(self, job_id: int):
         conn = self.db.get_connection()
         cursor = conn.cursor()
+        user_id = self._current_user_id()
         cursor.execute(
             """
             UPDATE jobs
-            SET status = 'running', attempts = attempts + 1, updated_at = CURRENT_TIMESTAMP
+            SET status = 'running', attempts = attempts + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
             WHERE id = ?
             """,
-            (job_id,),
+            (user_id, job_id),
         )
         conn.commit()
         conn.close()
@@ -129,13 +142,14 @@ class JobRepository:
     def mark_completed(self, job_id: int):
         conn = self.db.get_connection()
         cursor = conn.cursor()
+        user_id = self._current_user_id()
         cursor.execute(
             """
             UPDATE jobs
-            SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+            SET status = 'completed', updated_at = CURRENT_TIMESTAMP, updated_by = ?
             WHERE id = ?
             """,
-            (job_id,),
+            (user_id, job_id),
         )
         conn.commit()
         conn.close()
@@ -144,24 +158,26 @@ class JobRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         # Copy to failed_jobs
         cursor.execute(
             """
-            INSERT INTO failed_jobs (job_id, type, template_id, payload, error)
-            SELECT id, type, template_id, payload, ?
+            INSERT INTO failed_jobs (job_id, type, template_id, payload, error, created_by, updated_by)
+            SELECT id, type, template_id, payload, ?, ?, ?
             FROM jobs WHERE id = ?
             """,
-            (error, job_id),
+            (error, user_id, user_id, job_id),
         )
 
         # Update job status
         cursor.execute(
             """
             UPDATE jobs
-            SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP
+            SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ?
             WHERE id = ?
             """,
-            (error, job_id),
+            (error, user_id, job_id),
         )
 
         conn.commit()

@@ -337,6 +337,7 @@ class ModelService:
                 'skip_leakage': True,
                 'skip_diversity': True
             }
+
         else:
             validation_decision = validation_strategy.should_validate(
                 num_samples=len(X_train),
@@ -511,6 +512,321 @@ class ModelService:
         conn.commit()
         updated_count = cursor.rowcount
         self.logger.info(f"Updated typical_length for {updated_count} fields")
+
+        # ------------------------------------------------------------------
+        # Robust multiline inference (layout-aware, data-driven)
+        #
+        # This handles PDF line-wrapping cases where corrected_value is
+        # single-line (no '\n') but the visual layout wraps to the next line.
+        #
+        # Evidence:
+        # - feedback where corrected_value extends original_value (missing suffix)
+        # - missing suffix tokens appear below the field's bounding box in PDF
+        #
+        # Thresholds are configurable via env.
+        # ------------------------------------------------------------------
+        layout_min_samples = int(os.getenv('MULTILINE_LAYOUT_INFER_MIN_SAMPLES', '5'))
+        layout_min_hits = int(os.getenv('MULTILINE_LAYOUT_INFER_MIN_HITS', '2'))
+        layout_min_ratio = float(os.getenv('MULTILINE_LAYOUT_INFER_MIN_RATIO', '0.3'))
+        layout_x_tolerance_factor = float(os.getenv('MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR', '0.25'))
+        layout_y_gap_min_factor = float(os.getenv('MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR', '0.6'))
+
+        def _tokenize_simple(text: str) -> List[str]:
+            if not text:
+                return []
+            parts = str(text).strip().split()
+            tokens: List[str] = []
+            for p in parts:
+                t = p.strip().strip('.,;:!?)\"]}\'')
+                t = t.lstrip('([{"\'')
+                if t:
+                    tokens.append(t)
+            return tokens
+
+        def _extract_words_by_page(pdf_path: str) -> Dict[int, List[Dict[str, Any]]]:
+            words_by_page: Dict[int, List[Dict[str, Any]]] = {}
+            with pdfplumber.open(pdf_path) as pdf:
+                for page_idx, page in enumerate(pdf.pages):
+                    try:
+                        page_words = page.extract_words(
+                            x_tolerance=1,
+                            y_tolerance=1,
+                            keep_blank_chars=False,
+                            use_text_flow=True,
+                        )
+                    except Exception:
+                        page_words = []
+                    normalized: List[Dict[str, Any]] = []
+                    for w in page_words:
+                        normalized.append(
+                            {
+                                'text': w.get('text', ''),
+                                'x0': float(w.get('x0', 0.0)),
+                                'x1': float(w.get('x1', 0.0)),
+                                'top': float(w.get('top', 0.0)),
+                                'bottom': float(w.get('bottom', 0.0)),
+                            }
+                        )
+                    words_by_page[page_idx] = normalized
+            return words_by_page
+
+        # Load field bounding boxes for this template (location_index=0 primary)
+        cursor.execute(
+            '''
+            SELECT
+                fc.id AS field_config_id,
+                fc.field_name,
+                fl.page,
+                fl.x0,
+                fl.y0,
+                fl.x1,
+                fl.y1,
+                fctx.next_field_y
+            FROM field_configs fc
+            JOIN template_configs tc ON tc.id = fc.config_id
+            JOIN field_locations fl ON fl.field_config_id = fc.id AND fl.location_index = 0
+            LEFT JOIN field_contexts fctx ON fctx.id = (
+                SELECT MAX(id)
+                FROM field_contexts
+                WHERE field_location_id = fl.id
+            )
+            WHERE tc.template_id = ?
+            ''',
+            (template_id,),
+        )
+        field_boxes: Dict[str, Dict[str, Any]] = {}
+        for row in cursor.fetchall():
+            field_boxes[row['field_name']] = {
+                'field_config_id': row['field_config_id'],
+                'page': row['page'] or 0,
+                'x0': float(row['x0']),
+                'y0': float(row['y0']),
+                'x1': float(row['x1']),
+                'y1': float(row['y1']),
+                'next_field_y': float(row['next_field_y']) if row['next_field_y'] is not None else None,
+            }
+
+        # Load feedback candidates with document paths
+        cursor.execute(
+            '''
+            SELECT
+                f.document_id,
+                f.field_name,
+                f.original_value,
+                f.corrected_value,
+                d.file_path
+            FROM feedback f
+            JOIN documents d ON d.id = f.document_id
+            WHERE d.template_id = ?
+              AND f.original_value IS NOT NULL
+              AND f.corrected_value IS NOT NULL
+              AND d.file_path IS NOT NULL
+            ''',
+            (template_id,),
+        )
+        feedback_rows = cursor.fetchall()
+
+        # Cache parsed words per document to avoid repeated PDF reads
+        pdf_cache: Dict[int, Dict[int, List[Dict[str, Any]]]] = {}
+
+        field_total: Dict[str, int] = {}
+        field_hits: Dict[str, int] = {}
+
+        for fb in feedback_rows:
+            field_name = fb['field_name']
+            box = field_boxes.get(field_name)
+            if not box:
+                continue
+
+            original_value = str(fb['original_value'])
+            corrected_value = str(fb['corrected_value'])
+
+            # Only consider cases where correction extends original (missing suffix/prefix)
+            missing_text = None
+            if corrected_value.startswith(original_value) and len(corrected_value) > len(original_value):
+                missing_text = corrected_value[len(original_value):].strip()
+            elif original_value in corrected_value and len(corrected_value) > len(original_value):
+                idx = corrected_value.find(original_value)
+                tail = corrected_value[idx + len(original_value):].strip() if idx >= 0 else ''
+                if tail:
+                    missing_text = tail
+
+            if not missing_text:
+                continue
+
+            missing_tokens = _tokenize_simple(missing_text)
+            if not missing_tokens:
+                continue
+
+            document_id = int(fb['document_id'])
+            pdf_path = fb['file_path']
+            if not pdf_path or not os.path.exists(pdf_path):
+                continue
+
+            field_total[field_name] = field_total.get(field_name, 0) + 1
+
+            if document_id not in pdf_cache:
+                try:
+                    pdf_cache[document_id] = _extract_words_by_page(pdf_path)
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse PDF for multiline inference: doc={document_id}, err={e}")
+                    pdf_cache[document_id] = {}
+
+            page_idx = int(box['page'])
+            words = pdf_cache.get(document_id, {}).get(page_idx, [])
+            if not words:
+                continue
+
+            # Derive data-driven tolerances
+            width = max(1.0, box['x1'] - box['x0'])
+            x_tol = width * layout_x_tolerance_factor
+
+            heights = [max(0.0, w['bottom'] - w['top']) for w in words if w.get('bottom') is not None and w.get('top') is not None]
+            heights_sorted = sorted(h for h in heights if h > 0)
+            median_h = heights_sorted[len(heights_sorted) // 2] if heights_sorted else 10.0
+            y_gap_min = median_h * layout_y_gap_min_factor
+
+            x_min = box['x0'] - x_tol
+            x_max = box['x1'] + x_tol
+            y_min = box['y1'] + y_gap_min
+            y_max = box['next_field_y'] - y_gap_min if box.get('next_field_y') else None
+
+            # Check if any missing token appears below within the same field column
+            missing_lower = {t.lower() for t in missing_tokens[:5]}
+            hit = False
+            for w in words:
+                wt = str(w.get('text', '')).strip()
+                if not wt:
+                    continue
+                wt_l = wt.lower()
+                if wt_l not in missing_lower:
+                    continue
+                wx0 = float(w.get('x0', 0.0))
+                wy = float(w.get('top', 0.0))
+                if wx0 < x_min or wx0 > x_max:
+                    continue
+                if wy < y_min:
+                    continue
+                if y_max is not None and wy > y_max:
+                    continue
+                hit = True
+                break
+
+            if hit:
+                field_hits[field_name] = field_hits.get(field_name, 0) + 1
+
+        # Apply decision per field
+        for field_name, n in field_total.items():
+            hits = field_hits.get(field_name, 0)
+            if n < layout_min_samples:
+                continue
+            ratio = float(hits) / float(n) if n else 0.0
+            allow = 1 if (hits >= layout_min_hits and ratio >= layout_min_ratio) else 0
+            field_config_id = field_boxes[field_name]['field_config_id']
+            cursor.execute(
+                'UPDATE field_configs SET allow_multiline = ? WHERE id = ?',
+                (allow, field_config_id),
+            )
+
+        conn.commit()
+        self.logger.info('Updated allow_multiline flags using layout-aware feedback evidence')
+
+        # ------------------------------------------------------------------
+        # Robust multiline inference (data-driven, no template hardcoding)
+        #
+        # Persist allow_multiline on field_configs using feedback statistics.
+        # Rules:
+        # - If any corrected_value contains a newline => multiline
+        # - Else if p90 length is large enough => likely wraps/multiline in PDF
+        # Thresholds are configurable via env.
+        # ------------------------------------------------------------------
+        infer_min_samples = int(os.getenv('MULTILINE_INFER_MIN_SAMPLES', '5'))
+        infer_p90_threshold = int(os.getenv('MULTILINE_INFER_P90_LENGTH_THRESHOLD', '90'))
+        infer_mean_threshold = int(os.getenv('MULTILINE_INFER_MEAN_LENGTH_THRESHOLD', '70'))
+
+        cursor.execute(
+            '''
+            WITH feedback_scoped AS (
+                SELECT
+                    f.field_name,
+                    f.corrected_value,
+                    LENGTH(f.corrected_value) AS vlen,
+                    CASE
+                        WHEN INSTR(f.corrected_value, CHAR(10)) > 0 OR INSTR(f.corrected_value, CHAR(13)) > 0
+                        THEN 1 ELSE 0
+                    END AS has_newline
+                FROM feedback f
+                JOIN documents d ON f.document_id = d.id
+                WHERE d.template_id = ?
+                  AND f.corrected_value IS NOT NULL
+            ),
+            stats AS (
+                SELECT
+                    field_name,
+                    COUNT(*) AS n,
+                    AVG(vlen) AS mean_len,
+                    MAX(has_newline) AS any_newline
+                FROM feedback_scoped
+                GROUP BY field_name
+            ),
+            p90 AS (
+                SELECT
+                    fs.field_name,
+                    fs.vlen,
+                    ROW_NUMBER() OVER (PARTITION BY fs.field_name ORDER BY fs.vlen) AS rn,
+                    COUNT(*) OVER (PARTITION BY fs.field_name) AS cnt
+                FROM feedback_scoped fs
+            ),
+            p90_len AS (
+                SELECT
+                    field_name,
+                    MAX(CASE WHEN rn >= CAST(0.9 * cnt AS INTEGER) THEN vlen END) AS p90_len
+                FROM p90
+                GROUP BY field_name
+            ),
+            decision AS (
+                SELECT
+                    s.field_name,
+                    s.n,
+                    s.mean_len,
+                    COALESCE(p.p90_len, 0) AS p90_len,
+                    s.any_newline,
+                    CASE
+                        WHEN s.n >= ? AND s.any_newline = 1 THEN 1
+                        WHEN s.n >= ? AND COALESCE(p.p90_len, 0) >= ? AND s.mean_len >= ? THEN 1
+                        ELSE 0
+                    END AS allow_multiline
+                FROM stats s
+                LEFT JOIN p90_len p ON p.field_name = s.field_name
+            )
+            UPDATE field_configs
+            SET allow_multiline = CASE
+                WHEN COALESCE(field_configs.allow_multiline, 0) = 1 THEN 1
+                ELSE (
+                    SELECT d.allow_multiline
+                    FROM decision d
+                    WHERE d.field_name = field_configs.field_name
+                )
+            END
+            WHERE id IN (
+                SELECT fc.id
+                FROM field_configs fc
+                JOIN template_configs tc ON tc.id = fc.config_id
+                WHERE tc.template_id = ?
+            )
+              AND field_name IN (SELECT field_name FROM decision);
+            ''',
+            (
+                template_id,
+                infer_min_samples,
+                infer_min_samples,
+                infer_p90_threshold,
+                infer_mean_threshold,
+                template_id,
+            ),
+        )
+        conn.commit()
+        self.logger.info("Updated allow_multiline flags based on feedback statistics")
         
         cursor.execute('''
             SELECT fc.field_name, fctx.typical_length
@@ -629,6 +945,20 @@ class ModelService:
         """
         from core.learning.auto_pattern_learner import get_auto_learner
 
+        # 0) MULTILINE FLAG LEARNING (layout-aware, immediate)
+        # This updates field_configs.allow_multiline based on the just-validated
+        # document + correction evidence, so it doesn't have to wait for retraining.
+        try:
+            self.update_allow_multiline_from_document_feedback(
+                document_id=document_id,
+                all_fields=all_fields,
+                corrected_fields=corrected_fields,
+            )
+        except Exception as e:  # pragma: no cover - defensive logging
+            self.logger.warning(
+                f"⚠️ allow_multiline inference skipped for document {document_id}: {e}"
+            )
+
         # Get document info
         doc = self.document_repo.find_by_id(document_id)
         if not doc:
@@ -718,4 +1048,210 @@ class ModelService:
                 "skipped": len(skipped_fields),
                 "errors": len(errors),
             },
+        }
+
+    def update_allow_multiline_from_document_feedback(
+        self,
+        document_id: int,
+        all_fields: Dict[str, str],
+        corrected_fields: Dict[str, str],
+    ) -> Dict[str, Any]:
+        """Infer and persist allow_multiline for fields using PDF layout evidence.
+
+        Evidence type:
+        - corrected_value extends original_value
+        - at least one missing suffix token is found below the field's bbox
+
+        This is intentionally conservative and fully data-driven.
+        Thresholds are configurable via env.
+        """
+
+        doc = self.document_repo.find_by_id(document_id)
+        if not doc:
+            return {"success": False, "error": f"Document {document_id} not found"}
+
+        template_id = doc.get("template_id") if isinstance(doc, dict) else doc.template_id
+        pdf_path = doc.get("file_path") if isinstance(doc, dict) else doc.file_path
+        if not pdf_path or not os.path.exists(pdf_path):
+            return {"success": False, "error": f"PDF not found: {pdf_path}"}
+
+        layout_x_tolerance_factor = float(
+            os.getenv("MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR", "0.25")
+        )
+        layout_y_gap_min_factor = float(
+            os.getenv("MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR", "0.6")
+        )
+
+        def _tokenize_simple(text: str) -> List[str]:
+            if not text:
+                return []
+            parts = str(text).strip().split()
+            tokens: List[str] = []
+            for p in parts:
+                t = p.strip().strip('.,;:!?)\"]}\'')
+                t = t.lstrip('([{"\'')
+                if t:
+                    tokens.append(t)
+            return tokens
+
+        # Load words per page (single PDF only)
+        words_by_page: Dict[int, List[Dict[str, Any]]] = {}
+        with pdfplumber.open(pdf_path) as pdf:
+            for page_idx, page in enumerate(pdf.pages):
+                try:
+                    page_words = page.extract_words(
+                        x_tolerance=1,
+                        y_tolerance=1,
+                        keep_blank_chars=False,
+                        use_text_flow=True,
+                    )
+                except Exception:
+                    page_words = []
+                normalized = []
+                for w in page_words:
+                    normalized.append(
+                        {
+                            "text": w.get("text", ""),
+                            "x0": float(w.get("x0", 0.0)),
+                            "x1": float(w.get("x1", 0.0)),
+                            "top": float(w.get("top", 0.0)),
+                            "bottom": float(w.get("bottom", 0.0)),
+                        }
+                    )
+                words_by_page[page_idx] = normalized
+
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        updated_fields: List[str] = []
+        skipped_fields: List[str] = []
+
+        try:
+            for field_name, corrected_value in corrected_fields.items():
+                original_value = all_fields.get(field_name, "")
+
+                original_value_s = str(original_value).strip()
+                corrected_value_s = str(corrected_value).strip()
+                if not original_value_s or not corrected_value_s:
+                    skipped_fields.append(field_name)
+                    continue
+
+                missing_text = None
+                if corrected_value_s.startswith(original_value_s) and len(corrected_value_s) > len(original_value_s):
+                    missing_text = corrected_value_s[len(original_value_s):].strip()
+                elif original_value_s in corrected_value_s and len(corrected_value_s) > len(original_value_s):
+                    idx = corrected_value_s.find(original_value_s)
+                    tail = corrected_value_s[idx + len(original_value_s):].strip() if idx >= 0 else ""
+                    if tail:
+                        missing_text = tail
+
+                if not missing_text:
+                    skipped_fields.append(field_name)
+                    continue
+
+                missing_tokens = _tokenize_simple(missing_text)
+                if not missing_tokens:
+                    skipped_fields.append(field_name)
+                    continue
+
+                cursor.execute(
+                    '''
+                    SELECT
+                        fc.id AS field_config_id,
+                        fl.page,
+                        fl.x0,
+                        fl.x1,
+                        fl.y1,
+                        (
+                            SELECT next_field_y
+                            FROM field_contexts
+                            WHERE field_location_id = fl.id
+                            ORDER BY id DESC
+                            LIMIT 1
+                        ) AS next_field_y
+                    FROM field_configs fc
+                    JOIN template_configs tc ON tc.id = fc.config_id
+                    JOIN field_locations fl ON fl.field_config_id = fc.id
+                    WHERE tc.template_id = ?
+                      AND fc.field_name = ?
+                      AND fl.location_index = 0
+                    LIMIT 1
+                    ''',
+                    (template_id, field_name),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    skipped_fields.append(field_name)
+                    continue
+
+                field_config_id = int(row["field_config_id"])
+                page_idx = int(row["page"] or 0)
+                x0 = float(row["x0"])
+                x1 = float(row["x1"])
+                y1 = float(row["y1"])
+                next_field_y = (
+                    float(row["next_field_y"]) if row["next_field_y"] is not None else None
+                )
+
+                words = words_by_page.get(page_idx, [])
+                if not words:
+                    skipped_fields.append(field_name)
+                    continue
+
+                width = max(1.0, x1 - x0)
+                x_tol = width * layout_x_tolerance_factor
+
+                heights = [
+                    max(0.0, w["bottom"] - w["top"])
+                    for w in words
+                    if w.get("bottom") is not None and w.get("top") is not None
+                ]
+                heights_sorted = sorted(h for h in heights if h > 0)
+                median_h = heights_sorted[len(heights_sorted) // 2] if heights_sorted else 10.0
+                y_gap_min = median_h * layout_y_gap_min_factor
+
+                x_min = x0 - x_tol
+                x_max = x1 + x_tol
+                y_min = y1 + y_gap_min
+                y_max = next_field_y - y_gap_min if next_field_y else None
+
+                missing_lower = {t.lower() for t in missing_tokens[:5]}
+                hit = False
+                for w in words:
+                    wt = str(w.get("text", "")).strip()
+                    if not wt:
+                        continue
+                    if wt.lower() not in missing_lower:
+                        continue
+                    wx0 = float(w.get("x0", 0.0))
+                    wy = float(w.get("top", 0.0))
+                    if wx0 < x_min or wx0 > x_max:
+                        continue
+                    if wy < y_min:
+                        continue
+                    if y_max is not None and wy > y_max:
+                        continue
+                    hit = True
+                    break
+
+                if not hit:
+                    skipped_fields.append(field_name)
+                    continue
+
+                cursor.execute(
+                    "UPDATE field_configs SET allow_multiline = 1 WHERE id = ?",
+                    (field_config_id,),
+                )
+                updated_fields.append(field_name)
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "success": True,
+            "document_id": document_id,
+            "template_id": template_id,
+            "updated_fields": updated_fields,
+            "skipped_fields": skipped_fields,
         }

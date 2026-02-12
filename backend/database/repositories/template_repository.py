@@ -8,6 +8,26 @@ class TemplateRepository:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
+    def _is_admin(self) -> bool:
+        try:
+            from flask import g
+
+            user_id = getattr(g, 'user_id', None)
+            if user_id is None:
+                return True
+
+            return getattr(g, 'user_role', None) == 'admin'
+        except Exception:
+            return True
+
     def create(
         self, name: str, filename: str, config_path: str, field_count: int
     ) -> int:
@@ -15,12 +35,14 @@ class TemplateRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         cursor.execute(
             """
-            INSERT INTO templates (name, filename, config_path, field_count)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO templates (name, filename, config_path, field_count, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (name, filename, config_path, field_count),
+            (name, filename, config_path, field_count, user_id, user_id),
         )
 
         template_id = cursor.lastrowid
@@ -34,13 +56,17 @@ class TemplateRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT id, name, filename, config_path, field_count, created_at, updated_at, status
             FROM templates
             WHERE name = ?
+              AND (? = 1 OR created_by = ?)
         """,
-            (template_name,),
+            (template_name, 1 if is_admin else 0, user_id),
         )
 
         row = cursor.fetchone()
@@ -69,13 +95,17 @@ class TemplateRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT id, name, filename, config_path, field_count, created_at, updated_at, status
             FROM templates
             WHERE id = ?
+              AND (? = 1 OR created_by = ?)
         """,
-            (template_id,),
+            (template_id, 1 if is_admin else 0, user_id),
         )
 
         row = cursor.fetchone()
@@ -104,12 +134,18 @@ class TemplateRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT id, name, filename, config_path, field_count, created_at, updated_at, status
             FROM templates
+            WHERE (? = 1 OR created_by = ?)
             ORDER BY created_at DESC
         """
+        ,
+            (1 if is_admin else 0, user_id),
         )
 
         rows = cursor.fetchall()
@@ -145,12 +181,17 @@ class TemplateRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         # Build update query dynamically
         fields = []
         values = []
         for key, value in kwargs.items():
             fields.append(f"{key} = ?")
             values.append(value)
+
+        fields.append("updated_by = ?")
+        values.append(user_id)
 
         if fields:
             values.append(template_id)

@@ -8,6 +8,14 @@ class TrainingRepository:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
     def create(
         self,
         template_id: int,
@@ -18,12 +26,14 @@ class TrainingRepository:
         """Create training history record"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        user_id = self._current_user_id()
         cursor.execute(
             """
             INSERT INTO training_history 
             (template_id, model_path, training_samples, accuracy, 
-             precision_score, recall_score, f1_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+             precision_score, recall_score, f1_score, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 template_id,
@@ -33,6 +43,8 @@ class TrainingRepository:
                 metrics.get("precision"),
                 metrics.get("recall"),
                 metrics.get("f1"),
+                user_id,
+                user_id,
             ),
         )
         record_id = cursor.lastrowid

@@ -22,6 +22,19 @@ class ConfigRepository:
         """
         self.db = db_manager
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
+    def _normalize_actor(self, actor):
+        if isinstance(actor, int):
+            return actor
+        return None
     
     # ========================================================================
     # Template Config Operations
@@ -46,6 +59,10 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._normalize_actor(created_by) if created_by is not None else None
+        if actor is None:
+            actor = self._current_user_id()
         
         try:
             # Get next version number
@@ -60,28 +77,50 @@ class ConfigRepository:
             # Deactivate previous configs
             cursor.execute("""
                 UPDATE template_configs
-                SET is_active = 0
+                SET is_active = 0,
+                    updated_by = ?
                 WHERE template_id = ? AND is_active = 1
-            """, (template_id,))
+            """, (actor, template_id,))
             
             # Create new config
             cursor.execute("""
                 INSERT INTO template_configs 
-                (template_id, version, description, created_by, is_active)
-                VALUES (?, ?, ?, ?, 1)
-            """, (template_id, next_version, description, created_by))
+                (template_id, version, description, created_by, updated_by, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+            """, (template_id, next_version, description, actor, actor))
             
             config_id = cursor.lastrowid
             
             # Log change
             self._log_config_change(
-                cursor, config_id, 'created', created_by,
+                cursor, config_id, 'created', actor,
                 {'version': next_version, 'description': description}
             )
             
             conn.commit()
             return config_id
             
+        finally:
+            conn.close()
+
+    def get_field_context(self, field_location_id: int) -> Optional[Dict]:
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                SELECT *
+                FROM field_contexts
+                WHERE field_location_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (field_location_id,),
+            )
+
+            row = cursor.fetchone()
+            return dict(row) if row else None
         finally:
             conn.close()
     
@@ -97,6 +136,8 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._current_user_id()
         
         try:
             cursor.execute("""
@@ -125,7 +166,8 @@ class ConfigRepository:
         confidence_threshold: float = 0.7,
         extraction_order: int = 0,
         is_required: bool = False,
-        validation_rules: Dict = None
+        validation_rules: Dict = None,
+        allow_multiline: Optional[bool] = None,
     ) -> int:
         """
         Create field configuration
@@ -145,17 +187,24 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._current_user_id()
         
         try:
             cursor.execute("""
                 INSERT INTO field_configs 
                 (config_id, field_name, field_type, base_pattern, 
-                 confidence_threshold, extraction_order, is_required, validation_rules)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 confidence_threshold, extraction_order, is_required, validation_rules,
+                 allow_multiline,
+                 created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 config_id, field_name, field_type, base_pattern,
                 confidence_threshold, extraction_order, is_required,
-                json.dumps(validation_rules) if validation_rules else None
+                json.dumps(validation_rules) if validation_rules else None,
+                (1 if allow_multiline else 0) if allow_multiline is not None else None,
+                actor,
+                actor,
             ))
             
             field_config_id = cursor.lastrowid
@@ -257,6 +306,11 @@ class ConfigRepository:
             if 'is_required' in kwargs:
                 updates.append("is_required = ?")
                 params.append(kwargs['is_required'])
+
+            if 'allow_multiline' in kwargs:
+                updates.append("allow_multiline = ?")
+                allow_multiline = kwargs['allow_multiline']
+                params.append((1 if allow_multiline else 0) if allow_multiline is not None else None)
             
             if not updates:
                 self.logger.warning(f"No fields to update for field_config_id={field_config_id}")
@@ -311,13 +365,16 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._current_user_id()
         
         try:
             cursor.execute("""
                 INSERT INTO field_locations 
-                (field_config_id, page, x0, y0, x1, y1, label, location_index)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (field_config_id, page, x0, y0, x1, y1, label, location_index))
+                (field_config_id, page, x0, y0, x1, y1, label, location_index,
+                 created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (field_config_id, page, x0, y0, x1, y1, label, location_index, actor, actor))
             
             location_id = cursor.lastrowid
             conn.commit()
@@ -371,70 +428,41 @@ class ConfigRepository:
             words_before: List of words before field [{"text": "...", "x": ..., "y": ...}, ...]
             words_after: List of words after field [{"text": "...", "x": ..., "y": ...}, ...]
             next_field_y: Y position of next field (for boundary detection)
-            
+        
         Returns:
             context_id: ID of created context
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        
+
+        actor = self._current_user_id()
+
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO field_contexts 
-                (field_location_id, label, label_position, words_before, words_after, next_field_y)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                field_location_id,
-                label,
-                json.dumps(label_position) if label_position else None,
-                json.dumps(words_before) if words_before else None,
-                json.dumps(words_after) if words_after else None,
-                next_field_y  # ✅ NEW
-            ))
-            
+                (field_location_id, label, label_position, words_before, words_after, next_field_y,
+                 created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    field_location_id,
+                    label,
+                    json.dumps(label_position) if label_position else None,
+                    json.dumps(words_before) if words_before else None,
+                    json.dumps(words_after) if words_after else None,
+                    next_field_y,
+                    actor,
+                    actor,
+                ),
+            )
+
             context_id = cursor.lastrowid
             conn.commit()
             return context_id
-            
         finally:
             conn.close()
-    
-    def get_field_context(self, field_location_id: int) -> Optional[Dict]:
-        """
-        Get context information for a field location
-        
-        Args:
-            field_location_id: Field location ID
-            
-        Returns:
-            Context dict with label, label_position, words_before, words_after
-            or None if not found
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                SELECT 
-                    label,
-                    label_position,
-                    words_before,
-                    words_after
-                FROM field_contexts
-                WHERE field_location_id = ?
-                LIMIT 1
-            """, (field_location_id,))
-            
-            row = cursor.fetchone()
-            return dict(row) if row else None
-            
-        finally:
-            conn.close()
-    
-    # ========================================================================
-    # Learned Pattern Operations (Adaptive!)
-    # ========================================================================
-    
+
     def add_learned_pattern(
         self,
         field_config_id: int,
@@ -445,248 +473,100 @@ class ConfigRepository:
         match_rate: float = None,
         priority: int = 0,
         examples: List[str] = None,
-        metadata: Dict = None
+        metadata: Dict = None,
     ) -> int:
-        """
-        Add or update a learned pattern (UPSERT logic)
-        
-        If pattern already exists:
-        - Increment frequency
-        - Update match_rate if provided
-        - Keep higher priority
-        - Merge examples (keep unique, max 10)
-        
-        If pattern is new:
-        - Insert new record
-        
-        Args:
-            field_config_id: Field config ID
-            pattern: Regex pattern
-            pattern_type: Type (token_shape, delimiter, word_count, custom)
-            description: Pattern description
-            frequency: How many times seen in feedback
-            match_rate: Success rate
-            priority: Priority (higher = tried first)
-            examples: Example values
-            metadata: Additional metadata
-            
-        Returns:
-            pattern_id: ID of created/updated pattern
-        """
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        
+
+        actor = self._current_user_id()
+
         try:
-            # ✅ Check if pattern already exists
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, frequency, priority, examples, match_rate
                 FROM learned_patterns
                 WHERE field_config_id = ? AND pattern = ?
-            """, (field_config_id, pattern))
-            
+                """,
+                (field_config_id, pattern),
+            )
             existing = cursor.fetchone()
-            
+
             if existing:
-                # ✅ UPDATE existing pattern
-                existing_id = existing['id']
-                existing_frequency = existing['frequency'] or 0
-                existing_priority = existing['priority'] or 0
-                existing_examples = json.loads(existing['examples']) if existing['examples'] else []
-                existing_match_rate = existing['match_rate']
-                
-                # Merge data
+                existing_id = existing["id"]
+                existing_frequency = existing["frequency"] or 0
+                existing_priority = existing["priority"] or 0
+                existing_examples = (
+                    json.loads(existing["examples"]) if existing["examples"] else []
+                )
+                existing_match_rate = existing["match_rate"]
+
                 new_frequency = existing_frequency + frequency
                 new_priority = max(existing_priority, priority)
-                
-                # Merge examples (keep unique, max 10)
                 merged_examples = list(set(existing_examples + (examples or [])))[:10]
-                
-                # Update match_rate (weighted average if both exist)
+
                 if match_rate is not None and existing_match_rate is not None:
-                    # Weighted average based on frequency
                     total_freq = new_frequency
                     new_match_rate = (
-                        (existing_match_rate * existing_frequency + match_rate * frequency) / total_freq
+                        (existing_match_rate * existing_frequency + match_rate * frequency)
+                        / total_freq
                     )
                 elif match_rate is not None:
                     new_match_rate = match_rate
                 else:
                     new_match_rate = existing_match_rate
-                
-                # Try to update with updated_at, fallback if column doesn't exist
-                try:
-                    cursor.execute("""
-                        UPDATE learned_patterns
-                        SET frequency = ?,
-                            priority = ?,
-                            match_rate = ?,
-                            examples = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (
+
+                cursor.execute(
+                    """
+                    UPDATE learned_patterns
+                    SET frequency = ?,
+                        priority = ?,
+                        match_rate = ?,
+                        examples = ?,
+                        updated_at = CURRENT_TIMESTAMP,
+                        updated_by = ?
+                    WHERE id = ?
+                    """,
+                    (
                         new_frequency,
                         new_priority,
                         new_match_rate,
                         json.dumps(merged_examples),
-                        existing_id
-                    ))
-                except Exception as e:
-                    if 'no such column: updated_at' in str(e):
-                        # Fallback: update without updated_at
-                        cursor.execute("""
-                            UPDATE learned_patterns
-                            SET frequency = ?,
-                                priority = ?,
-                                match_rate = ?,
-                                examples = ?
-                            WHERE id = ?
-                        """, (
-                            new_frequency,
-                            new_priority,
-                            new_match_rate,
-                            json.dumps(merged_examples),
-                            existing_id
-                        ))
-                    else:
-                        raise
-                
-                conn.commit()
-                
-                self.logger.info(
-                    f"✅ Updated pattern {existing_id}: "
-                    f"frequency {existing_frequency} → {new_frequency}, "
-                    f"priority {existing_priority} → {new_priority}"
+                        actor,
+                        existing_id,
+                    ),
                 )
-                
-                return existing_id
-            
-            else:
-                # ✅ INSERT new pattern
-                cursor.execute("""
-                    INSERT INTO learned_patterns 
-                    (field_config_id, pattern, pattern_type, description, 
-                     frequency, match_rate, priority, examples, metadata, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                """, (
-                    field_config_id, pattern, pattern_type, description,
-                    frequency, match_rate, priority,
-                    json.dumps(examples) if examples else None,
-                    json.dumps(metadata) if metadata else None
-                ))
-                
-                pattern_id = cursor.lastrowid
+
                 conn.commit()
-                
-                self.logger.info(f"✅ Inserted new pattern {pattern_id}: {pattern[:50]}")
-                
-                return pattern_id
-            
-        finally:
-            conn.close()
-    
-    def get_learned_patterns(
-        self,
-        field_config_id: int,
-        active_only: bool = True
-    ) -> List[Dict]:
-        """
-        Get learned patterns for a field
-        
-        Args:
-            field_config_id: Field config ID
-            active_only: Only return active patterns
-            
-        Returns:
-            List of pattern dicts
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            query = """
-                SELECT * FROM learned_patterns
-                WHERE field_config_id = ?
-            """
-            
-            if active_only:
-                query += " AND is_active = 1"
-            
-            query += " ORDER BY priority DESC, match_rate DESC, frequency DESC"
-            
-            cursor.execute(query, (field_config_id,))
-            
-            rows = cursor.fetchall()
-            patterns = []
-            
-            for row in rows:
-                pattern_dict = dict(row)
-                # Parse JSON fields
-                if pattern_dict.get('examples'):
-                    pattern_dict['examples'] = json.loads(pattern_dict['examples'])
-                if pattern_dict.get('metadata'):
-                    pattern_dict['metadata'] = json.loads(pattern_dict['metadata'])
-                patterns.append(pattern_dict)
-            
-            return patterns
-            
-        finally:
-            conn.close()
-    
-    def update_pattern_usage(
-        self,
-        pattern_id: int,
-        was_successful: bool = True
-    ) -> None:
-        """
-        Update pattern usage statistics
-        
-        Args:
-            pattern_id: Pattern ID
-            was_successful: Whether pattern matched successfully
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                UPDATE learned_patterns
-                SET usage_count = usage_count + 1,
-                    success_count = success_count + ?,
-                    last_used_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (1 if was_successful else 0, pattern_id))
-            
+                return existing_id
+
+            cursor.execute(
+                """
+                INSERT INTO learned_patterns 
+                (field_config_id, pattern, pattern_type, description,
+                 frequency, match_rate, priority, examples, metadata, is_active,
+                 created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (
+                    field_config_id,
+                    pattern,
+                    pattern_type,
+                    description,
+                    frequency,
+                    match_rate,
+                    priority,
+                    json.dumps(examples) if examples else None,
+                    json.dumps(metadata) if metadata else None,
+                    actor,
+                    actor,
+                ),
+            )
+            pattern_id = cursor.lastrowid
             conn.commit()
-            
+            return pattern_id
         finally:
             conn.close()
-    
-    def deactivate_pattern(self, pattern_id: int) -> None:
-        """
-        Deactivate a learned pattern
-        
-        Args:
-            pattern_id: Pattern ID
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                UPDATE learned_patterns
-                SET is_active = 0
-                WHERE id = ?
-            """, (pattern_id,))
-            
-            conn.commit()
-            
-        finally:
-            conn.close()
-    
-    # ========================================================================
-    # Pattern Learning Jobs
-    # ========================================================================
-    
+
     def create_learning_job(
         self,
         template_id: int,
@@ -706,13 +586,15 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._current_user_id()
         
         try:
             cursor.execute("""
                 INSERT INTO pattern_learning_jobs 
-                (template_id, field_name, job_type, status)
-                VALUES (?, ?, ?, 'pending')
-            """, (template_id, field_name, job_type))
+                (template_id, field_name, job_type, status, created_by, updated_by)
+                VALUES (?, ?, ?, 'pending', ?, ?)
+            """, (template_id, field_name, job_type, actor, actor))
             
             job_id = cursor.lastrowid
             conn.commit()
@@ -745,6 +627,8 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._current_user_id()
         
         try:
             updates = []
@@ -776,6 +660,9 @@ class ConfigRepository:
             if result_summary:
                 updates.append("result_summary = ?")
                 params.append(json.dumps(result_summary))
+
+            updates.append("updated_by = ?")
+            params.append(actor)
             
             if updates:
                 params.append(job_id)
@@ -892,6 +779,42 @@ class ConfigRepository:
     # ========================================================================
     # Pattern Operations
     # ========================================================================
+
+    def get_learned_patterns(
+        self,
+        field_config_id: int,
+        active_only: bool = True,
+    ) -> List[Dict]:
+        query = """
+            SELECT
+                id,
+                field_config_id,
+                pattern_type,
+                pattern,
+                description,
+                frequency,
+                priority,
+                is_active,
+                added_at,
+                last_used_at,
+                usage_count,
+                success_count,
+                match_rate,
+                confidence_boost,
+                examples,
+                metadata
+            FROM learned_patterns
+            WHERE field_config_id = ?
+        """
+
+        params = [field_config_id]
+
+        if active_only:
+            query += " AND is_active = 1"
+
+        query += " ORDER BY priority DESC, frequency DESC"
+
+        return self.db.execute_query(query, tuple(params))
     
     def get_learned_patterns_by_field(
         self,
@@ -1150,13 +1073,14 @@ class ConfigRepository:
                         success_count = COALESCE(success_count, 0) + 1,
                         match_rate = CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1),
                         last_used_at = CURRENT_TIMESTAMP,
+                        updated_by = ?,
                         confidence_boost = CASE
                             WHEN CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1) >= 0.9 THEN 0.2
                             WHEN CAST(COALESCE(success_count, 0) + 1 AS REAL) / (COALESCE(usage_count, 0) + 1) >= 0.7 THEN 0.1
                             ELSE 0.0
                         END
                     WHERE id = ?
-                """, (pattern_id,))
+                """, (actor, pattern_id,))
             else:
                 # ❌ Pattern tried but didn't match
                 cursor.execute("""
@@ -1164,12 +1088,13 @@ class ConfigRepository:
                     SET usage_count = COALESCE(usage_count, 0) + 1,
                         match_rate = CAST(COALESCE(success_count, 0) AS REAL) / (COALESCE(usage_count, 0) + 1),
                         last_used_at = CURRENT_TIMESTAMP,
+                        updated_by = ?,
                         confidence_boost = CASE
                             WHEN CAST(COALESCE(success_count, 0) AS REAL) / (COALESCE(usage_count, 0) + 1) < 0.3 THEN -0.1
                             ELSE COALESCE(confidence_boost, 0.0)
                         END
                     WHERE id = ?
-                """, (pattern_id,))
+                """, (actor, pattern_id,))
             
             conn.commit()
             
@@ -1390,13 +1315,15 @@ class ConfigRepository:
                         confidence = ?,
                         sample_count = ?,
                         metadata = ?,
-                        updated_at = CURRENT_TIMESTAMP
+                        updated_at = CURRENT_TIMESTAMP,
+                        updated_by = ?
                     WHERE id = ?
                 """, (
                     new_frequency,
                     confidence,
                     new_sample_count,
                     json.dumps(metadata) if metadata else None,
+                    actor,
                     existing['id']
                 ))
                 
@@ -1408,8 +1335,9 @@ class ConfigRepository:
                 cursor.execute("""
                     INSERT INTO pattern_statistics
                     (field_config_id, statistic_type, pattern_value, 
-                     frequency, confidence, sample_count, metadata, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                     frequency, confidence, sample_count, metadata, is_active,
+                     created_by, updated_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                 """, (
                     field_config_id,
                     statistic_type,
@@ -1417,7 +1345,9 @@ class ConfigRepository:
                     frequency,
                     confidence,
                     sample_count,
-                    json.dumps(metadata) if metadata else None
+                    json.dumps(metadata) if metadata else None,
+                    actor,
+                    actor,
                 ))
                 
                 statistic_id = cursor.lastrowid

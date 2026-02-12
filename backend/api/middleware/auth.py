@@ -11,6 +11,34 @@ from utils.response import APIResponse
 from shared.exceptions import AuthenticationError, AuthorizationError
 
 
+def authenticate_request() -> APIResponse | None:
+    auth_header = request.headers.get('Authorization', '')
+    token = None
+
+    if auth_header:
+        parts = auth_header.split()
+        if len(parts) == 2 and parts[0].lower() == 'bearer':
+            token = parts[1]
+
+    if not token:
+        token = request.args.get('token')
+
+    if not token:
+        return APIResponse.unauthorized("Missing authorization token")
+
+    try:
+        payload = JWTManager.decode_token(token)
+        g.user_id = payload['user_id']
+        g.username = payload['username']
+        g.user_role = payload['role']
+    except ValueError as e:
+        return APIResponse.unauthorized(str(e))
+    except Exception:
+        return APIResponse.unauthorized("Invalid token")
+
+    return None
+
+
 def require_auth(f: Callable) -> Callable:
     """
     Decorator to require authentication
@@ -24,37 +52,9 @@ def require_auth(f: Callable) -> Callable:
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Get token from Authorization header OR query string (for image requests)
-        auth_header = request.headers.get('Authorization', '')
-        token = None
-        
-        if auth_header:
-            # Extract token from header
-            parts = auth_header.split()
-            if len(parts) == 2 and parts[0].lower() == 'bearer':
-                token = parts[1]
-        
-        # Fallback: Check query string (for <img> tags that can't set headers)
-        if not token:
-            token = request.args.get('token')
-        
-        if not token:
-            return APIResponse.unauthorized("Missing authorization token")
-        
-        try:
-            # Verify token
-            payload = JWTManager.decode_token(token)
-            
-            # Set user info in request context
-            g.user_id = payload['user_id']
-            g.username = payload['username']
-            g.user_role = payload['role']
-            
-        except ValueError as e:
-            return APIResponse.unauthorized(str(e))
-        except Exception as e:
-            return APIResponse.unauthorized("Invalid token")
-        
+        auth_error = authenticate_request()
+        if auth_error is not None:
+            return auth_error
         return f(*args, **kwargs)
     
     return decorated
@@ -116,27 +116,9 @@ def optional_auth(f: Callable) -> Callable:
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        
-        if auth_header:
-            try:
-                # Extract token
-                parts = auth_header.split()
-                if len(parts) == 2 and parts[0].lower() == 'bearer':
-                    token = parts[1]
-                    
-                    # Verify token
-                    payload = JWTManager.decode_token(token)
-                    
-                    # Set user info in request context
-                    g.user_id = payload['user_id']
-                    g.username = payload['username']
-                    g.user_role = payload['role']
-            except:
-                # Invalid token, but that's okay for optional auth
-                pass
-        
+        auth_error = authenticate_request()
+        if auth_error is not None:
+            return f(*args, **kwargs)
         return f(*args, **kwargs)
     
     return decorated

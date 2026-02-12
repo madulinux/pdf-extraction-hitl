@@ -14,6 +14,26 @@ class FeedbackRepository:
         """
         self.db = db_manager
 
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
+    def _is_admin(self) -> bool:
+        try:
+            from flask import g
+
+            user_id = getattr(g, 'user_id', None)
+            if user_id is None:
+                return True
+
+            return getattr(g, 'user_role', None) == 'admin'
+        except Exception:
+            return True
+
     def upsert(
         self,
         document_id: int,
@@ -38,6 +58,10 @@ class FeedbackRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         feedback_ids = []
 
         for field_name, corrected_value in corrections.items():
@@ -64,10 +88,11 @@ class FeedbackRepository:
                         corrected_value = ?,
                         confidence_score = ?,
                         updated_at = CURRENT_TIMESTAMP,
+                        updated_by = ?,
                         used_for_training = 0
                     WHERE id = ?
                 """,
-                    (original_value, corrected_value, confidence, existing["id"]),
+                    (original_value, corrected_value, confidence, user_id, existing["id"]),
                 )
 
                 feedback_ids.append(existing["id"])
@@ -81,9 +106,11 @@ class FeedbackRepository:
                         original_value, 
                         corrected_value, 
                         confidence_score,
+                        created_by,
+                        updated_by,
                         used_for_training
                     )
-                    VALUES (?, ?, ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 """,
                     (
                         document_id,
@@ -91,6 +118,8 @@ class FeedbackRepository:
                         original_value,
                         corrected_value,
                         confidence,
+                        user_id,
+                        user_id,
                     ),
                 )
 
@@ -108,16 +137,21 @@ class FeedbackRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         query = """
             SELECT f.* FROM feedback f
             JOIN documents d ON f.document_id = d.id
             WHERE d.template_id = ?
         """
 
+        query += " AND (? = 1 OR d.created_by = ?)"
+
         if unused_only:
             query += " AND f.used_for_training = 0"
 
-        cursor.execute(query, (template_id,))
+        cursor.execute(query, (template_id, 1 if is_admin else 0, user_id))
         rows = cursor.fetchall()
         conn.close()
 
@@ -141,6 +175,9 @@ class FeedbackRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         query = """
             SELECT 
                 d.id as document_id,
@@ -150,12 +187,13 @@ class FeedbackRepository:
             WHERE d.template_id = ?
             AND d.status = 'extracted'
             AND f.id IS NULL
+            AND (? = 1 OR d.created_by = ?)
         """
 
         if limit:
             query += f" LIMIT {limit}"
 
-        cursor.execute(query, (template_id,))
+        cursor.execute(query, (template_id, 1 if is_admin else 0, user_id))
         rows = cursor.fetchall()
         conn.close()
 
@@ -252,6 +290,9 @@ class FeedbackRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT 
@@ -259,9 +300,10 @@ class FeedbackRepository:
             FROM feedback f
             JOIN documents d ON f.document_id = d.id
             WHERE d.template_id = ?
+              AND (? = 1 OR d.created_by = ?)
             ORDER BY f.created_at ASC
             """,
-            (template_id,),
+            (template_id, 1 if is_admin else 0, user_id),
         )
 
         rows = cursor.fetchall()
@@ -283,6 +325,9 @@ class FeedbackRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT 
@@ -297,9 +342,10 @@ class FeedbackRepository:
                 updated_at
             FROM feedback
             WHERE document_id = ?
+              AND (? = 1 OR document_id IN (SELECT id FROM documents WHERE id = ? AND created_by = ?))
             ORDER BY created_at DESC
         """,
-            (document_id,),
+            (document_id, 1 if is_admin else 0, document_id, user_id),
         )
 
         rows = cursor.fetchall()
@@ -342,17 +388,22 @@ class FeedbackRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         placeholders = ",".join("?" * len(document_ids))
-        cursor.execute(
-            f"""
+        params = list(document_ids)
+        query = f"""
             SELECT 
                 f.*
             FROM feedback f
+            JOIN documents d ON f.document_id = d.id
             WHERE f.document_id IN ({placeholders})
+              AND (? = 1 OR d.created_by = ?)
             ORDER BY f.created_at ASC
-            """,
-            document_ids,
-        )
+            """
+        params.extend([1 if is_admin else 0, user_id])
+        cursor.execute(query, params)
 
         rows = cursor.fetchall()
         conn.close()

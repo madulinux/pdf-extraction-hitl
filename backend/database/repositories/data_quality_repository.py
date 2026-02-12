@@ -19,6 +19,14 @@ class DataQualityRepository:
             db_manager: Database manager instance
         """
         self.db = db_manager
+
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
     
     def save_metrics(
         self,
@@ -55,6 +63,8 @@ class DataQualityRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        user_id = self._current_user_id()
         
         cursor.execute('''
             INSERT INTO data_quality_metrics (
@@ -66,8 +76,9 @@ class DataQualityRepository:
                 leakage_samples_checked, leakage_samples_flagged,
                 label_distribution, recommendations,
                 validation_duration_seconds, status,
-                triggered_by, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                triggered_by, notes,
+                created_by, updated_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             template_id,
             validation_type,
@@ -88,6 +99,8 @@ class DataQualityRepository:
             'completed',
             triggered_by,
             notes
+            ,user_id,
+            user_id
         ))
         
         metric_id = cursor.lastrowid

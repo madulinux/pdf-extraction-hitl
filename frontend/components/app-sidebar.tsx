@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { FileText, Database, Brain, Home } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import * as React from "react";
+import { FileText, Database, Brain, Home } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   Sidebar,
@@ -16,33 +16,43 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
-} from '@/components/ui/sidebar';
+} from "@/components/ui/sidebar";
+import { NavUser } from "./nav-user";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 const menuItems = [
   {
-    title: 'Dashboard',
-    url: '/dashboard',
+    title: "Dashboard",
+    url: "/dashboard",
     icon: Home,
   },
   {
-    title: 'Ekstraksi Data',
-    url: '/extraction',
+    title: "Ekstraksi Data",
+    url: "/extraction",
     icon: FileText,
   },
   {
-    title: 'Kelola Template',
-    url: '/templates',
+    title: "Kelola Template",
+    url: "/templates",
     icon: Database,
   },
   {
-    title: 'Pelatihan Model',
-    url: '/training',
+    title: "Pelatihan Model",
+    url: "/training",
     icon: Brain,
   },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const { user, logout } = useAuthContext();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <Sidebar>
@@ -51,7 +61,9 @@ export function AppSidebar() {
           <FileText className="w-6 h-6 text-primary" />
           <div>
             <h2 className="font-bold text-lg">PDF Extraction</h2>
-            <p className="text-xs text-muted-foreground">Adaptive Learning System</p>
+            <p className="text-xs text-muted-foreground">
+              Adaptive Learning System
+            </p>
           </div>
         </div>
       </SidebarHeader>
@@ -74,11 +86,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
-        <div className="text-xs text-muted-foreground">
+      <SidebarFooter>
+        {/* <div className="text-xs text-muted-foreground">
           <p className="font-medium">Adaptif Learning System</p>
           <p>based on Human-in-the-Loop (HITL)</p>
-        </div>
+        </div> */}
+        <NavUser
+          user={{
+            name: user?.full_name || "John Doe",
+            email: user?.email || "john.doe@example.com",
+            avatar: "https://github.com/johndoe.png",
+          }}
+          onLogout={handleLogout}
+        />
       </SidebarFooter>
     </Sidebar>
   );

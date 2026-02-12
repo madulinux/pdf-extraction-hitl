@@ -19,6 +19,14 @@ class StrategyPerformanceRepository:
             db_manager: DatabaseManager instance
         """
         self.db = db_manager
+
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
     
     def update_performance(
         self,
@@ -38,6 +46,8 @@ class StrategyPerformanceRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        user_id = self._current_user_id()
         
         try:
             # Check if record exists
@@ -61,9 +71,10 @@ class StrategyPerformanceRepository:
                     SET total_extractions = ?,
                         correct_extractions = ?,
                         accuracy = ?,
-                        last_updated = ?
+                        last_updated = ?,
+                        updated_by = ?
                     WHERE id = ?
-                """, (total, correct, accuracy, datetime.now().isoformat(), record_id))
+                """, (total, correct, accuracy, datetime.now().isoformat(), user_id, record_id))
             else:
                 # Insert new record
                 total = 1
@@ -74,12 +85,14 @@ class StrategyPerformanceRepository:
                     INSERT INTO strategy_performance (
                         template_id, field_name, strategy_type,
                         total_extractions, correct_extractions, accuracy,
-                        last_updated
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        last_updated,
+                        created_by, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     template_id, field_name, strategy_type,
                     total, correct, accuracy,
-                    datetime.now().isoformat()
+                    datetime.now().isoformat(),
+                    user_id, user_id
                 ))
             
             conn.commit()

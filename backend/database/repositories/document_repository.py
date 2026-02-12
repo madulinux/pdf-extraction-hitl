@@ -19,18 +19,40 @@ class DocumentRepository:
         """
         self.db = db_manager
 
+    def _current_user_id(self):
+        try:
+            from flask import g
+
+            return getattr(g, 'user_id', None)
+        except Exception:
+            return None
+
+    def _is_admin(self) -> bool:
+        try:
+            from flask import g
+
+            user_id = getattr(g, 'user_id', None)
+            if user_id is None:
+                return True
+
+            return getattr(g, 'user_role', None) == 'admin'
+        except Exception:
+            return True
+
     def create(self, template_id: int, filename: str, file_path: str, experiment_phase: str) -> int:
         """Create a new document"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         try:
             cursor.execute(
                 """
-                INSERT INTO documents (template_id, filename, file_path, status, experiment_phase)
-                VALUES (?, ?, ?, 'pending', ?)
+                INSERT INTO documents (template_id, filename, file_path, status, experiment_phase, created_by, updated_by)
+                VALUES (?, ?, ?, 'pending', ?, ?, ?)
                 """,
-                (template_id, filename, file_path, experiment_phase),
+                (template_id, filename, file_path, experiment_phase, user_id, user_id),
             )
 
             document_id = cursor.lastrowid
@@ -47,6 +69,9 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         try:
             cursor.execute(
                 """
@@ -54,8 +79,9 @@ class DocumentRepository:
                 FROM documents 
                 LEFT JOIN templates ON documents.template_id = templates.id 
                 WHERE documents.id = ?
+                  AND (? = 1 OR documents.created_by = ?)
                 """,
-                (document_id,),
+                (document_id, 1 if is_admin else 0, user_id),
             )
 
             row = cursor.fetchone()
@@ -90,6 +116,9 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         if unused_only:
             cursor.execute(
                 """
@@ -97,10 +126,11 @@ class DocumentRepository:
                 FROM documents
                 JOIN templates ON documents.template_id = templates.id
                 WHERE documents.template_id = ?
-                AND documents.status = 'validated'
-                AND documents.used_for_training = 0
+                  AND documents.status = 'validated'
+                  AND documents.used_for_training = 0
+                  AND (? = 1 OR documents.created_by = ?)
                 """,
-                (template_id,),
+                (template_id, 1 if is_admin else 0, user_id),
             )
         else:
             cursor.execute(
@@ -109,9 +139,10 @@ class DocumentRepository:
                 FROM documents
                 JOIN templates ON documents.template_id = templates.id
                 WHERE documents.template_id = ?
-                AND documents.status = 'validated'
+                  AND documents.status = 'validated'
+                  AND (? = 1 OR documents.created_by = ?)
                 """,
-                (template_id,),
+                (template_id, 1 if is_admin else 0, user_id),
             )
 
         rows = cursor.fetchall()
@@ -124,15 +155,19 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         cursor.execute(
             """
             SELECT documents.*
             FROM documents
             JOIN templates ON documents.template_id = templates.id
             WHERE documents.template_id = ?
+              AND (? = 1 OR documents.created_by = ?)
             ORDER BY documents.created_at ASC
             """,
-            (template_id,),
+            (template_id, 1 if is_admin else 0, user_id),
         )
 
         rows = cursor.fetchall()
@@ -158,6 +193,9 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
         if experiment_phase == 'all':
             # Get all documents regardless of phase
             cursor.execute(
@@ -165,9 +203,10 @@ class DocumentRepository:
                 SELECT documents.*
                 FROM documents
                 WHERE documents.template_id = ?
+                  AND (? = 1 OR documents.created_by = ?)
                 ORDER BY documents.created_at ASC
                 """,
-                (template_id,),
+                (template_id, 1 if is_admin else 0, user_id),
             )
         elif experiment_phase:
             # Get specific phase
@@ -176,9 +215,10 @@ class DocumentRepository:
                 SELECT documents.*
                 FROM documents
                 WHERE documents.template_id = ? AND documents.experiment_phase = ?
+                  AND (? = 1 OR documents.created_by = ?)
                 ORDER BY documents.created_at ASC
                 """,
-                (template_id, experiment_phase),
+                (template_id, experiment_phase, 1 if is_admin else 0, user_id),
             )
         else:
             # Default: production only (NULL)
@@ -187,9 +227,10 @@ class DocumentRepository:
                 SELECT documents.*
                 FROM documents
                 WHERE documents.template_id = ? AND documents.experiment_phase IS NULL
+                  AND (? = 1 OR documents.created_by = ?)
                 ORDER BY documents.created_at ASC
                 """,
-                (template_id,),
+                (template_id, 1 if is_admin else 0, user_id),
             )
 
         rows = cursor.fetchall()
@@ -204,7 +245,15 @@ class DocumentRepository:
         search: str = None,
         filters: List[dict] = [],
     ) -> Tuple[List[Document], int]:
-        available_filter = ["template_id", "filename", "file_path", "status"]
+        available_filter = ["template_id", "filename", "file_path", "status", "created_by"]
+
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
+        if not is_admin and user_id is not None:
+            filters = list(filters) if filters else []
+            filters.append({"field": "documents.created_by", "operator": "=", "value": user_id})
+
         try:
             total_items_count = self.db.get_total_items_count_filtered(
                 table_name="documents",
@@ -242,13 +291,15 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         cursor.execute(
             """
             UPDATE documents
-            SET extraction_result = ?, status = ?, extraction_time_ms = ?, updated_at = CURRENT_TIMESTAMP
+            SET extraction_result = ?, status = ?, extraction_time_ms = ?, updated_at = CURRENT_TIMESTAMP, updated_by = ?
             WHERE id = ?
         """,
-            (extraction_result, status, extraction_time_ms, document_id),
+            (extraction_result, status, extraction_time_ms, user_id, document_id),
         )
 
         conn.commit()
@@ -259,14 +310,15 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
         validated_at = datetime.now() if status == "validated" else None
+        user_id = self._current_user_id()
         try:
             cursor.execute(
                 """
                 UPDATE documents
-                SET status = ?, validated_at = ?
+                SET status = ?, validated_at = ?, updated_by = ?
                 WHERE id = ?
                 """,
-                (status, validated_at, document_id),
+                (status, validated_at, user_id, document_id),
             )
 
             conn.commit()
@@ -281,14 +333,16 @@ class DocumentRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        user_id = self._current_user_id()
+
         try:
             cursor.execute(
                 """
                 UPDATE documents
-                SET extraction_result = ?
+                SET extraction_result = ?, updated_by = ?
                 WHERE id = ?
                 """,
-                (json.dumps(extraction_result), document_id),
+                (json.dumps(extraction_result), user_id, document_id),
             )
 
             conn.commit()

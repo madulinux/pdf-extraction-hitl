@@ -14,6 +14,19 @@ class DatabaseManager:
     _migrations_applied = False
 
     def __init__(self, db_path: str = "data/app.db"):
+        # IMPORTANT: many call sites instantiate DatabaseManager() without passing db_path.
+        # If we always default to a relative path here, different processes / cwd can end up
+        # using different SQLite files (e.g., ./data/app.db vs ./backend/data/app.db).
+        # To prevent that class of bugs, honor DATABASE_PATH env var as the effective default.
+        if db_path == "data/app.db":
+            db_path = os.getenv("DATABASE_PATH", db_path)
+
+        # If path is relative, resolve it relative to backend/ to avoid cwd-dependent
+        # DB selection across API/worker/CLI.
+        if not os.path.isabs(db_path):
+            backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            db_path = os.path.join(backend_dir, db_path)
+
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
@@ -156,8 +169,10 @@ class DatabaseManager:
 
         if filters:
             for i, f in enumerate(filters):
+                field_expr = f.get("field")
+                base_field = field_expr.split(".")[-1] if isinstance(field_expr, str) else field_expr
                 if (
-                    f["field"] not in available_filter
+                    base_field not in available_filter
                     or f["value"] is None
                     or f["value"] == ""
                 ):
@@ -168,7 +183,7 @@ class DatabaseManager:
                     query += " WHERE "
                 else:
                     query += " AND "
-                query += f"{f['field']} {f['operator']} ?"
+                query += f"{field_expr} {f['operator']} ?"
                 parameters.append(f["value"])
 
         if search:
@@ -176,11 +191,19 @@ class DatabaseManager:
                 query += " WHERE "
             else:
                 query += " AND "
-            query += "filename LIKE ?"
+            # If query contains JOINs, qualify to avoid ambiguous column names
+            if join:
+                query += f"{table_name}.filename LIKE ?"
+            else:
+                query += "filename LIKE ?"
             parameters.append(f"%{search}%")
 
         if sort_by:
-            query += f" ORDER BY {sort_by} {sort_order}"
+            sort_expr = sort_by
+            # If query contains JOINs, qualify to avoid ambiguous column names
+            if join and "." not in sort_expr:
+                sort_expr = f"{table_name}.{sort_expr}"
+            query += f" ORDER BY {sort_expr} {sort_order}"
 
         query += " LIMIT ? OFFSET ?"
         parameters.append(page_size)
@@ -206,8 +229,10 @@ class DatabaseManager:
         cursor = conn.cursor()
         if filters:
             for i, f in enumerate(filters):
+                field_expr = f.get("field")
+                base_field = field_expr.split(".")[-1] if isinstance(field_expr, str) else field_expr
                 if (
-                    f["field"] not in available_filter
+                    base_field not in available_filter
                     or f["value"] is None
                     or f["value"] == ""
                 ):
@@ -218,7 +243,7 @@ class DatabaseManager:
                     query += " WHERE "
                 else:
                     query += " AND "
-                query += f"{f['field']} {f['operator']} ?"
+                query += f"{field_expr} {f['operator']} ?"
                 parameters.append(f["value"])
 
         if search:

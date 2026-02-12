@@ -46,11 +46,16 @@ class UserRepository:
         cursor = conn.cursor()
         
         cursor.execute('''
-            INSERT INTO users (username, email, password_hash, full_name, role)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, full_name, role, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, NULL, NULL)
         ''', (username, email, password_hash, full_name, role))
         
         user_id = cursor.lastrowid
+
+        cursor.execute(
+            "UPDATE users SET created_by = ?, updated_by = ? WHERE id = ?",
+            (user_id, user_id, user_id),
+        )
         conn.commit()
         conn.close()
         

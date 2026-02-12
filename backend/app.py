@@ -8,7 +8,7 @@ Follows best practices:
 - Consistent API responses
 - Separation of concerns
 """
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flasgger import Swagger
 import os
@@ -37,6 +37,7 @@ from api.v1.jobs import jobs_bp
 # Import utilities
 from utils.response import APIResponse
 from shared.exceptions import ApplicationError
+from api.middleware.auth import authenticate_request
 
 def create_app(config_name=None):
     """Application factory pattern"""
@@ -104,6 +105,32 @@ def create_app(config_name=None):
     
     # Register blueprints
     register_blueprints(app)
+
+    @app.before_request
+    def _auth_guard():
+        if request.method == 'OPTIONS':
+            return None
+
+        public_prefixes = (
+            '/health',
+            '/api/health',
+            '/api/v1/auth/login',
+            '/api/v1/auth/register',
+            '/api/v1/auth/refresh',
+            '/api/docs',
+            '/apispec.json',
+            '/flasgger_static',
+        )
+
+        path = request.path
+        if path.startswith(public_prefixes):
+            return None
+
+        auth_error = authenticate_request()
+        if auth_error is not None:
+            return auth_error
+
+        return None
     
     # Register error handlers
     register_error_handlers(app)

@@ -128,6 +128,38 @@ class CRFExtractionStrategy(ExtractionStrategy):
             next_field_y = context.get("next_field_y")
             # print(f"   📏 [Debug] next_field_y from context: {next_field_y}")
 
+            # Guardrail: next_field_y can be too aggressive for wrapped/multiline values.
+            # If the boundary is too close to the current location's bottom, disable it.
+            try:
+                import os
+
+                location_y1 = None
+                if locations and len(locations) > 0:
+                    location_y1 = locations[0].get("y1")
+
+                if next_field_y and location_y1:
+                    heights = []
+                    for w in all_words:
+                        top = w.get("top")
+                        bottom = w.get("bottom")
+                        if top is None or bottom is None:
+                            continue
+                        h = float(bottom) - float(top)
+                        if h > 0:
+                            heights.append(h)
+
+                    heights.sort()
+                    median_h = heights[len(heights) // 2] if heights else 10.0
+                    min_gap_factor = float(
+                        os.getenv("NEXT_FIELD_Y_MIN_GAP_FACTOR", "1.0")
+                    )
+                    min_gap = median_h * min_gap_factor
+
+                    if float(next_field_y) - float(location_y1) < min_gap:
+                        next_field_y = None
+            except Exception:
+                pass
+
             # ✅ CRITICAL: Get X-boundary from words_after (for fields on same line)
             words_after = context.get("words_after", [])
             next_field_x = None
@@ -137,9 +169,11 @@ class CRFExtractionStrategy(ExtractionStrategy):
 
             # ✅ ADAPTIVE: Get typical field length (learned from training data)
             typical_length = context.get("typical_length")
-            max_length = (
-                int(typical_length * 1.3) if typical_length else None
-            )  # 1.3x = 30% tolerance
+            allow_multiline = field_config.get("allow_multiline")
+            has_boundary_hint = bool(next_field_y) or bool(next_field_x)
+            max_length = None
+            if typical_length and not allow_multiline and not has_boundary_hint:
+                max_length = int(typical_length * 1.3)  # 1.3x = 30% tolerance
             # print(f"   📏 [Debug] typical_length: {typical_length}, max_length: {max_length}")
 
             # ✅ ADAPTIVE: Track parentheses state to skip content inside
