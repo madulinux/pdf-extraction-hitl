@@ -16,3 +16,4 @@ documents/*
 
 # Keep example env file
 !.env.example
+!.env.production

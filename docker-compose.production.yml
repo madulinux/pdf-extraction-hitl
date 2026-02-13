@@ -1,0 +1,182 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: pdf-extraction-traefik
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - app-network
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pdf-extraction-backend
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_APP=${FLASK_APP:-app.py}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - PORT=8000
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/app.db}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ASYNC_PATTERN_LEARNING=${ASYNC_PATTERN_LEARNING:-true}
+      - ASYNC_AUTO_TRAINING=${ASYNC_AUTO_TRAINING:-true}
+      - AUTO_TRAINING=${AUTO_TRAINING:-true}
+      - MIN_NEW_DOCUMENTS=${MIN_NEW_DOCUMENTS:-5}
+      - FULL_RETRAIN_INTERVAL=${FULL_RETRAIN_INTERVAL:-20}
+      - INCREMENTAL_TRAINING_EVALUATE=${INCREMENTAL_TRAINING_EVALUATE:-false}
+      - MULTILINE_INFER_MIN_SAMPLES=${MULTILINE_INFER_MIN_SAMPLES:-5}
+      - MULTILINE_INFER_P90_LENGTH_THRESHOLD=${MULTILINE_INFER_P90_LENGTH_THRESHOLD:-90}
+      - MULTILINE_INFER_MEAN_LENGTH_THRESHOLD=${MULTILINE_INFER_MEAN_LENGTH_THRESHOLD:-70}
+      - MULTILINE_LAYOUT_INFER_MIN_SAMPLES=${MULTILINE_LAYOUT_INFER_MIN_SAMPLES:-5}
+      - MULTILINE_LAYOUT_INFER_MIN_HITS=${MULTILINE_LAYOUT_INFER_MIN_HITS:-2}
+      - MULTILINE_LAYOUT_INFER_MIN_RATIO=${MULTILINE_LAYOUT_INFER_MIN_RATIO:-0.3}
+      - MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR=${MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR:-0.25}
+      - MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR=${MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR:-0.6}
+      - NEXT_FIELD_Y_MIN_GAP_FACTOR=${NEXT_FIELD_Y_MIN_GAP_FACTOR:-1.0}
+    env_file:
+      - .env
+    volumes:
+      - backend-data:/app/data
+      - backend-experiments:/app/experiments
+      - backend-models:/app/models
+      - backend-uploads:/app/uploads
+      - backend-templates:/app/templates
+      - backend-previews:/app/previews
+      - backend-feedback:/app/feedback
+    networks:
+      - app-network
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.tesis-backend.rule=Host(`${BACKEND_DOMAIN}`)
+      - traefik.http.routers.tesis-backend.entrypoints=websecure
+      - traefik.http.routers.tesis-backend.tls.certresolver=letsencrypt
+      - traefik.http.services.tesis-backend.loadbalancer.server.port=8000
+      - traefik.http.routers.tesis-backend-http.rule=Host(`${BACKEND_DOMAIN}`)
+      - traefik.http.routers.tesis-backend-http.entrypoints=web
+      - traefik.http.routers.tesis-backend-http.middlewares=redirect-to-https
+
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pdf-extraction-backend-worker
+    command: ["python", "manage.py", "worker", "--sleep", "5"]
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_APP=${FLASK_APP:-app.py}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - PORT=8000
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/app.db}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ASYNC_PATTERN_LEARNING=${ASYNC_PATTERN_LEARNING:-true}
+      - ASYNC_AUTO_TRAINING=${ASYNC_AUTO_TRAINING:-true}
+      - AUTO_TRAINING=${AUTO_TRAINING:-true}
+      - MIN_NEW_DOCUMENTS=${MIN_NEW_DOCUMENTS:-5}
+      - FULL_RETRAIN_INTERVAL=${FULL_RETRAIN_INTERVAL:-20}
+      - INCREMENTAL_TRAINING_EVALUATE=${INCREMENTAL_TRAINING_EVALUATE:-false}
+      - MULTILINE_INFER_MIN_SAMPLES=${MULTILINE_INFER_MIN_SAMPLES:-5}
+      - MULTILINE_INFER_P90_LENGTH_THRESHOLD=${MULTILINE_INFER_P90_LENGTH_THRESHOLD:-90}
+      - MULTILINE_INFER_MEAN_LENGTH_THRESHOLD=${MULTILINE_INFER_MEAN_LENGTH_THRESHOLD:-70}
+      - MULTILINE_LAYOUT_INFER_MIN_SAMPLES=${MULTILINE_LAYOUT_INFER_MIN_SAMPLES:-5}
+      - MULTILINE_LAYOUT_INFER_MIN_HITS=${MULTILINE_LAYOUT_INFER_MIN_HITS:-2}
+      - MULTILINE_LAYOUT_INFER_MIN_RATIO=${MULTILINE_LAYOUT_INFER_MIN_RATIO:-0.3}
+      - MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR=${MULTILINE_LAYOUT_INFER_X_TOLERANCE_FACTOR:-0.25}
+      - MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR=${MULTILINE_LAYOUT_INFER_Y_GAP_MIN_FACTOR:-0.6}
+      - NEXT_FIELD_Y_MIN_GAP_FACTOR=${NEXT_FIELD_Y_MIN_GAP_FACTOR:-1.0}
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    volumes:
+      - backend-data:/app/data
+      - backend-experiments:/app/experiments
+      - backend-models:/app/models
+      - backend-uploads:/app/uploads
+      - backend-templates:/app/templates
+      - backend-previews:/app/previews
+      - backend-feedback:/app/feedback
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    container_name: pdf-extraction-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NODE_ENV=${NODE_ENV:-production}
+      - NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED:-1}
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.tesis-frontend.rule=Host(`${FRONTEND_DOMAIN}`)
+      - traefik.http.routers.tesis-frontend.entrypoints=websecure
+      - traefik.http.routers.tesis-frontend.tls.certresolver=letsencrypt
+      - traefik.http.services.tesis-frontend.loadbalancer.server.port=3000
+      - traefik.http.routers.tesis-frontend-http.rule=Host(`${FRONTEND_DOMAIN}`)
+      - traefik.http.routers.tesis-frontend-http.entrypoints=web
+      - traefik.http.routers.tesis-frontend-http.middlewares=redirect-to-https
+
+  # Shared middleware: redirect HTTP -> HTTPS
+  # Defined as a dynamic config via labels on the traefik container.
+  # We attach the middleware to the HTTP routers above.
+  #
+  # Note: Traefik v2 uses the middleware name in the format: <name>@docker
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  traefik-letsencrypt:
+    driver: local
+  backend-data:
+    driver: local
+  backend-experiments:
+    driver: local
+  backend-models:
+    driver: local
+  backend-uploads:
+    driver: local
+  backend-templates:
+    driver: local
+  backend-previews:
+    driver: local
+  backend-feedback:
+    driver: local
