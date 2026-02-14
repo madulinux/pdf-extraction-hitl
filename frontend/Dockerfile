@@ -5,6 +5,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Reduce memory spikes during build (common cause of SIGKILL/OOM in small VPS)
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_DISABLE_TURBOPACK=1
+ENV NODE_OPTIONS=--max-old-space-size=1024
+
 # Copy package files
 COPY package*.json ./
 

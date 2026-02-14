@@ -35,10 +35,24 @@ build:
 	@echo "Building Docker images..."
 	docker compose build
 
+build-prod:
+	@echo "Building Docker images..."
+	docker compose -f docker-compose.production.yml build
+
 # Start containers
 up:
 	@echo "Starting containers..."
 	docker compose up -d
+	@echo ""
+	@echo "✅ Services started!"
+	@echo ""
+	@echo "View logs: make logs"
+
+# Start container production
+up-prod:
+	@echo "Startin production containers..."
+	docker compose -f docker-compose.production.yml --env-file .env up -d
+
 	@echo ""
 	@echo "✅ Services started!"
 	@echo ""
@@ -49,19 +63,35 @@ up-build:
 	@echo "Rebuilding and starting containers..."
 	docker compose up --build -d
 
+up-prod-build:
+	@echo "Rebuilding and starting containers..."
+	docker compose -f docker-compose.production.yml --env-file .env up -d --build
+
+
 # Stop containers
 down:
 	@echo "Stopping containers..."
 	docker compose down
 
+down-prod:
+	@echo "Stopping production containers..."
+	docker compose -f docker-compose.production.yml down
+
 # Restart containers
 restart:
 	@echo "Restarting containers..."
-	docker compose restart
+	docker compose -f docker-compose.production.yml restart
+
+restart-prod:
+	@echo "Restarting production containers..."
+	docker compose -f docker-compose.production.yml restart
 
 # View logs
 logs:
 	docker compose logs -f
+
+logs-prod:
+	docker compose -f docker-compose.production.yml logs -f
 
 # View backend logs
 logs-backend:
