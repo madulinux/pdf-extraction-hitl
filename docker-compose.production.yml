@@ -28,9 +28,7 @@ services:
     restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/madulinux/pdf-extraction-hitl-backend:latest
     container_name: pdf-extraction-backend
     environment:
       - FLASK_ENV=${FLASK_ENV:-production}
@@ -80,9 +78,7 @@ services:
       - traefik.http.routers.tesis-backend-http.middlewares=redirect-to-https
 
   backend-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/madulinux/pdf-extraction-hitl-backend:latest
     container_name: pdf-extraction-backend-worker
     command: ["python", "manage.py", "worker", "--sleep", "5"]
     environment:
@@ -126,11 +122,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    image: ghcr.io/madulinux/pdf-extraction-hitl-frontend:latest
     container_name: pdf-extraction-frontend
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
