@@ -237,6 +237,48 @@ def _infer_template_type(template_name):
         return 'unknown'
 
 
+def _calculate_avg_confidence(metrics: dict) -> float:
+    """Calculate average confidence from metrics payload.
+
+    This endpoint is used for dashboard visualization; keep it defensive and
+    avoid throwing if data is missing.
+    """
+    overview = metrics.get('overview') or {}
+
+    # If backend already computed it, reuse.
+    avg = overview.get('avg_confidence')
+    if isinstance(avg, (int, float)):
+        return float(avg)
+
+    # Try to compute from per-field confidence if present.
+    confidence_by_field = overview.get('confidence_by_field')
+    if isinstance(confidence_by_field, dict) and confidence_by_field:
+        vals = [v for v in confidence_by_field.values() if isinstance(v, (int, float))]
+        if vals:
+            return float(sum(vals) / len(vals))
+
+    return 0.0
+
+
+def _get_dominant_strategy(metrics: dict) -> str:
+    """Infer dominant strategy from strategy performance in metrics payload."""
+    strategy_perf = metrics.get('strategy_performance')
+    if not isinstance(strategy_perf, dict) or not strategy_perf:
+        return 'unknown'
+
+    best_strategy = 'unknown'
+    best_accuracy = -1.0
+    for strategy_name, perf in strategy_perf.items():
+        if not isinstance(perf, dict):
+            continue
+        acc = perf.get('overall_accuracy')
+        if isinstance(acc, (int, float)) and float(acc) > best_accuracy:
+            best_accuracy = float(acc)
+            best_strategy = str(strategy_name)
+
+    return best_strategy
+
+
 # Recent activity removed - not needed for thesis dashboard
 
 

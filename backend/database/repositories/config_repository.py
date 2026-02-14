@@ -1063,6 +1063,8 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._normalize_actor(self._current_user_id())
         
         try:
             if matched:
@@ -1264,7 +1266,7 @@ class ConfigRepository:
     # Pattern Statistics (Prefix/Suffix/Noise Learning)
     # ========================================================================
     
-    def upsert_pattern_statistic(
+    def add_or_update_pattern_statistic(
         self,
         field_config_id: int,
         statistic_type: str,
@@ -1291,6 +1293,8 @@ class ConfigRepository:
         """
         conn = self.db.get_connection()
         cursor = conn.cursor()
+
+        actor = self._normalize_actor(self._current_user_id())
         
         try:
             # Check if exists

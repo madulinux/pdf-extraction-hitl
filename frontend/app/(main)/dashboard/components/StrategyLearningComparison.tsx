@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface StrategyLearningComparisonProps {
   strategyPerformance: Record<string, StrategyPerformance>;
-  accuracyOverTime: any[]; // We'll need to enhance this with strategy info
+  accuracyOverTime: unknown[]; // We'll need to enhance this with strategy info
 }
 
 const strategyConfig = {
