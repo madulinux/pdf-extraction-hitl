@@ -54,8 +54,12 @@ export default function TemplatePreview({ templateId }: TemplatePreviewProps) {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingPages, setLoadingPages] = useState(false);
 
-  const API_BASE_URL =
+  const RAW_API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, '').endsWith('/api')
+    ? RAW_API_BASE_URL.replace(/\/+$/, '')
+    : `${RAW_API_BASE_URL.replace(/\/+$/, '')}/api`;
 
   useEffect(() => {
     loadTemplateData();
