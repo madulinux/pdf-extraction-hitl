@@ -14,6 +14,12 @@ import ValidationForm from '@/components/ValidationForm';
 function ValidationPageContent() {
   const params = useParams();
   const router = useRouter();
+  const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, '').endsWith('/api')
+    ? RAW_API_BASE_URL.replace(/\/+$/, '')
+    : `${RAW_API_BASE_URL.replace(/\/+$/, '')}/api`;
+
   const documentId = parseInt(params.id as string);
 
   const [document, setDocument] = useState<Document | null>(null);
@@ -146,7 +152,7 @@ function ValidationPageContent() {
               {/* PDF Preview - Using iframe */}
               <div className="aspect-[8.5/11] relative">
                 <iframe
-                  src={`http://localhost:8000/api/v1/extraction/documents/${documentId}/preview?token=${localStorage.getItem('access_token')}`}
+                  src={`${API_BASE_URL}/v1/extraction/documents/${documentId}/preview?token=${localStorage.getItem('access_token')}`}
                   className="w-full h-full border-0"
                   title="PDF Preview"
                 />

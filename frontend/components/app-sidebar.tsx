@@ -95,7 +95,7 @@ export function AppSidebar() {
           user={{
             name: user?.full_name || "John Doe",
             email: user?.email || "john.doe@example.com",
-            avatar: "https://github.com/johndoe.png",
+            avatar: "https://github.com/madulinux.png",
           }}
           onLogout={handleLogout}
         />
