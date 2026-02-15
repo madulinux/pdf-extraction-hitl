@@ -35,6 +35,7 @@ ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8071
+ENV GUNICORN_WORKERS=1
 
 # Expose port (will be overridden by docker-compose)
 EXPOSE ${PORT}
@@ -44,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Run the application
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8071} --timeout 240 --graceful-timeout 600 -w 4 app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8071} --timeout 240 --graceful-timeout 600 -w ${GUNICORN_WORKERS:-1} app:app"]

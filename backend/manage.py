@@ -315,6 +315,10 @@ def worker():
     db = DatabaseManager()
     job_repo = JobRepository(db)
 
+    stale_reset_count = job_repo.reset_stale_running_jobs(max_age_minutes=30)
+    if stale_reset_count:
+        print(f"ℹ️  Reset {stale_reset_count} stale running job(s) to failed")
+
     try:
         while True:
             job = job_repo.fetch_next_pending_auto_training()

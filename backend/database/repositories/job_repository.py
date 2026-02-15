@@ -124,6 +124,37 @@ class JobRepository:
             return None
         return dict(row)
 
+    def reset_stale_running_jobs(self, max_age_minutes: int = 30) -> int:
+        """Mark running jobs as failed if they have not been updated recently.
+
+        This prevents jobs from getting stuck in 'running' forever if the worker
+        crashes or restarts mid-job.
+
+        Returns:
+            Number of jobs updated.
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET status = 'failed',
+                last_error = COALESCE(last_error, 'stale running job reset by worker'),
+                updated_at = CURRENT_TIMESTAMP,
+                updated_by = ?
+            WHERE status = 'running'
+              AND updated_at IS NOT NULL
+              AND updated_at < datetime('now', ?)
+            """,
+            (self._current_user_id(), f'-{int(max_age_minutes)} minutes'),
+        )
+
+        updated = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return updated
+
     def mark_running(self, job_id: int):
         conn = self.db.get_connection()
         cursor = conn.cursor()
