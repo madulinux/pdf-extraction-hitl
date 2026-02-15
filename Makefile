@@ -1,5 +1,8 @@
 .PHONY: help build up down restart logs clean test volumes
 
+DC := docker compose
+DCP := docker compose -f docker-compose.production.yml --env-file .env
+
 # Default target
 help:
 	@echo "PDF Extraction HITL - Docker Commands"
@@ -33,16 +36,16 @@ help:
 # Build images
 build:
 	@echo "Building Docker images..."
-	docker compose build
+	$(DC) build
 
 build-prod:
 	@echo "Building Docker images..."
-	docker compose -f docker-compose.production.yml build
+	$(DCP) build
 
 # Start containers
 up:
 	@echo "Starting containers..."
-	docker compose up -d
+	$(DC) up -d
 	@echo ""
 	@echo "✅ Services started!"
 	@echo ""
@@ -51,7 +54,7 @@ up:
 # Start container production
 up-prod:
 	@echo "Startin production containers..."
-	docker compose -f docker-compose.production.yml --env-file .env up -d
+	$(DCP) up -d
 
 	@echo ""
 	@echo "✅ Services started!"
@@ -61,72 +64,118 @@ up-prod:
 # Start with rebuild
 up-build:
 	@echo "Rebuilding and starting containers..."
-	docker compose up --build -d
+	$(DC) up --build -d
 
 up-prod-build:
 	@echo "Rebuilding and starting containers..."
-	docker compose -f docker-compose.production.yml --env-file .env up -d --build
+	$(DCP) up -d --build
 
 
 # Stop containers
 down:
 	@echo "Stopping containers..."
-	docker compose down
+	$(DC) down
 
 down-prod:
 	@echo "Stopping production containers..."
-	docker compose -f docker-compose.production.yml down
+	$(DCP) down
 
 # Restart containers
 restart:
 	@echo "Restarting containers..."
-	docker compose -f docker-compose.production.yml restart
+	$(DC) restart
 
 restart-prod:
 	@echo "Restarting production containers..."
-	docker compose -f docker-compose.production.yml restart
+	$(DCP) restart
 
 # View logs
 logs:
-	docker compose logs -f
+	$(DC) logs -f
 
 logs-prod:
-	docker compose -f docker-compose.production.yml logs -f
+	$(DCP) logs -f
 
 # View backend logs
 logs-backend:
-	docker compose logs pdf-extraction-backend -f
+	$(DC) logs -f backend
+
+logs-backend-prod:
+	$(DCP) logs -f backend
 
 # View frontend logs
 logs-frontend:
-	docker compose logs pdf-extraction-frontend -f
+	$(DC) logs -f frontend
+
+logs-frontend-prod:
+	$(DCP) logs -f frontend
+
+logs-worker:
+	$(DC) logs -f backend-worker
+
+logs-worker-prod:
+	$(DCP) logs -f backend-worker
+
+logs-traefik-prod:
+	$(DCP) logs -f traefik
 
 # Clean everything
 clean:
 	@echo "Cleaning up..."
-	docker compose down -v
+	$(DC) down -v
 	@echo "✅ Cleanup complete"
 
 # Run tests
 test:
 	@echo "Running tests..."
-	docker compose run --rm pdf-extraction-backend pytest
+	$(DC) run --rm backend pytest
 
 # Access backend shell
 backend:
-	docker exec -it pdf-extraction-backend /bin/bash
+	$(DC) exec backend sh
+
+backend-prod:
+	$(DCP) exec backend sh
 
 # Access frontend shell
 frontend:
-	docker exec -it pdf-extraction-frontend sh
+	$(DC) exec frontend sh
+
+frontend-prod:
+	$(DCP) exec frontend sh
+
+worker:
+	$(DC) exec backend-worker sh
+
+worker-prod:
+	$(DCP) exec backend-worker sh
+
+traefik-prod:
+	$(DCP) exec traefik sh
 
 # Show container status
 status:
-	docker compose ps
+	$(DC) ps
+
+status-prod:
+	$(DCP) ps
 
 # Show resource usage
 stats:
 	docker stats --no-stream
+
+pull:
+	$(DC) pull
+
+pull-prod:
+	$(DCP) pull
+
+update-prod:
+	$(DCP) pull
+	$(DCP) up -d
+
+recreate-prod:
+	$(DCP) up -d --force-recreate
 
 # Backup data
 backup:
