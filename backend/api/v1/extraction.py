@@ -441,9 +441,10 @@ def list_documents():
     page_size = request.args.get("page_size", 10, type=int)
     search = request.args.get("search", None)
     template_id = request.args.get("template_id", None)
+    status = request.args.get("status", None)
 
     service = get_extraction_service()
-    documents, meta = service.get_all_documents(page, page_size, search, template_id)
+    documents, meta = service.get_all_documents(page, page_size, search, template_id, status)
 
     return APIResponse.success(
         data={"documents": documents},
@@ -560,6 +561,30 @@ def export_extraction_results(template_id):
     if not documents:
         conn.close()
         return APIResponse.not_found("No documents found for this template")
+
+    # Fetch feedback in bulk so export reflects corrected values when available
+    document_ids = [doc.get('id') for doc in documents if doc.get('id') is not None]
+    feedback_by_doc: dict = {}
+    if document_ids:
+        placeholders = ",".join(["?"] * len(document_ids))
+        cursor.execute(
+            f"""
+            SELECT document_id, field_name, corrected_value
+            FROM feedback
+            WHERE document_id IN ({placeholders})
+            """,
+            tuple(document_ids),
+        )
+        for row in cursor.fetchall():
+            doc_id = row[0]
+            field_name = row[1]
+            corrected_value = row[2]
+            if doc_id not in feedback_by_doc:
+                feedback_by_doc[doc_id] = {}
+            feedback_by_doc[doc_id][field_name] = corrected_value
+
+    for doc in documents:
+        doc['feedback_values'] = feedback_by_doc.get(doc.get('id'), {})
     
     # Get field names from database (field_configs table) BEFORE closing connection
     cursor.execute('''

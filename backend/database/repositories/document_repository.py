@@ -280,6 +280,23 @@ class DocumentRepository:
         except Exception as e:
             raise e
 
+    def count_filtered(self, search: str = None, filters: List[dict] = []) -> int:
+        available_filter = ["template_id", "filename", "file_path", "status", "created_by"]
+
+        user_id = self._current_user_id()
+        is_admin = self._is_admin()
+
+        if not is_admin and user_id is not None:
+            filters = list(filters) if filters else []
+            filters.append({"field": "documents.created_by", "operator": "=", "value": user_id})
+
+        return self.db.get_total_items_count_filtered(
+            table_name="documents",
+            search=search,
+            available_filter=available_filter,
+            filters=filters,
+        )
+
     def update_extraction(
         self,
         document_id: int,

@@ -413,24 +413,39 @@ class ExtractionService:
         return result
 
     def get_all_documents(
-        self, page: int = 1, page_size: int = 10, search: str = None, template_id=None
+        self,
+        page: int = 1,
+        page_size: int = 10,
+        search: str = None,
+        template_id=None,
+        status: str = None,
     ):
         if page_size < 1 or page_size > 100:
             page_size = 100
         if page < 1:
             page = 1
 
-        """Get paginated documents"""
-        documents, total_pages = self.document_repo.find_all(
-            page,
-            page_size,
-            search,
-            [{"field": "template_id", "operator": "=", "value": template_id}],
-        )
-        return documents, {
-            "total_pages": total_pages,
+        filters = []
+
+        if template_id is not None and str(template_id) != "":
+            filters.append(
+                {"field": "documents.template_id", "operator": "=", "value": template_id}
+            )
+
+        if status is not None and str(status) != "":
+            filters.append({"field": "documents.status", "operator": "=", "value": status})
+
+        documents, total_pages = self.document_repo.find_all(page, page_size, search, filters)
+        total_items = self.document_repo.count_filtered(search=search, filters=filters)
+
+        meta = {
             "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "total_items": total_items,
         }
+
+        return documents, meta
 
     def get_document_by_id(self, document_id: int) -> Dict:
         """

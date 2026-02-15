@@ -52,18 +52,27 @@ export const extractionAPI = {
     page = 1,
     pageSize = 10,
     templateId = undefined,
+    status = "all",
   }: {
     search?: string;
     page?: number;
     pageSize?: number;
     templateId?: number | undefined;
+    status?: "all" | "validated" | "extracted" | "pending";
   }): Promise<{ documents: Document[]; meta: Record<string, string> }> {
     const params = new URLSearchParams({
       page: page?.toString() || "1",
       page_size: pageSize?.toString() || "10",
-      template_id: templateId?.toString() || "",
       search: search || "",
     });
+
+    if (typeof templateId === "number") {
+      params.set("template_id", templateId.toString());
+    }
+
+    if (status && status !== "all") {
+      params.set("status", status);
+    }
     const apiUrl = `/v1/extraction/documents?${params.toString()}`;
 
     const response = await apiClient.get<{ documents: Document[] }>(apiUrl);

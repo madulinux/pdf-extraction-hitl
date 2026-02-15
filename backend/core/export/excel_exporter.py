@@ -90,6 +90,7 @@ class ExcelExporter:
         # Write data
         for row_idx, doc in enumerate(documents, start=2):
             extraction_result = doc.get('extraction_result', {})
+            feedback_values = doc.get('feedback_values', {})
             
             # Handle different possible structures of extraction_result
             # Structure 1: {"extracted_data": {...}, "metadata": {...}}
@@ -120,7 +121,7 @@ class ExcelExporter:
             # Extracted fields - start from column 6 (after basic info columns)
             for idx, field_name in enumerate(field_names):
                 col_idx = 6 + idx  # Column 6 onwards for extracted fields
-                value = extracted_data.get(field_name, '')
+                value = feedback_values.get(field_name, extracted_data.get(field_name, ''))
                 ws.cell(row=row_idx, column=col_idx, value=value)
             
             # Apply borders

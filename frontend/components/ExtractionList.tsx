@@ -22,6 +22,13 @@ import {
 } from "lucide-react";
 import { Input } from "./ui/input";
 import SimplePagination from "./ui/simple-pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function ExtractionList({
   templateId,
@@ -36,16 +43,26 @@ export default function ExtractionList({
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "validated" | "extracted"
+  >("all");
+
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value as "all" | "validated" | "extracted");
+    setPage(1);
+  };
 
   useEffect(() => {
     loadDocuments();
-  }, [search, templateId, page, pageSize]);
+  }, [search, statusFilter, templateId, page, pageSize]);
 
   const loadDocuments = async () => {
     try {
       setLoading(true);
       const response = await extractionAPI.listDocuments({
         search,
+        status: statusFilter,
         templateId,
         page,
         pageSize,
@@ -53,6 +70,7 @@ export default function ExtractionList({
       setDocuments(response.documents);
       setPage(Number(response.meta.page));
       setTotalPages(Number(response.meta.total_pages));
+      setTotalItems(Number(response.meta.total_items || 0));
     } catch (err) {
       setError("Gagal memuat daftar dokumen");
       console.error(err);
@@ -137,7 +155,7 @@ export default function ExtractionList({
       <CardHeader>
         <CardTitle>Daftar Hasil Ekstraksi</CardTitle>
         <CardDescription>
-          {documents.length} dokumen telah diekstraksi
+          {totalItems} dokumen telah diekstraksi
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -148,8 +166,23 @@ export default function ExtractionList({
             value={search}
             className="w-1/2"
             autoFocus
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua</SelectItem>
+                <SelectItem value="validated">Tervalidasi</SelectItem>
+                <SelectItem value="extracted">Belum divalidasi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         {totalPages > 1 && (
           <div className="p-4">
@@ -158,7 +191,10 @@ export default function ExtractionList({
               totalPages={totalPages}
               pageSize={pageSize}
               onPageChange={(newPage) => setPage(newPage)}
-              onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
+              onPageSizeChange={(newPageSize) => {
+                setPageSize(newPageSize);
+                setPage(1);
+              }}
             />
           </div>
         )}
@@ -226,7 +262,10 @@ export default function ExtractionList({
               totalPages={totalPages}
               pageSize={pageSize}
               onPageChange={(newPage) => setPage(newPage)}
-              onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
+              onPageSizeChange={(newPageSize) => {
+                setPageSize(newPageSize);
+                setPage(1);
+              }}
             />
           </div>
         )}
